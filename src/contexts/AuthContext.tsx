@@ -7,21 +7,13 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
-
-interface UserProfile {
-  uid: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'driver';
-  phone?: string;
-  createdAt: Date;
-}
+import { UserInfo, Role } from '@/types/user';
 
 interface AuthContextType {
   currentUser: User | null;
-  userProfile: UserProfile | null;
+  userInfo: UserInfo | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -40,7 +32,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const login = async (email: string, password: string) => {
@@ -48,7 +40,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    setUserProfile(null);
+    localStorage.removeItem('userInfo');
+    setUserInfo(null);
     return signOut(auth);
   };
 
@@ -56,31 +49,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return sendPasswordResetEmail(auth, email);
   };
 
-  const fetchUserProfile = async (user: User) => {
+  const fetchUserInfo = async (user: User) => {
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setUserProfile({
-          uid: user.uid,
+      // Check localStorage first
+      const storedUserInfo = localStorage.getItem('userInfo');
+      if (storedUserInfo) {
+        const userData = JSON.parse(storedUserInfo);
+        setUserInfo(userData);
+        return;
+      }
+
+      // Check superAdmin path first
+      const superAdminDocRef = doc(db, `Easy2Solutions/companyDirectory/superAdmins/${user.uid}`);
+      const superAdminSnapshot = await getDoc(superAdminDocRef);
+
+      if (superAdminSnapshot.exists()) {
+        const userInfoData: UserInfo = {
+          userId: user.uid,
+          companyId: null,
+          role: Role.SUPER_ADMIN,
+          userName: user.displayName || '',
           email: user.email || '',
-          name: data.name || '',
-          role: data.role || 'driver',
-          phone: data.phone,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        });
+          name: user.displayName || '',
+        };
+        localStorage.setItem('userInfo', JSON.stringify(userInfoData));
+        setUserInfo(userInfoData);
+        return;
+      }
+
+      // Check common users path
+      const usersQuery = query(
+        collection(db, 'Easy2Solutions/companyDirectory/users'),
+        where('userId', '==', user.uid),
+        limit(1)
+      );
+      const querySnapshot = await getDocs(usersQuery);
+
+      if (!querySnapshot.empty) {
+        const userData = querySnapshot.docs[0].data();
+        const userInfoData: UserInfo = {
+          userId: userData.userId || user.uid,
+          companyId: userData.companyId || null,
+          role: userData.role || Role.COMPANY_ADMIN,
+          userName: userData.userName || user.displayName || '',
+          email: userData.email || user.email || '',
+          name: userData.name || user.displayName || '',
+          userType: userData.userType,
+          latitude: userData.latitude,
+          longitude: userData.longitude,
+          dailyWage: userData.dailyWage,
+          mobileNumber: userData.mobileNumber,
+          businessName: userData.businessName,
+          address: userData.address,
+        };
+        localStorage.setItem('userInfo', JSON.stringify(userInfoData));
+        setUserInfo(userInfoData);
+      } else {
+        throw new Error('User not found in any Tenant Company.');
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error fetching user info:', error);
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        await fetchUserProfile(user);
+        await fetchUserInfo(user);
       } else {
-        setUserProfile(null);
+        setUserInfo(null);
+        localStorage.removeItem('userInfo');
       }
       setCurrentUser(user);
       setLoading(false);
@@ -91,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     currentUser,
-    userProfile,
+    userInfo,
     login,
     logout,
     resetPassword,

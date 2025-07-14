@@ -3,17 +3,18 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { Role } from '@/types/user';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'admin' | 'driver';
+  requiredRole?: Role;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requiredRole 
 }) => {
-  const { currentUser, userProfile, loading } = useAuth();
+  const { currentUser, userInfo, loading } = useAuth();
 
   if (loading) {
     return (
@@ -23,11 +24,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser || !userInfo) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && userProfile?.role !== requiredRole) {
+  if (requiredRole && userInfo.role !== requiredRole) {
     return <Navigate to="/unauthorized" replace />;
   }
 
