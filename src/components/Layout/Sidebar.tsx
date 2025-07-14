@@ -31,7 +31,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const location = useLocation();
-  const { logout, userProfile } = useAuth();
+  const { logout, userInfo } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -85,10 +85,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
       {/* User Info & Logout */}
       <div className="p-4 border-t border-primary-foreground/10">
-        {!collapsed && userProfile && (
+        {!collapsed && userInfo && (
           <div className="mb-3">
-            <p className="text-sm font-medium">{userProfile.name}</p>
-            <p className="text-xs text-primary-foreground/70 capitalize">{userProfile.role}</p>
+            <p className="text-sm font-medium">{userInfo.name}</p>
+            <p className="text-xs text-primary-foreground/70 capitalize">{userInfo.role}</p>
           </div>
         )}
         <Button
