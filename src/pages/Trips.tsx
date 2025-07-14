@@ -1,13 +1,15 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, MapPin, Clock, User, Truck } from 'lucide-react';
 import { useTrips } from '@/hooks/useFirebaseData';
+import AddItemModal from '@/components/Modals/AddItemModal';
+import AddTripForm from '@/components/Forms/AddTripForm';
 
 const Trips: React.FC = () => {
   const { trips, loading } = useTrips();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -22,6 +24,10 @@ const Trips: React.FC = () => {
     }
   };
 
+  const handleAddSuccess = () => {
+    setIsModalOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -30,10 +36,14 @@ const Trips: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Trip Management</h1>
             <p className="text-gray-600 mt-2">Manage and monitor all transportation trips</p>
           </div>
-          <Button className="gradient-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            New Trip
-          </Button>
+          <AddItemModal
+            title="Add New Trip"
+            buttonText="New Trip"
+            isOpen={isModalOpen}
+            onOpenChange={setIsModalOpen}
+          >
+            <AddTripForm onSuccess={handleAddSuccess} />
+          </AddItemModal>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
@@ -63,10 +73,14 @@ const Trips: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Trip Management</h1>
           <p className="text-gray-600 mt-2">Manage and monitor all transportation trips</p>
         </div>
-        <Button className="gradient-primary">
-          <Plus className="w-4 h-4 mr-2" />
-          New Trip
-        </Button>
+        <AddItemModal
+          title="Add New Trip"
+          buttonText="New Trip"
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+        >
+          <AddTripForm onSuccess={handleAddSuccess} />
+        </AddItemModal>
       </div>
 
       {trips.length === 0 ? (
@@ -77,10 +91,14 @@ const Trips: React.FC = () => {
             <p className="text-gray-500 text-center mb-4">
               Get started by creating your first trip in the system.
             </p>
-            <Button className="gradient-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Create First Trip
-            </Button>
+            <AddItemModal
+              title="Add New Trip"
+              buttonText="Create First Trip"
+              isOpen={isModalOpen}
+              onOpenChange={setIsModalOpen}
+            >
+              <AddTripForm onSuccess={handleAddSuccess} />
+            </AddItemModal>
           </CardContent>
         </Card>
       ) : (

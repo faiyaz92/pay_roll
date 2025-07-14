@@ -1,13 +1,15 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Truck, Gauge, Wrench, Calendar, MapPin } from 'lucide-react';
 import { useVehicles } from '@/hooks/useFirebaseData';
+import AddItemModal from '@/components/Modals/AddItemModal';
+import AddVehicleForm from '@/components/Forms/AddVehicleForm';
 
 const Vehicles: React.FC = () => {
   const { vehicles, loading } = useVehicles();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -22,6 +24,10 @@ const Vehicles: React.FC = () => {
     }
   };
 
+  const handleAddSuccess = () => {
+    setIsModalOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -30,10 +36,14 @@ const Vehicles: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Vehicle Management</h1>
             <p className="text-gray-600 mt-2">Manage your fleet vehicles and their maintenance</p>
           </div>
-          <Button className="gradient-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Vehicle
-          </Button>
+          <AddItemModal
+            title="Add New Vehicle"
+            buttonText="Add Vehicle"
+            isOpen={isModalOpen}
+            onOpenChange={setIsModalOpen}
+          >
+            <AddVehicleForm onSuccess={handleAddSuccess} />
+          </AddItemModal>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
@@ -63,10 +73,14 @@ const Vehicles: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Vehicle Management</h1>
           <p className="text-gray-600 mt-2">Manage your fleet vehicles and their maintenance</p>
         </div>
-        <Button className="gradient-primary">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Vehicle
-        </Button>
+        <AddItemModal
+          title="Add New Vehicle"
+          buttonText="Add Vehicle"
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+        >
+          <AddVehicleForm onSuccess={handleAddSuccess} />
+        </AddItemModal>
       </div>
 
       {vehicles.length === 0 ? (
@@ -77,10 +91,14 @@ const Vehicles: React.FC = () => {
             <p className="text-gray-500 text-center mb-4">
               Get started by adding your first vehicle to the fleet.
             </p>
-            <Button className="gradient-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Add First Vehicle
-            </Button>
+            <AddItemModal
+              title="Add New Vehicle"
+              buttonText="Add First Vehicle"
+              isOpen={isModalOpen}
+              onOpenChange={setIsModalOpen}
+            >
+              <AddVehicleForm onSuccess={handleAddSuccess} />
+            </AddItemModal>
           </CardContent>
         </Card>
       ) : (

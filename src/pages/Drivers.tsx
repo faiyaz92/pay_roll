@@ -1,13 +1,15 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, User, Phone, MapPin, Truck, Clock } from 'lucide-react';
 import { useDrivers } from '@/hooks/useFirebaseData';
+import AddItemModal from '@/components/Modals/AddItemModal';
+import AddDriverForm from '@/components/Forms/AddDriverForm';
 
 const Drivers: React.FC = () => {
   const { drivers, loading } = useDrivers();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -22,6 +24,10 @@ const Drivers: React.FC = () => {
     }
   };
 
+  const handleAddSuccess = () => {
+    setIsModalOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -30,10 +36,14 @@ const Drivers: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Driver Management</h1>
             <p className="text-gray-600 mt-2">Manage your fleet drivers and their assignments</p>
           </div>
-          <Button className="gradient-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Driver
-          </Button>
+          <AddItemModal
+            title="Add New Driver"
+            buttonText="Add Driver"
+            isOpen={isModalOpen}
+            onOpenChange={setIsModalOpen}
+          >
+            <AddDriverForm onSuccess={handleAddSuccess} />
+          </AddItemModal>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
@@ -63,10 +73,14 @@ const Drivers: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Driver Management</h1>
           <p className="text-gray-600 mt-2">Manage your fleet drivers and their assignments</p>
         </div>
-        <Button className="gradient-primary">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Driver
-        </Button>
+        <AddItemModal
+          title="Add New Driver"
+          buttonText="Add Driver"
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+        >
+          <AddDriverForm onSuccess={handleAddSuccess} />
+        </AddItemModal>
       </div>
 
       {drivers.length === 0 ? (
@@ -77,10 +91,14 @@ const Drivers: React.FC = () => {
             <p className="text-gray-500 text-center mb-4">
               Get started by adding your first driver to the system.
             </p>
-            <Button className="gradient-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Add First Driver
-            </Button>
+            <AddItemModal
+              title="Add New Driver"
+              buttonText="Add First Driver"
+              isOpen={isModalOpen}
+              onOpenChange={setIsModalOpen}
+            >
+              <AddDriverForm onSuccess={handleAddSuccess} />
+            </AddItemModal>
           </CardContent>
         </Card>
       ) : (
