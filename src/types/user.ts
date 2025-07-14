@@ -3,15 +3,23 @@ export enum Role {
   SUPER_ADMIN = 'super_admin',
   COMPANY_ADMIN = 'company_admin',
   DRIVER = 'driver',
-  MANAGER = 'manager'
+  MANAGER = 'manager',
+  DISPATCHER = 'dispatcher',
+  FLEET_MANAGER = 'fleet_manager',
+  MAINTENANCE_MANAGER = 'maintenance_manager',
+  ACCOUNTANT = 'accountant'
 }
 
 export enum UserType {
   Employee = 'Employee',
+  Driver = 'Driver',
+  Manager = 'Manager',
+  Dispatcher = 'Dispatcher',
+  FleetManager = 'FleetManager',
+  MaintenanceManager = 'MaintenanceManager',
+  Accountant = 'Accountant',
   Supplier = 'Supplier',
   Customer = 'Customer',
-  Boss = 'Boss',
-  ThirdPartyVendor = 'ThirdPartyVendor',
   Contractor = 'Contractor'
 }
 
@@ -31,6 +39,11 @@ export interface UserInfo {
   address?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  // Transportation specific fields
+  licenseNumber?: string;
+  vehicleAssigned?: string;
+  employeeId?: string;
+  department?: string;
 }
 
 export interface TenantCompany {
@@ -46,4 +59,8 @@ export interface TenantCompany {
   address?: string;
   createdBy: string;
   createdAt: Date;
+  // Transportation specific fields
+  fleetSize?: number;
+  operatingLicense?: string;
+  insuranceDetails?: string;
 }

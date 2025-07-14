@@ -30,5 +30,13 @@ export const useFirestorePaths = (companyId?: string) => {
     getTripsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/trips` : '',
     getCitiesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/cities` : '',
     getRoutesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/routes` : '',
+    getMaintenanceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/maintenanceRecords` : '',
+    getFuelRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelRecords` : '',
+    getExpensesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/expenses` : '',
+    getCustomersPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/customers` : '',
+    getBookingsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/bookings` : '',
+    getPaymentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/payments` : '',
+    getNotificationsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/notifications` : '',
+    getReportsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/reports` : '',
   }), [companyId, basePath, tenantCompaniesPath]);
 };

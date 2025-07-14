@@ -9,7 +9,13 @@ import {
   Route, 
   Navigation,
   Settings,
-  LogOut
+  LogOut,
+  Wrench,
+  Fuel,
+  DollarSign,
+  FileText,
+  Bell,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -22,6 +28,12 @@ const navigation = [
   { name: 'Drivers', href: '/drivers', icon: Users },
   { name: 'Cities', href: '/cities', icon: MapPin },
   { name: 'Routes', href: '/routes', icon: Route },
+  { name: 'Maintenance', href: '/maintenance', icon: Wrench },
+  { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
+  { name: 'Expenses', href: '/expenses', icon: DollarSign },
+  { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'Bookings', href: '/bookings', icon: Calendar },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -88,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         {!collapsed && userInfo && (
           <div className="mb-3">
             <p className="text-sm font-medium">{userInfo.name}</p>
-            <p className="text-xs text-primary-foreground/70 capitalize">{userInfo.role}</p>
+            <p className="text-xs text-primary-foreground/70 capitalize">{userInfo.role.replace('_', ' ')}</p>
           </div>
         )}
         <Button

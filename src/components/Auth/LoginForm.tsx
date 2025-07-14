@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, Loader2, Eye, EyeOff, Truck } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginForm = () => {
@@ -93,7 +94,7 @@ const LoginForm = () => {
           </div>
           <CardTitle className="text-2xl font-bold">TransportPro</CardTitle>
           <CardDescription>
-            {showResetPassword ? 'Reset your password' : 'Sign in to your account'}
+            {showResetPassword ? 'Reset your password' : 'Sign in to your transportation management system'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -181,16 +182,6 @@ const LoginForm = () => {
               )}
             </div>
           </form>
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <div className="flex items-center justify-center space-x-1">
-              <AlertCircle className="h-4 w-4" />
-              <span>Firebase Configuration Required</span>
-            </div>
-            <div className="mt-2 text-xs">
-              Update Firebase config in src/config/firebase.ts
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
