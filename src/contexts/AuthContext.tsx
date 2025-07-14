@@ -51,10 +51,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserInfo = async (user: User) => {
     try {
+      console.log('Fetching user info for:', user.uid);
+      
       // Check localStorage first
       const storedUserInfo = localStorage.getItem('userInfo');
       if (storedUserInfo) {
         const userData = JSON.parse(storedUserInfo);
+        console.log('Found stored user info:', userData);
         setUserInfo(userData);
         return;
       }
@@ -64,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const superAdminSnapshot = await getDoc(superAdminDocRef);
 
       if (superAdminSnapshot.exists()) {
+        console.log('User is super admin');
         const userInfoData: UserInfo = {
           userId: user.uid,
           companyId: null,
@@ -86,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const querySnapshot = await getDocs(usersQuery);
 
       if (!querySnapshot.empty) {
+        console.log('Found user in common users');
         const userData = querySnapshot.docs[0].data();
         const userInfoData: UserInfo = {
           userId: userData.userId || user.uid,
@@ -105,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('userInfo', JSON.stringify(userInfoData));
         setUserInfo(userInfoData);
       } else {
+        console.error('User not found in any Tenant Company.');
         throw new Error('User not found in any Tenant Company.');
       }
     } catch (error) {
@@ -113,7 +119,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    console.log('Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user?.uid || 'null');
+      
       if (user) {
         await fetchUserInfo(user);
       } else {
@@ -138,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
