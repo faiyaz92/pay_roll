@@ -5,11 +5,13 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, getDocs, collection, query, where, limit } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, limit, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { UserInfo, Role } from '@/types/user';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -17,6 +19,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  createDriverAccount: (email: string, password: string, driverData: any) => Promise<void>;
+  createCustomerAccount: (email: string, password: string, customerData: any) => Promise<void>;
   loading: boolean;
 }
 
@@ -47,6 +51,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     return sendPasswordResetEmail(auth, email);
+  };
+
+  const createDriverAccount = async (email: string, password: string, driverData: any) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Create user document in Firestore
+    const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${driverData.companyId}/users/${user.uid}`);
+    await setDoc(userDocRef, {
+      userId: user.uid,
+      email: user.email,
+      role: Role.DRIVER,
+      ...driverData,
+      createdAt: new Date().toISOString(),
+    });
+    
+    return user;
+  };
+
+  const createCustomerAccount = async (email: string, password: string, customerData: any) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Create user document in common users collection
+    const userDocRef = doc(db, `Easy2Solutions/companyDirectory/users/${user.uid}`);
+    await setDoc(userDocRef, {
+      userId: user.uid,
+      email: user.email,
+      role: Role.CUSTOMER,
+      ...customerData,
+      createdAt: new Date().toISOString(),
+    });
+    
+    return user;
   };
 
   const fetchUserInfo = async (user: User) => {
@@ -95,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userInfoData: UserInfo = {
           userId: userData.userId || user.uid,
           companyId: userData.companyId || null,
-          role: userData.role || Role.COMPANY_ADMIN,
+          role: userData.role || Role.CUSTOMER,
           userName: userData.userName || user.displayName || '',
           email: userData.email || user.email || '',
           name: userData.name || user.displayName || '',
@@ -109,10 +147,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         localStorage.setItem('userInfo', JSON.stringify(userInfoData));
         setUserInfo(userInfoData);
-      } else {
-        console.error('User not found in any Tenant Company.');
-        throw new Error('User not found in any Tenant Company.');
+        return;
       }
+
+      // Check in all tenant companies for drivers and company admins
+      const companiesRef = collection(db, 'Easy2Solutions/companyDirectory/tenantCompanies');
+      const companiesSnapshot = await getDocs(companiesRef);
+      
+      for (const companyDoc of companiesSnapshot.docs) {
+        const companyId = companyDoc.id;
+        
+        // Check users in this company
+        const companyUsersRef = collection(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`);
+        const userDoc = doc(companyUsersRef, user.uid);
+        const userSnapshot = await getDoc(userDoc);
+        
+        if (userSnapshot.exists()) {
+          console.log('Found user in company:', companyId);
+          const userData = userSnapshot.data();
+          const userInfoData: UserInfo = {
+            userId: userData.userId || user.uid,
+            companyId: companyId,
+            role: userData.role || Role.DRIVER,
+            userName: userData.userName || user.displayName || '',
+            email: userData.email || user.email || '',
+            name: userData.name || user.displayName || '',
+            userType: userData.userType,
+            latitude: userData.latitude,
+            longitude: userData.longitude,
+            dailyWage: userData.dailyWage,
+            mobileNumber: userData.mobileNumber,
+            businessName: userData.businessName,
+            address: userData.address,
+            licenseNumber: userData.licenseNumber,
+            vehicleAssigned: userData.vehicleAssigned,
+            employeeId: userData.employeeId,
+            department: userData.department,
+            isActive: userData.isActive,
+          };
+          localStorage.setItem('userInfo', JSON.stringify(userInfoData));
+          setUserInfo(userInfoData);
+          return;
+        }
+      }
+
+      console.error('User not found in any collection.');
+      throw new Error('User not found in any collection.');
     } catch (error) {
       console.error('Error fetching user info:', error);
     }
@@ -142,6 +222,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     resetPassword,
+    createDriverAccount,
+    createCustomerAccount,
     loading
   };
 

@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useDrivers } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Driver } from '@/hooks/useFirebaseData';
 
 const driverSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   licenseNumber: z.string().min(5, 'License number is required'),
   experience: z.string().min(1, 'Experience is required'),
@@ -29,6 +31,7 @@ interface AddDriverFormProps {
 
 const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
   const { addDriver } = useDrivers();
+  const { createDriverAccount, userInfo } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<DriverFormData>({
@@ -36,6 +39,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
     defaultValues: {
       name: '',
       email: '',
+      password: '',
       phone: '',
       licenseNumber: '',
       experience: '',
@@ -46,6 +50,26 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
 
   const onSubmit = async (data: DriverFormData) => {
     try {
+      if (!userInfo?.companyId) {
+        toast({
+          title: 'Error',
+          description: 'Company information not found',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create authentication account and user document
+      await createDriverAccount(data.email, data.password, {
+        name: data.name,
+        userName: data.name,
+        mobileNumber: data.phone,
+        licenseNumber: data.licenseNumber,
+        companyId: userInfo.companyId,
+        isActive: true,
+      });
+
+      // Create driver record
       const driverData: Omit<Driver, 'id'> = {
         name: data.name,
         email: data.email,
@@ -57,20 +81,22 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
         totalTrips: 0,
         rating: 5.0,
         joinDate: new Date().toISOString(),
-        companyId: '', // Will be set by the hook
+        companyId: userInfo.companyId,
       };
 
       await addDriver(driverData);
+      
       toast({
         title: 'Success',
-        description: 'Driver added successfully',
+        description: 'Driver added successfully with authentication account',
       });
       form.reset();
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error adding driver:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add driver',
+        description: error.message || 'Failed to add driver',
         variant: 'destructive',
       });
     }
@@ -101,6 +127,20 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input type="email" placeholder="Enter email address" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="Enter password for driver login" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -187,7 +227,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
         />
 
         <Button type="submit" className="w-full">
-          Add Driver
+          Add Driver with Authentication
         </Button>
       </form>
     </Form>

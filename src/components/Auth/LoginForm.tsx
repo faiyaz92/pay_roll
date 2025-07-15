@@ -6,10 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff, Truck, User, UserCheck } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Truck } from 'lucide-react';
 import { toast } from 'sonner';
-import { Role } from '@/types/user';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
@@ -17,7 +15,6 @@ const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const [loginType, setLoginType] = useState<'admin' | 'driver' | 'customer'>('admin');
   const { currentUser, login, resetPassword } = useAuth();
   const navigate = useNavigate();
 
@@ -38,7 +35,7 @@ const LoginForm = () => {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      navigate('/dashboard');
+      // Navigation will be handled by AuthContext based on user role
     } catch (error: any) {
       console.error('Login error:', error);
       let errorMessage = 'Login failed. Please try again.';
@@ -88,66 +85,26 @@ const LoginForm = () => {
     }
   };
 
-  const getLoginDescription = () => {
-    switch (loginType) {
-      case 'admin':
-        return 'Sign in as Company Admin to manage your transportation fleet';
-      case 'driver':
-        return 'Sign in as Driver to manage your trips and deliveries';
-      case 'customer':
-        return 'Sign in as Customer to book transportation services';
-      default:
-        return 'Sign in to your transportation management system';
-    }
-  };
-
-  const getLoginIcon = () => {
-    switch (loginType) {
-      case 'admin':
-        return <UserCheck className="w-8 h-8 text-white" />;
-      case 'driver':
-        return <Truck className="w-8 h-8 text-white" />;
-      case 'customer':
-        return <User className="w-8 h-8 text-white" />;
-      default:
-        return <Truck className="w-8 h-8 text-white" />;
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center gradient-primary p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
-            {getLoginIcon()}
+            <Truck className="w-8 h-8 text-white" />
           </div>
           <CardTitle className="text-2xl font-bold">TransportPro</CardTitle>
           <CardDescription>
-            {showResetPassword ? 'Reset your password' : getLoginDescription()}
+            {showResetPassword ? 'Reset your password' : 'Sign in to your account'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!showResetPassword && (
-            <Tabs value={loginType} onValueChange={(value) => setLoginType(value as any)} className="mb-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="admin">Admin</TabsTrigger>
-                <TabsTrigger value="driver">Driver</TabsTrigger>
-                <TabsTrigger value="customer">Customer</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-
           <form onSubmit={showResetPassword ? handleResetPassword : handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder={
-                  loginType === 'admin' ? 'admin@transportpro.com' :
-                  loginType === 'driver' ? 'driver@transportpro.com' :
-                  'customer@transportpro.com'
-                }
+                placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
@@ -198,7 +155,7 @@ const LoginForm = () => {
                     {showResetPassword ? 'Sending...' : 'Signing in...'}
                   </>
                 ) : (
-                  showResetPassword ? 'Send Reset Email' : `Sign In as ${loginType.charAt(0).toUpperCase() + loginType.slice(1)}`
+                  showResetPassword ? 'Send Reset Email' : 'Sign In'
                 )}
               </Button>
 
