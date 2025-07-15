@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -58,7 +57,16 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
   const onSubmit = async (data: TripFormData) => {
     try {
       const tripData: Omit<Trip, 'id'> = {
-        ...data,
+        driver: data.driver,
+        vehicle: data.vehicle,
+        route: data.route,
+        status: data.status,
+        startTime: data.startTime,
+        estimatedArrival: data.estimatedArrival,
+        currentLoad: data.currentLoad,
+        totalCapacity: data.totalCapacity,
+        distance: data.distance,
+        fuelConsumption: data.fuelConsumption,
         progress: 0,
         currentLocation: 'Starting Point',
         companyId: '', // Will be set by the hook

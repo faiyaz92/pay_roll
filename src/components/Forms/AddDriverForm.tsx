@@ -47,7 +47,13 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
   const onSubmit = async (data: DriverFormData) => {
     try {
       const driverData: Omit<Driver, 'id'> = {
-        ...data,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        licenseNumber: data.licenseNumber,
+        experience: data.experience,
+        status: data.status,
+        currentLocation: data.currentLocation,
         totalTrips: 0,
         rating: 5.0,
         joinDate: new Date().toISOString(),
