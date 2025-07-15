@@ -26,6 +26,9 @@ export enum UserType {
 
 export enum TenantCompanyType {
   TRANSPORTATION = 'Transportation',
+  INVENTORY = 'Inventory',
+  BILLING = 'Billing',
+  PERFORMANCE_TRACKING = 'Performance Tracking',
   LOGISTICS = 'Logistics',
   DELIVERY = 'Delivery',
   RETAIL = 'Retail'
@@ -73,4 +76,34 @@ export interface TenantCompany {
   fleetSize?: number;
   operatingLicense?: string;
   insuranceDetails?: string;
+}
+
+// Add interfaces for Cities and Routes
+export interface City {
+  id: string;
+  name: string;
+  state: string;
+  country: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
+  isActive: boolean;
+  createdAt: Date;
+  companyId: string;
+}
+
+export interface Route {
+  id: string;
+  name: string;
+  fromCity: string;
+  toCity: string;
+  distance: number; // in km
+  estimatedDuration: number; // in minutes
+  farePerKm?: number;
+  baseFare?: number;
+  tollCharges?: number;
+  isActive: boolean;
+  createdAt: Date;
+  companyId: string;
+  waypoints?: string[]; // intermediate cities
 }

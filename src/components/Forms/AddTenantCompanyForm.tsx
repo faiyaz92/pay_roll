@@ -21,7 +21,7 @@ const companySchema = z.object({
   state: z.string().min(2, 'State is required'),
   zipCode: z.string().min(5, 'Zip code is required'),
   gstin: z.string().optional(),
-  companyType: z.enum(['Transportation', 'Logistics', 'Delivery', 'Retail']),
+  companyType: z.enum(['Transportation', 'Inventory', 'Billing', 'Performance Tracking', 'Logistics', 'Delivery', 'Retail']),
   fleetSize: z.string().optional(),
   operatingLicense: z.string().optional(),
 });
@@ -149,6 +149,9 @@ const AddTenantCompanyForm: React.FC<AddTenantCompanyFormProps> = ({ onSuccess }
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="Transportation">Transportation</SelectItem>
+                  <SelectItem value="Inventory">Inventory</SelectItem>
+                  <SelectItem value="Billing">Billing</SelectItem>
+                  <SelectItem value="Performance Tracking">Performance Tracking</SelectItem>
                   <SelectItem value="Logistics">Logistics</SelectItem>
                   <SelectItem value="Delivery">Delivery</SelectItem>
                   <SelectItem value="Retail">Retail</SelectItem>
@@ -233,35 +236,37 @@ const AddTenantCompanyForm: React.FC<AddTenantCompanyFormProps> = ({ onSuccess }
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="fleetSize"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fleet Size (Optional)</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="Number of vehicles" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {(form.watch('companyType') === 'Transportation' || form.watch('companyType') === 'Logistics' || form.watch('companyType') === 'Delivery') && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="fleetSize"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fleet Size (Optional)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Number of vehicles" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="operatingLicense"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Operating License (Optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter license number" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+            <FormField
+              control={form.control}
+              name="operatingLicense"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Operating License (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter license number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         <Button type="submit" className="w-full">
           Add Tenant Company
