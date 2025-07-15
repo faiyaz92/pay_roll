@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,6 +22,11 @@ const tripSchema = z.object({
   totalCapacity: z.string().min(1, 'Total capacity is required'),
   distance: z.string().min(1, 'Distance is required'),
   fuelConsumption: z.string().min(1, 'Fuel consumption is required'),
+  pickupLocation: z.string().min(1, 'Pickup location is required'),
+  dropLocation: z.string().min(1, 'Drop location is required'),
+  customerInfo: z.string().optional(),
+  fare: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 type TripFormData = z.infer<typeof tripSchema>;
@@ -51,6 +57,11 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
       totalCapacity: '',
       distance: '',
       fuelConsumption: '',
+      pickupLocation: '',
+      dropLocation: '',
+      customerInfo: '',
+      fare: '',
+      notes: '',
     },
   });
 
@@ -67,9 +78,18 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         totalCapacity: data.totalCapacity,
         distance: data.distance,
         fuelConsumption: data.fuelConsumption,
+        pickupLocation: data.pickupLocation,
+        dropLocation: data.dropLocation,
+        customerInfo: data.customerInfo || '',
+        fare: data.fare ? parseFloat(data.fare) : 0,
+        notes: data.notes || '',
         progress: 0,
         currentLocation: 'Starting Point',
         companyId: '', // Will be set by the hook
+        createdBy: '', // Will be set by the hook
+        createdByRole: 'company_admin' as any, // Will be set by the hook
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       await addTrip(tripData);
@@ -154,6 +174,36 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
             </FormItem>
           )}
         />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="pickupLocation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pickup Location</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Mumbai Central" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="dropLocation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Drop Location</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Pune Station" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -261,6 +311,50 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
                 <FormLabel>Fuel Consumption</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., 10 L" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="customerInfo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Customer Info (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Customer name or details" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="fare"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fare (Optional)</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Amount in ₹" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes (Optional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Additional notes" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
