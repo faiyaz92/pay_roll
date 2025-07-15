@@ -7,7 +7,8 @@ export enum Role {
   DISPATCHER = 'dispatcher',
   FLEET_MANAGER = 'fleet_manager',
   MAINTENANCE_MANAGER = 'maintenance_manager',
-  ACCOUNTANT = 'accountant'
+  ACCOUNTANT = 'accountant',
+  CUSTOMER = 'customer'
 }
 
 export enum UserType {
@@ -21,6 +22,13 @@ export enum UserType {
   Supplier = 'Supplier',
   Customer = 'Customer',
   Contractor = 'Contractor'
+}
+
+export enum TenantCompanyType {
+  TRANSPORTATION = 'Transportation',
+  LOGISTICS = 'Logistics',
+  DELIVERY = 'Delivery',
+  RETAIL = 'Retail'
 }
 
 export interface UserInfo {
@@ -44,6 +52,7 @@ export interface UserInfo {
   vehicleAssigned?: string;
   employeeId?: string;
   department?: string;
+  isActive?: boolean;
 }
 
 export interface TenantCompany {
@@ -59,6 +68,7 @@ export interface TenantCompany {
   address?: string;
   createdBy: string;
   createdAt: Date;
+  companyType: TenantCompanyType;
   // Transportation specific fields
   fleetSize?: number;
   operatingLicense?: string;
