@@ -8,7 +8,7 @@ import AddTenantCompanyForm from '@/components/Forms/AddTenantCompanyForm';
 import AddCustomerForm from '@/components/Forms/AddCustomerForm';
 import TenantCompaniesList from '@/components/Lists/TenantCompaniesList';
 import CustomersList from '@/components/Lists/CustomersList';
-import { AddItemModal } from '@/components/Modals/AddItemModal';
+import AddItemModal from '@/components/Modals/AddItemModal';
 
 const SuperAdminDashboard: React.FC = () => {
   const [showAddCompany, setShowAddCompany] = useState(false);
@@ -98,18 +98,18 @@ const SuperAdminDashboard: React.FC = () => {
       {/* Modals */}
       <AddItemModal
         isOpen={showAddCompany}
-        onClose={() => setShowAddCompany(false)}
+        onOpenChange={setShowAddCompany}
         title="Add Tenant Company"
-        description="Create a new tenant company"
+        buttonText="Add Company"
       >
         <AddTenantCompanyForm onSuccess={() => setShowAddCompany(false)} />
       </AddItemModal>
 
       <AddItemModal
         isOpen={showAddCustomer}
-        onClose={() => setShowAddCustomer(false)}
+        onOpenChange={setShowAddCustomer}
         title="Add Customer"
-        description="Create a new customer account with authentication"
+        buttonText="Add Customer"
       >
         <AddCustomerForm onSuccess={() => setShowAddCustomer(false)} />
       </AddItemModal>

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User,
@@ -66,8 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...driverData,
       createdAt: new Date().toISOString(),
     });
-    
-    return user;
   };
 
   const createCustomerAccount = async (email: string, password: string, customerData: any) => {
@@ -83,8 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...customerData,
       createdAt: new Date().toISOString(),
     });
-    
-    return user;
   };
 
   const fetchUserInfo = async (user: User) => {
