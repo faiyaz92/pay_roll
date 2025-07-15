@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -90,6 +89,9 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         createdByRole: 'company_admin' as any, // Will be set by the hook
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        driverId: '', // Will be set by the hook if needed
+        endTime: undefined,
+        actualArrival: undefined,
       };
 
       await addTrip(tripData);
