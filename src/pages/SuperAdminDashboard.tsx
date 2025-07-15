@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Building, Users, Eye, Settings, BarChart3 } from 'lucide-react';
+import { Plus, Building, Users, Eye, Settings, BarChart3, Globe, Shield } from 'lucide-react';
 import { useState } from 'react';
 import AddTenantCompanyForm from '@/components/Forms/AddTenantCompanyForm';
 import AddCustomerForm from '@/components/Forms/AddCustomerForm';
@@ -33,129 +33,154 @@ const SuperAdminDashboard: React.FC = () => {
     }
   };
 
+  const businessTypes = [
+    { name: 'Transportation', count: 8, icon: '🚛' },
+    { name: 'Inventory', count: 5, icon: '📦' },
+    { name: 'Billing', count: 12, icon: '💰' },
+    { name: 'Performance Tracking', count: 3, icon: '📊' },
+    { name: 'Logistics', count: 7, icon: '🚚' },
+    { name: 'Delivery', count: 9, icon: '📮' },
+    { name: 'Retail', count: 4, icon: '🏪' }
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Super Admin Dashboard</h1>
-        <p className="text-gray-600 mt-2">Manage all tenant companies, customers, and system settings</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg p-6 text-white">
+        <div className="flex items-center space-x-3 mb-2">
+          <Shield className="w-8 h-8" />
+          <h1 className="text-3xl font-bold">Super Admin Control Center</h1>
+        </div>
+        <p className="text-blue-100">Manage all tenant companies, users, and system-wide settings</p>
       </div>
 
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
+        <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
+            <Building className="h-5 w-5 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">Active tenant companies</p>
+            <div className="text-3xl font-bold text-blue-600">48</div>
+            <p className="text-xs text-muted-foreground">+3 from last month</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <Users className="h-5 w-5 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">245</div>
-            <p className="text-xs text-muted-foreground">Registered customers</p>
+            <div className="text-3xl font-bold text-green-600">1,247</div>
+            <p className="text-xs text-muted-foreground">+15% growth</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Company Types</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Business Types</CardTitle>
+            <BarChart3 className="h-5 w-5 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">7</div>
-            <p className="text-xs text-muted-foreground">Available business types</p>
+            <div className="text-3xl font-bold text-purple-600">7</div>
+            <p className="text-xs text-muted-foreground">Active categories</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Health</CardTitle>
-            <Settings className="h-4 w-4 text-muted-foreground" />
+            <Globe className="h-5 w-5 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Healthy</div>
-            <p className="text-xs text-muted-foreground">All systems operational</p>
+            <div className="text-3xl font-bold text-green-600">99.9%</div>
+            <p className="text-xs text-muted-foreground">Uptime status</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowAddCompany(true)}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Add Company</CardTitle>
-            <Plus className="h-4 w-4 text-muted-foreground" />
+        <Card 
+          className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-blue-200" 
+          onClick={() => setShowAddCompany(true)}
+        >
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+              <Plus className="h-6 w-6 text-blue-600" />
+            </div>
+            <CardTitle className="text-lg">Add Company</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">New</div>
-            <p className="text-xs text-muted-foreground">Create tenant company</p>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground">Create new tenant company</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleViewChange('companies')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Manage Companies</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
+        <Card 
+          className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-green-200" 
+          onClick={() => handleViewChange('companies')}
+        >
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-2">
+              <Building className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle className="text-lg">Manage Companies</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">View</div>
-            <p className="text-xs text-muted-foreground">Manage all companies</p>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground">View and edit companies</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowAddCustomer(true)}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Add Customer</CardTitle>
-            <Plus className="h-4 w-4 text-muted-foreground" />
+        <Card 
+          className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-purple-200" 
+          onClick={() => setShowAddCustomer(true)}
+        >
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-2">
+              <Plus className="h-6 w-6 text-purple-600" />
+            </div>
+            <CardTitle className="text-lg">Add Customer</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">New</div>
-            <p className="text-xs text-muted-foreground">Create customer account</p>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground">Create customer account</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleViewChange('customers')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Manage Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+        <Card 
+          className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-orange-200" 
+          onClick={() => handleViewChange('customers')}
+        >
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-2">
+              <Users className="h-6 w-6 text-orange-600" />
+            </div>
+            <CardTitle className="text-lg">Manage Users</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">View</div>
-            <p className="text-xs text-muted-foreground">Manage all customers</p>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground">View and manage users</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Business Type Management */}
+      {/* Business Types Overview */}
       <Card>
         <CardHeader>
-          <CardTitle>Supported Business Types</CardTitle>
-          <CardDescription>Manage available business types for tenant companies</CardDescription>
+          <CardTitle className="flex items-center space-x-2">
+            <BarChart3 className="w-5 h-5" />
+            <span>Business Types Distribution</span>
+          </CardTitle>
+          <CardDescription>Overview of companies by business category</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              'Transportation',
-              'Inventory',
-              'Billing', 
-              'Performance Tracking',
-              'Logistics',
-              'Delivery',
-              'Retail'
-            ].map((type) => (
-              <div key={type} className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="font-medium">{type}</span>
-                <Button size="sm" variant="outline">
-                  <Settings className="h-4 w-4" />
-                </Button>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {businessTypes.map((type) => (
+              <div key={type.name} className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="text-2xl mb-2">{type.icon}</div>
+                <div className="font-semibold text-sm">{type.name}</div>
+                <div className="text-lg font-bold text-blue-600">{type.count}</div>
+                <div className="text-xs text-muted-foreground">companies</div>
               </div>
             ))}
           </div>
@@ -185,8 +210,8 @@ const SuperAdminDashboard: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Customers</CardTitle>
-              <CardDescription>Manage all customers in the system</CardDescription>
+              <CardTitle>System Users</CardTitle>
+              <CardDescription>Manage all users across the platform</CardDescription>
             </div>
             <Button variant="outline" onClick={resetViews}>
               <Eye className="h-4 w-4 mr-2" />
