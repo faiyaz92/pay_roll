@@ -262,7 +262,7 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
                   <Input type="number" step="0.01" placeholder="Enter toll charges" {...field} />
                 </FormControl>
                 <FormMessage />
-              </FormMessage>
+              </FormItem>
             )}
           />
         </div>
