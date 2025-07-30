@@ -1,5 +1,4 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster"; // Kept Toaster, removed Sonner to avoid duplication
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -16,120 +15,137 @@ import RoutesPage from "@/pages/Routes";
 import Trips from "@/pages/Trips";
 import FuelRecords from "@/pages/FuelRecords";
 import MaintenanceRecords from "@/pages/MaintenanceRecords";
-import Drivers from "@/pages/Drivers";
-import Vehicles from "@/pages/Vehicles";
 import NotFound from "@/pages/NotFound";
 import { Role } from "@/types/user";
+import { ErrorBoundary } from "react-error-boundary"; // Added for error handling
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2, // Prevent excessive retries
+      staleTime: 5 * 60 * 1000, // 5 minutes stale time
+    },
+  },
+});
+
+// Error fallback component
+const ErrorFallback = ({ error }) => (
+  <div className="p-4 text-red-500 bg-red-50 rounded-lg mx-4">
+    <h2>Something went wrong:</h2>
+    <p>{error.message}</p>
+  </div>
+);
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route 
-                path="/super-admin" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.SUPER_ADMIN]}>
-                    <SuperAdminLayout>
-                      <SuperAdminDashboard />
-                    </SuperAdminLayout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER, Role.CUSTOMER]}>
-                    <Layout>
-                      <Dashboard />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/drivers" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
-                    <Layout>
-                      <Drivers />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/vehicles" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
-                    <Layout>
-                      <Vehicles />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/cities" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
-                    <Layout>
-                      <Cities />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/routes" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
-                    <Layout>
-                      <RoutesPage />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/trips" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER]}>
-                    <Layout>
-                      <Trips />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/fuel-records" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER]}>
-                    <Layout>
-                      <FuelRecords />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/maintenance-records" 
-                element={
-                  <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
-                    <Layout>
-                      <MaintenanceRecords />
-                    </Layout>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster /> {/* Kept single Toaster for notifications */}
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/super-admin"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.SUPER_ADMIN]}>
+                      <SuperAdminLayout>
+                        <SuperAdminDashboard />
+                      </SuperAdminLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER, Role.CUSTOMER]}
+                    >
+                      <Layout>
+                        <Dashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/drivers"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
+                      <Layout>
+                        <Drivers />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vehicles"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
+                      <Layout>
+                        <Vehicles />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cities"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
+                      <Layout>
+                        <Cities />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/routes"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
+                      <Layout>
+                        <RoutesPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/trips"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER]}>
+                      <Layout>
+                        <Trips />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/fuel-records"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN, Role.DRIVER]}>
+                      <Layout>
+                        <FuelRecords />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/maintenance-records"
+                  element={
+                    <ProtectedRoute allowedRoles={[Role.COMPANY_ADMIN]}>
+                      <Layout>
+                        <MaintenanceRecords />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
