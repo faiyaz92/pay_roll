@@ -105,5 +105,5 @@ export interface Route {
   isActive: boolean;
   createdAt: Date;
   companyId: string;
-  waypoints?: string[]; // intermediate cities
+  waypoints?: string[]; // intermediate cities/stops
 }

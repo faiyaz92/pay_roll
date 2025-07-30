@@ -18,6 +18,7 @@ const routeSchema = z.object({
   name: z.string().min(2, 'Route name must be at least 2 characters'),
   fromCity: z.string().min(1, 'From city is required'),
   toCity: z.string().min(1, 'To city is required'),
+  waypoints: z.array(z.string()).optional(),
   distance: z.string().min(1, 'Distance is required'),
   estimatedDuration: z.string().min(1, 'Estimated duration is required'),
   farePerKm: z.string().optional(),
@@ -36,6 +37,7 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
   const { userInfo } = useAuth();
   const [cities, setCities] = useState<City[]>([]);
+  const [selectedWaypoints, setSelectedWaypoints] = useState<string[]>([]);
 
   const form = useForm<RouteFormData>({
     resolver: zodResolver(routeSchema),
@@ -43,6 +45,7 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
       name: '',
       fromCity: '',
       toCity: '',
+      waypoints: [],
       distance: '',
       estimatedDuration: '',
       farePerKm: '',
@@ -96,6 +99,7 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
         name: data.name,
         fromCity: data.fromCity,
         toCity: data.toCity,
+        waypoints: selectedWaypoints,
         distance: parseFloat(data.distance),
         estimatedDuration: parseInt(data.estimatedDuration),
         farePerKm: data.farePerKm ? parseFloat(data.farePerKm) : 0,
@@ -113,6 +117,7 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
         description: 'Route added successfully',
       });
       form.reset();
+      setSelectedWaypoints([]);
       onSuccess();
     } catch (error: any) {
       console.error('Error adding route:', error);
@@ -191,6 +196,67 @@ const AddRouteForm: React.FC<AddRouteFormProps> = ({ onSuccess }) => {
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Waypoints Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Route Stops (Optional)</label>
+            <Select
+              onValueChange={(value) => {
+                if (value && !selectedWaypoints.includes(value)) {
+                  setSelectedWaypoints([...selectedWaypoints, value]);
+                }
+              }}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Add stop" />
+              </SelectTrigger>
+              <SelectContent>
+                {cities
+                  .filter(city => 
+                    !selectedWaypoints.includes(city.id) && 
+                    city.id !== form.watch('fromCity') && 
+                    city.id !== form.watch('toCity')
+                  )
+                  .map((city) => (
+                    <SelectItem key={city.id} value={city.id}>
+                      {city.name}, {city.state}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {selectedWaypoints.length > 0 && (
+            <div className="border rounded-lg p-4 space-y-2">
+              <div className="text-sm font-medium text-gray-700">Route Path:</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                  {form.watch('fromCity') ? cities.find(c => c.id === form.watch('fromCity'))?.name : 'From City'}
+                </span>
+                {selectedWaypoints.map((waypointId, index) => (
+                  <React.Fragment key={waypointId}>
+                    <span className="text-gray-400">→</span>
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm flex items-center gap-1">
+                      {cities.find(c => c.id === waypointId)?.name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWaypoints(selectedWaypoints.filter(id => id !== waypointId))}
+                        className="text-green-600 hover:text-green-800 ml-1"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </React.Fragment>
+                ))}
+                <span className="text-gray-400">→</span>
+                <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">
+                  {form.watch('toCity') ? cities.find(c => c.id === form.watch('toCity'))?.name : 'To City'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

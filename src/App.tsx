@@ -14,6 +14,8 @@ import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import Trips from "@/pages/Trips";
 import Vehicles from "@/pages/Vehicles";
 import Drivers from "@/pages/Drivers";
+import RoutesPage from "@/pages/Routes";
+import Cities from "@/pages/Cities";
 import NotFound from "@/pages/NotFound";
 import { Role } from "@/types/user";
 
@@ -61,8 +63,8 @@ const AppRoutes = () => {
             <Route path="trips" element={<Trips />} />
             <Route path="vehicles" element={<Vehicles />} />
             <Route path="drivers" element={<Drivers />} />
-            <Route path="cities" element={<div className="p-6"><h1 className="text-3xl font-bold">Cities Management</h1><p className="text-gray-600 mt-2">Manage cities and locations for your transportation network</p></div>} />
-            <Route path="routes" element={<div className="p-6"><h1 className="text-3xl font-bold">Route Management</h1><p className="text-gray-600 mt-2">Define and manage transportation routes between cities</p></div>} />
+            <Route path="cities" element={<Cities />} />
+            <Route path="routes" element={<RoutesPage />} />
             <Route path="maintenance" element={<div className="p-6"><h1 className="text-3xl font-bold">Maintenance Records</h1><p className="text-gray-600 mt-2">Track vehicle maintenance and service records</p></div>} />
             <Route path="fuel-records" element={<div className="p-6"><h1 className="text-3xl font-bold">Fuel Records</h1><p className="text-gray-600 mt-2">Monitor fuel consumption and expenses</p></div>} />
             <Route path="expenses" element={<div className="p-6"><h1 className="text-3xl font-bold">Expense Management</h1><p className="text-gray-600 mt-2">Track and manage transportation expenses</p></div>} />
