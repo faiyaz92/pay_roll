@@ -11,30 +11,22 @@ import {
   Settings,
   LogOut,
   Wrench,
-  Fuel,
-  DollarSign,
-  FileText,
-  Bell,
-  Calendar
+  Fuel
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Role } from '@/types/user';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Trips', href: '/trips', icon: Navigation },
-  { name: 'Vehicles', href: '/vehicles', icon: Truck },
-  { name: 'Drivers', href: '/drivers', icon: Users },
-  { name: 'Cities', href: '/cities', icon: MapPin },
-  { name: 'Routes', href: '/routes', icon: Route },
-  { name: 'Maintenance', href: '/maintenance', icon: Wrench },
+  { name: 'Vehicles', href: '/vehicles', icon: Truck, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Drivers', href: '/drivers', icon: Users, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Cities', href: '/cities', icon: MapPin, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Routes', href: '/routes', icon: Route, roles: [Role.COMPANY_ADMIN] },
   { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
-  { name: 'Expenses', href: '/expenses', icon: DollarSign },
-  { name: 'Reports', href: '/reports', icon: FileText },
-  { name: 'Bookings', href: '/bookings', icon: Calendar },
-  { name: 'Notifications', href: '/notifications', icon: Bell },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Maintenance', href: '/maintenance-records', icon: Wrench, roles: [Role.COMPANY_ADMIN] },
 ];
 
 interface SidebarProps {
@@ -76,6 +68,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1">
         {navigation.map((item) => {
+          // Check if user has access to this navigation item
+          if (item.roles && !item.roles.includes(userInfo?.role as Role)) {
+            return null;
+          }
+          
           const isActive = location.pathname === item.href;
           return (
             <NavLink

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -6,14 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useTrips, useDrivers, useVehicles } from '@/hooks/useFirebaseData';
+import { useTrips, useDrivers, useVehicles, useRoutes, useCities } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
 import { Trip } from '@/hooks/useFirebaseData';
 
 const tripSchema = z.object({
   driver: z.string().min(1, 'Driver is required'),
   vehicle: z.string().min(1, 'Vehicle is required'),
-  route: z.string().min(2, 'Route is required'),
+  pickupCity: z.string().min(1, 'Pickup city is required'),
+  dropCity: z.string().min(1, 'Drop city is required'),
+  routeId: z.string().optional(),
   status: z.enum(['pending', 'in-progress', 'completed']),
   startTime: z.string().min(1, 'Start time is required'),
   estimatedArrival: z.string().min(1, 'Estimated arrival is required'),
@@ -25,6 +27,8 @@ const tripSchema = z.object({
   dropLocation: z.string().min(1, 'Drop location is required'),
   customerInfo: z.string().optional(),
   fare: z.string().optional(),
+  driverAllowance: z.string().optional(),
+  cleanerAllowance: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -38,17 +42,27 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
   const { addTrip } = useTrips();
   const { drivers } = useDrivers();
   const { vehicles } = useVehicles();
+  const { routes } = useRoutes();
+  const { cities } = useCities();
   const { toast } = useToast();
+  
+  const [selectedPickupCity, setSelectedPickupCity] = useState('');
+  const [selectedDropCity, setSelectedDropCity] = useState('');
+  const [availableRoutes, setAvailableRoutes] = useState<any[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<any>(null);
 
   const availableDrivers = drivers.filter(driver => driver.status === 'available');
   const availableVehicles = vehicles.filter(vehicle => vehicle.status === 'available');
+  const activeCities = cities.filter(city => city.isActive);
 
   const form = useForm<TripFormData>({
     resolver: zodResolver(tripSchema),
     defaultValues: {
       driver: '',
       vehicle: '',
-      route: '',
+      pickupCity: '',
+      dropCity: '',
+      routeId: '',
       status: 'pending',
       startTime: '',
       estimatedArrival: '',
@@ -60,16 +74,47 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
       dropLocation: '',
       customerInfo: '',
       fare: '',
+      driverAllowance: '',
+      cleanerAllowance: '',
       notes: '',
     },
   });
 
+  // Filter routes based on selected cities
+  useEffect(() => {
+    if (selectedPickupCity && selectedDropCity) {
+      const filtered = routes.filter(route => 
+        (route.fromCity === selectedPickupCity && route.toCity === selectedDropCity) ||
+        (route.fromCity === selectedDropCity && route.toCity === selectedPickupCity) // Reverse route
+      ).filter(route => route.isActive);
+      setAvailableRoutes(filtered);
+    } else {
+      setAvailableRoutes([]);
+    }
+  }, [selectedPickupCity, selectedDropCity, routes]);
+
+  // Update form when route is selected
+  useEffect(() => {
+    if (selectedRoute) {
+      form.setValue('distance', `${selectedRoute.distance} km`);
+      if (selectedRoute.baseFare) {
+        form.setValue('fare', selectedRoute.baseFare.toString());
+      }
+    }
+  }, [selectedRoute, form]);
+
   const onSubmit = async (data: TripFormData) => {
     try {
+      const pickupCityName = cities.find(c => c.id === data.pickupCity)?.name || '';
+      const dropCityName = cities.find(c => c.id === data.dropCity)?.name || '';
+      
       const tripData: Omit<Trip, 'id'> = {
         driver: data.driver,
         vehicle: data.vehicle,
-        route: data.route,
+        route: selectedRoute ? selectedRoute.name : `${pickupCityName} to ${dropCityName}`,
+        routeId: data.routeId || '',
+        pickupCity: data.pickupCity,
+        dropCity: data.dropCity,
         status: data.status,
         startTime: data.startTime,
         estimatedArrival: data.estimatedArrival,
@@ -81,6 +126,8 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         dropLocation: data.dropLocation,
         customerInfo: data.customerInfo || '',
         fare: data.fare ? parseFloat(data.fare) : 0,
+        driverAllowance: data.driverAllowance ? parseFloat(data.driverAllowance) : 0,
+        cleanerAllowance: data.cleanerAllowance ? parseFloat(data.cleanerAllowance) : 0,
         notes: data.notes || '',
         progress: 0,
         currentLocation: 'Starting Point',
@@ -92,6 +139,8 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         driverId: '', // Will be set by the hook if needed
         endTime: undefined,
         actualArrival: undefined,
+        expenses: [],
+        totalExpenses: 0,
       };
 
       await addTrip(tripData);
@@ -100,6 +149,9 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         description: 'Trip added successfully',
       });
       form.reset();
+      setSelectedPickupCity('');
+      setSelectedDropCity('');
+      setSelectedRoute(null);
       onSuccess();
     } catch (error) {
       toast({
@@ -113,69 +165,146 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="driver"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Driver</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select driver" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {availableDrivers.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.name}>
-                      {driver.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="driver"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Driver</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select driver" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableDrivers.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.name}>
+                        {driver.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="vehicle"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Vehicle</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vehicle" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {availableVehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.registrationNumber}>
-                      {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="vehicle"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vehicle</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select vehicle" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableVehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.registrationNumber}>
+                        {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-        <FormField
-          control={form.control}
-          name="route"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Route</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Mumbai to Pune" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="pickupCity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pickup City</FormLabel>
+                <Select onValueChange={(value) => {
+                  field.onChange(value);
+                  setSelectedPickupCity(value);
+                }} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pickup city" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {activeCities.map((city) => (
+                      <SelectItem key={city.id} value={city.id}>
+                        {city.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="dropCity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Drop City</FormLabel>
+                <Select onValueChange={(value) => {
+                  field.onChange(value);
+                  setSelectedDropCity(value);
+                }} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select drop city" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {activeCities.map((city) => (
+                      <SelectItem key={city.id} value={city.id}>
+                        {city.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {availableRoutes.length > 0 && (
+          <FormField
+            control={form.control}
+            name="routeId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Route (Optional)</FormLabel>
+                <Select onValueChange={(value) => {
+                  field.onChange(value);
+                  const route = availableRoutes.find(r => r.id === value);
+                  setSelectedRoute(route);
+                }} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select route (optional)" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableRoutes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        {route.name} - {route.distance}km - ₹{route.baseFare || 0}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -185,7 +314,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
               <FormItem>
                 <FormLabel>Pickup Location</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Mumbai Central" {...field} />
+                  <Input placeholder="e.g., Mumbai Central Station" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -199,36 +328,13 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
               <FormItem>
                 <FormLabel>Drop Location</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Pune Station" {...field} />
+                  <Input placeholder="e.g., Pune Railway Station" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -334,7 +440,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="fare"
@@ -351,18 +457,46 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
 
           <FormField
             control={form.control}
-            name="notes"
+            name="driverAllowance"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes (Optional)</FormLabel>
+                <FormLabel>Driver Allowance</FormLabel>
                 <FormControl>
-                  <Input placeholder="Additional notes" {...field} />
+                  <Input type="number" placeholder="Amount in ₹" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="cleanerAllowance"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cleaner Allowance</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Amount in ₹" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Additional notes" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Button type="submit" className="w-full">
           Add Trip

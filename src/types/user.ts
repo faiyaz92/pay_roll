@@ -107,3 +107,46 @@ export interface Route {
   companyId: string;
   waypoints?: string[]; // intermediate cities/stops
 }
+
+export interface TripExpense {
+  id: string;
+  tripId: string;
+  type: 'fuel' | 'maintenance' | 'toll' | 'driver_allowance' | 'cleaner_allowance' | 'other';
+  amount: number;
+  description: string;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+}
+
+export interface FuelRecord {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  tripId?: string;
+  amount: number;
+  quantity: number;
+  pricePerLiter: number;
+  fuelType: string;
+  location: string;
+  odometer: number;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+  companyId: string;
+}
+
+export interface MaintenanceRecord {
+  id: string;
+  vehicleId: string;
+  type: 'routine' | 'repair' | 'inspection' | 'other';
+  description: string;
+  amount: number;
+  serviceProvider: string;
+  odometer: number;
+  nextServiceOdometer?: number;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+  companyId: string;
+}
