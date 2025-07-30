@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -55,7 +54,17 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
   const onSubmit = async (data: VehicleFormData) => {
     try {
       const vehicleData: Omit<Vehicle, 'id'> = {
-        ...data,
+        registrationNumber: data.registrationNumber,
+        make: data.make,
+        model: data.model,
+        year: data.year,
+        capacity: data.capacity,
+        fuelType: data.fuelType,
+        status: data.status,
+        currentLocation: data.currentLocation,
+        mileage: data.mileage,
+        totalKms: data.totalKms,
+        insuranceExpiry: data.insuranceExpiry,
         lastMaintenance: new Date().toISOString(),
         nextMaintenance: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days from now
         companyId: '', // Will be set by the hook

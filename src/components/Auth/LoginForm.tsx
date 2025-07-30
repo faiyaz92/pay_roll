@@ -35,7 +35,7 @@ const LoginForm = () => {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      navigate('/dashboard');
+      // Navigation will be handled by AuthContext based on user role
     } catch (error: any) {
       console.error('Login error:', error);
       let errorMessage = 'Login failed. Please try again.';
@@ -94,7 +94,7 @@ const LoginForm = () => {
           </div>
           <CardTitle className="text-2xl font-bold">TransportPro</CardTitle>
           <CardDescription>
-            {showResetPassword ? 'Reset your password' : 'Sign in to your transportation management system'}
+            {showResetPassword ? 'Reset your password' : 'Sign in to your account'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -104,7 +104,7 @@ const LoginForm = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@transportpro.com"
+                placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}

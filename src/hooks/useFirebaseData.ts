@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Role, TenantCompanyType, Route, City, TripExpense, FuelRecord, MaintenanceRecord } from '@/types/user';
 
 export interface Driver {
   id: string;
@@ -18,6 +19,7 @@ export interface Driver {
   rating: number;
   joinDate: string;
   companyId: string;
+  userId?: string; // Link to auth user
 }
 
 export interface Vehicle {
@@ -42,11 +44,17 @@ export interface Vehicle {
 export interface Trip {
   id: string;
   driver: string;
+  driverId?: string; // Link to auth user ID
   vehicle: string;
   route: string;
-  status: 'pending' | 'in-progress' | 'completed';
+  routeId?: string; // Link to selected route
+  pickupCity: string;
+  dropCity: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   startTime: string;
+  endTime?: string;
   estimatedArrival: string;
+  actualArrival?: string;
   currentLoad: string;
   totalCapacity: string;
   distance: string;
@@ -54,6 +62,28 @@ export interface Trip {
   progress?: number;
   currentLocation?: string;
   companyId: string;
+  createdBy: string; // Who created this trip (admin or driver)
+  createdByRole: Role; // Role of who created the trip
+  createdAt: string;
+  updatedAt: string;
+  pickupLocation: string;
+  dropLocation: string;
+  customerInfo?: string;
+  fare?: number;
+  notes?: string;
+  expenses?: TripExpense[];
+  totalExpenses?: number;
+  driverAllowance?: number;
+  cleanerAllowance?: number;
+}
+
+export interface TripAction {
+  tripId: string;
+  action: 'start' | 'end' | 'pause' | 'resume';
+  performedBy: string;
+  performedAt: string;
+  location?: string;
+  notes?: string;
 }
 
 export const useDrivers = () => {
@@ -138,7 +168,16 @@ export const useTrips = () => {
     }
 
     const tripsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`);
-    const q = query(tripsRef, orderBy('startTime', 'desc'));
+    
+    // Filter trips based on role
+    let q;
+    if (userInfo.role === Role.DRIVER) {
+      // Drivers see only their own trips
+      q = query(tripsRef, where('driverId', '==', userInfo.userId), orderBy('createdAt', 'desc'));
+    } else {
+      // Admins see all trips
+      q = query(tripsRef, orderBy('createdAt', 'desc'));
+    }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const tripsData = snapshot.docs.map(doc => ({
@@ -150,15 +189,48 @@ export const useTrips = () => {
     });
 
     return () => unsubscribe();
-  }, [userInfo?.companyId]);
+  }, [userInfo?.companyId, userInfo?.role, userInfo?.userId]);
 
   const addTrip = async (tripData: Omit<Trip, 'id'>) => {
     if (!userInfo?.companyId) return;
     const tripsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`);
-    return await addDoc(tripsRef, { ...tripData, companyId: userInfo.companyId });
+    
+    const newTrip = {
+      ...tripData,
+      companyId: userInfo.companyId,
+      createdBy: userInfo.userId,
+      createdByRole: userInfo.role,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    return await addDoc(tripsRef, newTrip);
   };
 
-  return { trips, loading, addTrip };
+  const updateTripStatus = async (tripId: string, status: Trip['status'], location?: string) => {
+    if (!userInfo?.companyId) return;
+    
+    const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
+    const updateData: any = {
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    
+    if (location) {
+      updateData.currentLocation = location;
+    }
+    
+    if (status === 'in-progress') {
+      updateData.startTime = new Date().toISOString();
+    } else if (status === 'completed') {
+      updateData.endTime = new Date().toISOString();
+      updateData.actualArrival = new Date().toISOString();
+    }
+    
+    return await updateDoc(tripRef, updateData);
+  };
+
+  return { trips, loading, addTrip, updateTripStatus };
 };
 
 export const useDashboardStats = () => {
@@ -176,4 +248,172 @@ export const useDashboardStats = () => {
   };
 
   return stats;
+};
+
+// Hook for tenant companies (for customer login)
+export const useTenantCompanies = () => {
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const companiesRef = collection(firestore, 'Easy2Solutions/companyDirectory/tenantCompanies');
+    const q = query(companiesRef, where('companyType', '==', TenantCompanyType.TRANSPORTATION));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const companiesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCompanies(companiesData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { companies, loading };
+};
+
+// Hook for routes
+export const useRoutes = () => {
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { userInfo } = useAuth();
+
+  useEffect(() => {
+    if (!userInfo?.companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const routesRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/routes`);
+    const q = query(routesRef, orderBy('name'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const routesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Route[];
+      setRoutes(routesData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo?.companyId]);
+
+  const addRoute = async (routeData: Omit<Route, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    const routesRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/routes`);
+    return await addDoc(routesRef, { ...routeData, companyId: userInfo.companyId });
+  };
+
+  return { routes, loading, addRoute };
+};
+
+// Hook for cities
+export const useCities = () => {
+  const [cities, setCities] = useState<City[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { userInfo } = useAuth();
+
+  useEffect(() => {
+    if (!userInfo?.companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const citiesRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cities`);
+    const q = query(citiesRef, orderBy('name'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const citiesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as City[];
+      setCities(citiesData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo?.companyId]);
+
+  const addCity = async (cityData: Omit<City, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    const citiesRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cities`);
+    return await addDoc(citiesRef, { ...cityData, companyId: userInfo.companyId });
+  };
+
+  return { cities, loading, addCity };
+};
+
+// Hook for fuel records
+export const useFuelRecords = () => {
+  const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { userInfo } = useAuth();
+
+  useEffect(() => {
+    if (!userInfo?.companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const fuelRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelRecords`);
+    const q = query(fuelRef, orderBy('addedAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fuelData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as FuelRecord[];
+      setFuelRecords(fuelData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo?.companyId]);
+
+  const addFuelRecord = async (fuelData: Omit<FuelRecord, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    const fuelRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelRecords`);
+    return await addDoc(fuelRef, { ...fuelData, companyId: userInfo.companyId });
+  };
+
+  return { fuelRecords, loading, addFuelRecord };
+};
+
+// Hook for maintenance records
+export const useMaintenanceRecords = () => {
+  const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { userInfo } = useAuth();
+
+  useEffect(() => {
+    if (!userInfo?.companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const maintenanceRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/maintenanceRecords`);
+    const q = query(maintenanceRef, orderBy('addedAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const maintenanceData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as MaintenanceRecord[];
+      setMaintenanceRecords(maintenanceData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo?.companyId]);
+
+  const addMaintenanceRecord = async (maintenanceData: Omit<MaintenanceRecord, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    const maintenanceRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/maintenanceRecords`);
+    return await addDoc(maintenanceRef, { ...maintenanceData, companyId: userInfo.companyId });
+  };
+
+  return { maintenanceRecords, loading, addMaintenanceRecord };
 };

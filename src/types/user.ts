@@ -7,7 +7,8 @@ export enum Role {
   DISPATCHER = 'dispatcher',
   FLEET_MANAGER = 'fleet_manager',
   MAINTENANCE_MANAGER = 'maintenance_manager',
-  ACCOUNTANT = 'accountant'
+  ACCOUNTANT = 'accountant',
+  CUSTOMER = 'customer'
 }
 
 export enum UserType {
@@ -21,6 +22,16 @@ export enum UserType {
   Supplier = 'Supplier',
   Customer = 'Customer',
   Contractor = 'Contractor'
+}
+
+export enum TenantCompanyType {
+  TRANSPORTATION = 'Transportation',
+  INVENTORY = 'Inventory',
+  BILLING = 'Billing',
+  PERFORMANCE_TRACKING = 'Performance Tracking',
+  LOGISTICS = 'Logistics',
+  DELIVERY = 'Delivery',
+  RETAIL = 'Retail'
 }
 
 export interface UserInfo {
@@ -44,6 +55,7 @@ export interface UserInfo {
   vehicleAssigned?: string;
   employeeId?: string;
   department?: string;
+  isActive?: boolean;
 }
 
 export interface TenantCompany {
@@ -59,8 +71,82 @@ export interface TenantCompany {
   address?: string;
   createdBy: string;
   createdAt: Date;
+  companyType: TenantCompanyType;
   // Transportation specific fields
   fleetSize?: number;
   operatingLicense?: string;
   insuranceDetails?: string;
+}
+
+// Add interfaces for Cities and Routes
+export interface City {
+  id: string;
+  name: string;
+  state: string;
+  country: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
+  isActive: boolean;
+  createdAt: Date;
+  companyId: string;
+}
+
+export interface Route {
+  id: string;
+  name: string;
+  fromCity: string;
+  toCity: string;
+  distance: number; // in km
+  estimatedDuration: number; // in minutes
+  farePerKm?: number;
+  baseFare?: number;
+  tollCharges?: number;
+  isActive: boolean;
+  createdAt: Date;
+  companyId: string;
+  waypoints?: string[]; // intermediate cities/stops
+}
+
+export interface TripExpense {
+  id: string;
+  tripId: string;
+  type: 'fuel' | 'maintenance' | 'toll' | 'driver_allowance' | 'cleaner_allowance' | 'other';
+  amount: number;
+  description: string;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+}
+
+export interface FuelRecord {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  tripId?: string;
+  amount: number;
+  quantity: number;
+  pricePerLiter: number;
+  fuelType: string;
+  location: string;
+  odometer: number;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+  companyId: string;
+}
+
+export interface MaintenanceRecord {
+  id: string;
+  vehicleId: string;
+  type: 'routine' | 'repair' | 'inspection' | 'other';
+  description: string;
+  amount: number;
+  serviceProvider: string;
+  odometer: number;
+  nextServiceOdometer?: number;
+  addedBy: string;
+  addedAt: string;
+  receiptUrl?: string;
+  companyId: string;
 }
