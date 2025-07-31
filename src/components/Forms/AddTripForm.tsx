@@ -137,8 +137,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         driverId: '', // Will be set by the hook if needed
-        endTime: undefined,
-        actualArrival: undefined,
+        // Don't include endTime and actualArrival for new trips - they'll be added when the trip status changes
         expenses: [],
         totalExpenses: 0,
       };
