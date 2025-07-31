@@ -55,7 +55,7 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
         amount: parseFloat(data.amount),
         serviceProvider: data.serviceProvider,
         odometer: parseInt(data.odometer),
-        nextServiceOdometer: data.nextServiceOdometer ? parseInt(data.nextServiceOdometer) : undefined,
+        ...(data.nextServiceOdometer && { nextServiceOdometer: parseInt(data.nextServiceOdometer) }),
         addedBy: userInfo?.userId || '',
         addedAt: new Date().toISOString(),
         companyId: userInfo?.companyId || '',

@@ -22,6 +22,19 @@ const Layout: React.FC = () => {
           <div className="p-6">
             <Outlet />
           </div>
+          <footer className="p-4 border-t bg-white">
+            <div className="text-center text-sm text-gray-600">
+              Powered by{' '}
+              <a
+                href="https://www.easy2solutions.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+              >
+                @Easy2Solutions
+              </a>
+            </div>
+          </footer>
         </main>
       </div>
     </div>

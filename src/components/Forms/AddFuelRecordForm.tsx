@@ -55,7 +55,7 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
       const fuelRecordData = {
         vehicleId: data.vehicleId,
         driverId: data.driverId,
-        tripId: data.tripId || undefined,
+        ...(data.tripId && { tripId: data.tripId }),
         amount: parseFloat(data.amount),
         quantity: parseFloat(data.quantity),
         pricePerLiter: parseFloat(data.pricePerLiter),
