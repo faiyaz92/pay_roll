@@ -192,8 +192,16 @@ export const useTrips = () => {
   }, [userInfo?.companyId, userInfo?.role, userInfo?.userId]);
 
   const addTrip = async (tripData: Omit<Trip, 'id'>) => {
-    if (!userInfo?.companyId) return;
+    console.log('🚀 addTrip called with:', tripData);
+    console.log('📍 userInfo:', userInfo);
+    
+    if (!userInfo?.companyId) {
+      console.error('❌ No companyId found in userInfo');
+      throw new Error('Company ID is required to add trip');
+    }
+    
     const tripsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`);
+    console.log('📁 Collection path:', `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`);
     
     const newTrip = {
       ...tripData,
@@ -204,7 +212,16 @@ export const useTrips = () => {
       updatedAt: new Date().toISOString(),
     };
     
-    return await addDoc(tripsRef, newTrip);
+    console.log('📝 Final trip data:', newTrip);
+    
+    try {
+      const result = await addDoc(tripsRef, newTrip);
+      console.log('✅ Trip added successfully with ID:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Error adding trip:', error);
+      throw error;
+    }
   };
 
   const updateTripStatus = async (tripId: string, status: Trip['status'], location?: string) => {
@@ -374,9 +391,28 @@ export const useFuelRecords = () => {
   }, [userInfo?.companyId]);
 
   const addFuelRecord = async (fuelData: Omit<FuelRecord, 'id'>) => {
-    if (!userInfo?.companyId) return;
+    console.log('⛽ addFuelRecord called with:', fuelData);
+    console.log('📍 userInfo:', userInfo);
+    
+    if (!userInfo?.companyId) {
+      console.error('❌ No companyId found in userInfo for fuel record');
+      throw new Error('Company ID is required to add fuel record');
+    }
+    
     const fuelRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelRecords`);
-    return await addDoc(fuelRef, { ...fuelData, companyId: userInfo.companyId });
+    console.log('📁 Fuel collection path:', `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelRecords`);
+    
+    const finalData = { ...fuelData, companyId: userInfo.companyId };
+    console.log('📝 Final fuel data:', finalData);
+    
+    try {
+      const result = await addDoc(fuelRef, finalData);
+      console.log('✅ Fuel record added successfully with ID:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Error adding fuel record:', error);
+      throw error;
+    }
   };
 
   return { fuelRecords, loading, addFuelRecord };
@@ -410,9 +446,28 @@ export const useMaintenanceRecords = () => {
   }, [userInfo?.companyId]);
 
   const addMaintenanceRecord = async (maintenanceData: Omit<MaintenanceRecord, 'id'>) => {
-    if (!userInfo?.companyId) return;
+    console.log('🔧 addMaintenanceRecord called with:', maintenanceData);
+    console.log('📍 userInfo:', userInfo);
+    
+    if (!userInfo?.companyId) {
+      console.error('❌ No companyId found in userInfo for maintenance record');
+      throw new Error('Company ID is required to add maintenance record');
+    }
+    
     const maintenanceRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/maintenanceRecords`);
-    return await addDoc(maintenanceRef, { ...maintenanceData, companyId: userInfo.companyId });
+    console.log('📁 Maintenance collection path:', `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/maintenanceRecords`);
+    
+    const finalData = { ...maintenanceData, companyId: userInfo.companyId };
+    console.log('📝 Final maintenance data:', finalData);
+    
+    try {
+      const result = await addDoc(maintenanceRef, finalData);
+      console.log('✅ Maintenance record added successfully with ID:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Error adding maintenance record:', error);
+      throw error;
+    }
   };
 
   return { maintenanceRecords, loading, addMaintenanceRecord };
