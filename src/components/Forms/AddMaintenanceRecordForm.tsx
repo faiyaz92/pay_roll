@@ -28,7 +28,7 @@ interface AddMaintenanceRecordFormProps {
 }
 
 const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess }) => {
-  const { addMaintenanceRecord } = useMaintenanceRecords();
+  const { addMaintenanceRecord, maintenanceRecords } = useMaintenanceRecords();
   const { vehicles } = useVehicles();
   const { userInfo } = useAuth();
   const { toast } = useToast();
@@ -48,6 +48,21 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
 
   const onSubmit = async (data: MaintenanceRecordFormData) => {
     try {
+      // Validate odometer reading against previous records
+      const existingRecords = maintenanceRecords.filter(record => record.vehicleId === data.vehicleId);
+      const maxOdometer = existingRecords.length > 0 
+        ? Math.max(...existingRecords.map(record => record.odometer))
+        : 0;
+      
+      if (parseInt(data.odometer) <= maxOdometer) {
+        toast({
+          title: "Invalid Odometer Reading",
+          description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const maintenanceRecordData = {
         vehicleId: data.vehicleId,
         type: data.type,

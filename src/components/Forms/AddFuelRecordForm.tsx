@@ -29,7 +29,7 @@ interface AddFuelRecordFormProps {
 }
 
 const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
-  const { addFuelRecord } = useFuelRecords();
+  const { addFuelRecord, fuelRecords } = useFuelRecords();
   const { vehicles } = useVehicles();
   const { drivers } = useDrivers();
   const { userInfo } = useAuth();
@@ -52,6 +52,21 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
 
   const onSubmit = async (data: FuelRecordFormData) => {
     try {
+      // Validate odometer reading against previous records
+      const existingRecords = fuelRecords.filter(record => record.vehicleId === data.vehicleId);
+      const maxOdometer = existingRecords.length > 0 
+        ? Math.max(...existingRecords.map(record => record.odometer))
+        : 0;
+      
+      if (parseInt(data.odometer) <= maxOdometer) {
+        toast({
+          title: "Invalid Odometer Reading",
+          description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const fuelRecordData = {
         vehicleId: data.vehicleId,
         driverId: data.driverId,
