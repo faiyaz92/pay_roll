@@ -30,6 +30,7 @@ const tripSchema = z.object({
   driverAllowance: z.string().optional(),
   cleanerAllowance: z.string().optional(),
   notes: z.string().optional(),
+  collection: z.string().optional(),
 });
 
 type TripFormData = z.infer<typeof tripSchema>;
@@ -50,6 +51,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
   const [selectedDropCity, setSelectedDropCity] = useState('');
   const [availableRoutes, setAvailableRoutes] = useState<any[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<any>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
 
   const availableDrivers = drivers.filter(driver => driver.status === 'available');
   const availableVehicles = vehicles.filter(vehicle => vehicle.status === 'available');
@@ -77,6 +79,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
       driverAllowance: '',
       cleanerAllowance: '',
       notes: '',
+      collection: '',
     },
   });
 
@@ -102,6 +105,13 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
       }
     }
   }, [selectedRoute, form]);
+
+  // Update form when vehicle is selected - auto-fill load capacity
+  useEffect(() => {
+    if (selectedVehicle) {
+      form.setValue('totalCapacity', selectedVehicle.capacity);
+    }
+  }, [selectedVehicle, form]);
 
   const onSubmit = async (data: TripFormData) => {
     try {
@@ -129,6 +139,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
         driverAllowance: data.driverAllowance ? parseFloat(data.driverAllowance) : 0,
         cleanerAllowance: data.cleanerAllowance ? parseFloat(data.cleanerAllowance) : 0,
         notes: data.notes || '',
+        collection: data.collection ? parseFloat(data.collection) : 0,
         progress: 0,
         currentLocation: 'Starting Point',
         companyId: '', // Will be set by the hook
@@ -196,7 +207,11 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Vehicle</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={(value) => {
+                  field.onChange(value);
+                  const vehicle = availableVehicles.find(v => v.registrationNumber === value);
+                  setSelectedVehicle(vehicle);
+                }} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vehicle" />
@@ -205,7 +220,7 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
                   <SelectContent>
                     {availableVehicles.map((vehicle) => (
                       <SelectItem key={vehicle.id} value={vehicle.registrationNumber}>
-                        {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
+                        {vehicle.registrationNumber} ({vehicle.make} {vehicle.model}) - {vehicle.capacity}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -384,13 +399,13 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
             control={form.control}
             name="totalCapacity"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Total Capacity</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., 1000 kg" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            <FormItem>
+              <FormLabel>Total Capacity {selectedVehicle && `(Auto-filled: ${selectedVehicle.capacity})`}</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., 1000 kg" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
             )}
           />
         </div>
@@ -491,6 +506,20 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
               <FormLabel>Notes (Optional)</FormLabel>
               <FormControl>
                 <Input placeholder="Additional notes" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="collection"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Collection Amount (Optional)</FormLabel>
+              <FormControl>
+                <Input type="number" placeholder="Amount collected in ₹" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

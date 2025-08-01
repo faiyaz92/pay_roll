@@ -11,7 +11,9 @@ import {
   Settings,
   LogOut,
   Wrench,
-  Fuel
+  Fuel,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,6 +29,8 @@ const navigation = [
   { name: 'Routes', href: '/routes', icon: Route, roles: [Role.COMPANY_ADMIN] },
   { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
   { name: 'Maintenance', href: '/maintenance-records', icon: Wrench, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Vehicle Analysis', href: '/vehicle-analysis', icon: BarChart3, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Route Analysis', href: '/route-analysis', icon: TrendingUp, roles: [Role.COMPANY_ADMIN] },
 ];
 
 interface SidebarProps {

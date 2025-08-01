@@ -75,6 +75,7 @@ export interface Trip {
   totalExpenses?: number;
   driverAllowance?: number;
   cleanerAllowance?: number;
+  collection?: number;
 }
 
 export interface TripAction {
