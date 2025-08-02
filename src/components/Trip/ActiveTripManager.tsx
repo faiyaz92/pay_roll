@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Package, DollarSign, Receipt, Plus, Truck, CheckCircle, Clock } from 'lucide-react';
-import { Trip, TripStop, TripCollection, useTripManagement } from '@/hooks/useFirebaseData';
+import { Trip, TripStop, TripCollection, useTripManagement, useRoutes, useCities } from '@/hooks/useFirebaseData';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 
@@ -18,6 +19,7 @@ interface ActiveTripManagerProps {
 
 interface StopForm {
   stopName: string;
+  isFromRoute: boolean;
   loadAmount: string;
   unloadAmount: string;
   notes: string;
@@ -41,12 +43,39 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
   const [showStopDialog, setShowStopDialog] = useState(false);
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [isSelectingFromRoute, setIsSelectingFromRoute] = useState(false);
+  const [availableRouteStops, setAvailableRouteStops] = useState<string[]>([]);
   
   const { addTripStop, addTripCollection, addTripExpense, markStopReached } = useTripManagement();
+  const { routes } = useRoutes();
+  const { cities } = useCities();
   
-  const stopForm = useForm<StopForm>();
+  const stopForm = useForm<StopForm>({
+    defaultValues: {
+      stopName: '',
+      isFromRoute: false,
+      loadAmount: '',
+      unloadAmount: '',
+      notes: ''
+    }
+  });
   const collectionForm = useForm<CollectionForm>();
   const expenseForm = useForm<ExpenseForm>();
+
+  // Get route stops when component mounts
+  useEffect(() => {
+    if (trip.routeId && routes.length > 0) {
+      const selectedRoute = routes.find(route => route.id === trip.routeId);
+      if (selectedRoute && selectedRoute.waypoints) {
+        setAvailableRouteStops(selectedRoute.waypoints);
+      }
+    }
+  }, [trip.routeId, routes]);
+
+  const getCityName = (cityId: string) => {
+    const city = cities.find(c => c.id === cityId);
+    return city ? city.name : cityId;
+  };
 
   const calculateCapacityUtilization = () => {
     if (!trip.stops || trip.stops.length === 0) return 0;
@@ -158,10 +187,58 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
                     <DialogTitle>Add New Stop</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={stopForm.handleSubmit(onAddStop)} className="space-y-4">
-                    <div>
-                      <Label htmlFor="stopName">Stop Name/Location</Label>
-                      <Input {...stopForm.register('stopName', { required: true })} />
-                    </div>
+                    {availableRouteStops.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="isFromRoute"
+                            checked={isSelectingFromRoute}
+                            onChange={(e) => {
+                              setIsSelectingFromRoute(e.target.checked);
+                              stopForm.setValue('isFromRoute', e.target.checked);
+                              if (!e.target.checked) {
+                                stopForm.setValue('stopName', '');
+                              }
+                            }}
+                          />
+                          <Label htmlFor="isFromRoute">Select from route stops</Label>
+                        </div>
+                        
+                        {isSelectingFromRoute ? (
+                          <div>
+                            <Label>Route Stops</Label>
+                            <Select 
+                              value={stopForm.watch('stopName')} 
+                              onValueChange={(value) => stopForm.setValue('stopName', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a route stop" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableRouteStops.map((cityId) => (
+                                  <SelectItem key={cityId} value={getCityName(cityId)}>
+                                    {getCityName(cityId)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label htmlFor="stopName">Stop Name/Location</Label>
+                            <Input {...stopForm.register('stopName', { required: true })} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {availableRouteStops.length === 0 && (
+                      <div>
+                        <Label htmlFor="stopName">Stop Name/Location</Label>
+                        <Input {...stopForm.register('stopName', { required: true })} />
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="loadAmount">Load Amount (kg)</Label>
