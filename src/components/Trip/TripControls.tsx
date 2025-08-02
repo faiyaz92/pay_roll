@@ -3,12 +3,14 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, Square, Pause, MapPin, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Play, Square, Pause, MapPin, Clock, Settings } from 'lucide-react';
 import { Trip } from '@/hooks/useFirebaseData';
 import { useTrips } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { Role } from '@/types/user';
 import { toast } from 'sonner';
+import ActiveTripManager from './ActiveTripManager';
 
 interface TripControlsProps {
   trip: Trip;
@@ -107,6 +109,17 @@ const TripControls: React.FC<TripControlsProps> = ({ trip, compact = false }) =>
             )}
             {trip.status === 'in-progress' && (
               <>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <Settings className="w-3 h-3 mr-1" />
+                      Manage
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <ActiveTripManager trip={trip} />
+                  </DialogContent>
+                </Dialog>
                 <Button 
                   size="sm" 
                   variant="outline"
@@ -173,6 +186,17 @@ const TripControls: React.FC<TripControlsProps> = ({ trip, compact = false }) =>
             )}
             {trip.status === 'in-progress' && (
               <>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="flex-1">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Manage Trip
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <ActiveTripManager trip={trip} />
+                  </DialogContent>
+                </Dialog>
                 <Button 
                   variant="outline"
                   onClick={() => handleTripAction('pause')}

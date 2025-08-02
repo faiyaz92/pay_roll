@@ -41,6 +41,33 @@ export interface Vehicle {
   companyId: string;
 }
 
+export interface TripStop {
+  id: string;
+  stopName: string;
+  loadAmount: number;
+  unloadAmount: number;
+  notes?: string;
+  reachedAt: string;
+  status: 'pending' | 'reached';
+}
+
+export interface TripCollection {
+  id: string;
+  amount: number;
+  description: string;
+  location: string;
+  collectedAt: string;
+}
+
+export interface TripExpenseRecord {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  location: string;
+  incurredAt: string;
+}
+
 export interface Trip {
   id: string;
   driver: string;
@@ -71,11 +98,13 @@ export interface Trip {
   customerInfo?: string;
   fare?: number;
   notes?: string;
-  expenses?: TripExpense[];
+  expenses?: TripExpenseRecord[];
   totalExpenses?: number;
   driverAllowance?: number;
   cleanerAllowance?: number;
   collection?: number;
+  stops?: TripStop[];
+  collections?: TripCollection[];
 }
 
 export interface TripAction {
@@ -417,4 +446,63 @@ export const useMaintenanceRecords = () => {
   };
 
   return { maintenanceRecords, loading, addMaintenanceRecord };
+};
+
+// Enhanced trip management hook for active trips
+export const useTripManagement = () => {
+  const { userInfo } = useAuth();
+
+  const addTripStop = async (tripId: string, stopData: Omit<TripStop, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    
+    const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
+    const stopsRef = collection(tripRef, 'stops');
+    
+    return await addDoc(stopsRef, {
+      ...stopData,
+      id: Date.now().toString()
+    });
+  };
+
+  const addTripCollection = async (tripId: string, collectionData: Omit<TripCollection, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    
+    const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
+    const collectionsRef = collection(tripRef, 'collections');
+    
+    return await addDoc(collectionsRef, {
+      ...collectionData,
+      id: Date.now().toString()
+    });
+  };
+
+  const addTripExpense = async (tripId: string, expenseData: Omit<TripExpenseRecord, 'id'>) => {
+    if (!userInfo?.companyId) return;
+    
+    const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
+    const expensesRef = collection(tripRef, 'expenses');
+    
+    return await addDoc(expensesRef, {
+      ...expenseData,
+      id: Date.now().toString()
+    });
+  };
+
+  const markStopReached = async (tripId: string, stopId: string) => {
+    if (!userInfo?.companyId) return;
+    
+    const stopRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips/${tripId}/stops`, stopId);
+    
+    return await updateDoc(stopRef, {
+      status: 'reached',
+      reachedAt: new Date().toISOString()
+    });
+  };
+
+  return {
+    addTripStop,
+    addTripCollection,
+    addTripExpense,
+    markStopReached
+  };
 };
