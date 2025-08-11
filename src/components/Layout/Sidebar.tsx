@@ -28,6 +28,7 @@ const navigation = [
   { name: 'Cities', href: '/cities', icon: MapPin, roles: [Role.COMPANY_ADMIN] },
   { name: 'Routes', href: '/routes', icon: Route, roles: [Role.COMPANY_ADMIN] },
   { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
+  { name: 'Fuel Prices', href: '/fuel-prices', icon: Fuel, roles: [Role.COMPANY_ADMIN] },
   { name: 'Maintenance', href: '/maintenance-records', icon: Wrench, roles: [Role.COMPANY_ADMIN] },
   { name: 'Vehicle Analysis', href: '/vehicle-analysis', icon: BarChart3, roles: [Role.COMPANY_ADMIN] },
   { name: 'Route Analysis', href: '/route-analysis', icon: TrendingUp, roles: [Role.COMPANY_ADMIN] },

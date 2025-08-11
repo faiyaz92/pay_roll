@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useTrips, useDrivers, useVehicles, useRoutes, useCities } from '@/hooks/useFirebaseData';
+import { useFuelPrices } from '@/hooks/useFuelPrices';
 import { useToast } from '@/hooks/use-toast';
 import { Trip } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
 
 const tripSchema = z.object({
   driver: z.string().min(1, 'Driver is required'),
@@ -45,13 +47,16 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
   const { vehicles } = useVehicles();
   const { routes } = useRoutes();
   const { cities } = useCities();
+  const { calculateFuelCost } = useFuelPrices();
   const { toast } = useToast();
+  const { userInfo } = useAuth();
   
   const [selectedPickupCity, setSelectedPickupCity] = useState('');
   const [selectedDropCity, setSelectedDropCity] = useState('');
   const [availableRoutes, setAvailableRoutes] = useState<any[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<any>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [calculatedFuelCost, setCalculatedFuelCost] = useState(0);
 
   const availableDrivers = drivers.filter(driver => driver.status === 'available');
   const availableVehicles = vehicles.filter(vehicle => vehicle.status === 'available');
@@ -106,12 +111,44 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
     }
   }, [selectedRoute, form]);
 
-  // Update form when vehicle is selected - auto-fill load capacity
+  // Update form when vehicle is selected - auto-fill load capacity and calculate fuel cost
   useEffect(() => {
     if (selectedVehicle) {
       form.setValue('totalCapacity', selectedVehicle.capacity);
+      
+      // Calculate fuel cost if distance is available
+      const distance = form.watch('distance');
+      const distanceValue = parseFloat(distance.replace(/[^0-9.]/g, ''));
+      if (distanceValue > 0 && selectedVehicle.mileageValue && selectedVehicle.mileageUnit && selectedVehicle.fuelType) {
+        const fuelCost = calculateFuelCost(
+          selectedVehicle.mileageValue, 
+          selectedVehicle.mileageUnit, 
+          distanceValue, 
+          selectedVehicle.fuelType
+        );
+        setCalculatedFuelCost(fuelCost);
+      }
     }
-  }, [selectedVehicle, form]);
+  }, [selectedVehicle, form, calculateFuelCost]);
+
+  // Recalculate fuel cost when distance changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'distance' && selectedVehicle && value.distance) {
+        const distanceValue = parseFloat(value.distance.replace(/[^0-9.]/g, ''));
+        if (distanceValue > 0 && selectedVehicle.mileageValue) {
+          const fuelCost = calculateFuelCost(
+            selectedVehicle.mileageValue,
+            selectedVehicle.mileageUnit,
+            distanceValue,
+            selectedVehicle.fuelType
+          );
+          setCalculatedFuelCost(fuelCost);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [selectedVehicle, form, calculateFuelCost]);
 
   const onSubmit = async (data: TripFormData) => {
     try {
@@ -525,6 +562,25 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
             </FormItem>
           )}
         />
+
+        {calculatedFuelCost > 0 && (
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100">Estimated Trip Costs</h4>
+            <div className="mt-2 space-y-1 text-sm text-blue-800 dark:text-blue-200">
+              <div>Estimated Fuel Cost: ₹{calculatedFuelCost.toFixed(2)}</div>
+              <div>Driver Allowance: ₹{(parseFloat(form.watch('driverAllowance') || '0')).toFixed(2)}</div>
+              <div>Cleaner Allowance: ₹{(parseFloat(form.watch('cleanerAllowance') || '0')).toFixed(2)}</div>
+              <div className="font-semibold pt-1 border-t border-blue-200 dark:border-blue-800">
+                Total Estimated Cost: ₹{(calculatedFuelCost + parseFloat(form.watch('driverAllowance') || '0') + parseFloat(form.watch('cleanerAllowance') || '0')).toFixed(2)}
+              </div>
+              {form.watch('collection') && (
+                <div className="font-semibold text-green-700 dark:text-green-300">
+                  Expected Profit: ₹{(parseFloat(form.watch('collection') || '0') - (calculatedFuelCost + parseFloat(form.watch('driverAllowance') || '0') + parseFloat(form.watch('cleanerAllowance') || '0'))).toFixed(2)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <Button type="submit" className="w-full">
           Add Trip

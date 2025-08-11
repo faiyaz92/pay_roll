@@ -20,6 +20,8 @@ const vehicleSchema = z.object({
   status: z.enum(['active', 'maintenance', 'available']),
   currentLocation: z.string().min(2, 'Current location is required'),
   mileage: z.string().min(1, 'Mileage is required'),
+  mileageValue: z.number().min(1, 'Mileage value is required'),
+  mileageUnit: z.enum(['kmpl', 'kmkg']),
   totalKms: z.number().min(0),
   insuranceExpiry: z.string().min(1, 'Insurance expiry date is required'),
 });
@@ -46,6 +48,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
       status: 'available',
       currentLocation: '',
       mileage: '',
+      mileageValue: 0,
+      mileageUnit: 'kmpl',
       totalKms: 0,
       insuranceExpiry: '',
     },
@@ -63,6 +67,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         status: data.status,
         currentLocation: data.currentLocation,
         mileage: data.mileage,
+        mileageValue: data.mileageValue,
+        mileageUnit: data.mileageUnit,
         totalKms: data.totalKms,
         insuranceExpiry: data.insuranceExpiry,
         lastMaintenance: new Date().toISOString(),
@@ -229,15 +235,35 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="mileage"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Mileage Description</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., 15 kmpl or 8 kmkg" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="mileage"
+            name="mileageValue"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mileage</FormLabel>
+                <FormLabel>Mileage Value</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., 15 kmpl" {...field} />
+                  <Input 
+                    type="number" 
+                    step="0.1"
+                    placeholder="15" 
+                    {...field} 
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -246,23 +272,45 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
 
           <FormField
             control={form.control}
-            name="totalKms"
+            name="mileageUnit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Total KMs</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="0" 
-                    {...field} 
-                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                  />
-                </FormControl>
+                <FormLabel>Mileage Unit</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="kmpl">km per liter (kmpl)</SelectItem>
+                    <SelectItem value="kmkg">km per kg (kmkg)</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="totalKms"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Total KMs</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  placeholder="0" 
+                  {...field} 
+                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

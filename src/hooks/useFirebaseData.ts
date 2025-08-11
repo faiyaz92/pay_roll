@@ -33,7 +33,9 @@ export interface Vehicle {
   status: 'active' | 'maintenance' | 'available';
   currentDriver?: string;
   currentLocation: string;
-  mileage: string;
+  mileage: string; // kmpl/kmkg format like "15 kmpl" or "8 kmkg"
+  mileageValue: number; // numeric value for calculations
+  mileageUnit: 'kmpl' | 'kmkg'; // unit type
   lastMaintenance: string;
   nextMaintenance: string;
   totalKms: number;

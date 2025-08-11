@@ -16,6 +16,7 @@ import Cities from "./pages/Cities";
 import Routes1 from "./pages/Routes";
 import FuelRecords from "./pages/FuelRecords";
 import MaintenanceRecords from "./pages/MaintenanceRecords";
+import FuelPrices from "./pages/FuelPrices";
 import VehicleAnalysis from "./pages/VehicleAnalysis";
 import RouteAnalysis from "./pages/RouteAnalysis";
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="routes" element={<Routes1/>} />
               <Route path="maintenance-records" element={<MaintenanceRecords/>} />
               <Route path="fuel-records" element={<FuelRecords/>} />
+              <Route path="fuel-prices" element={<FuelPrices/>} />
               <Route path="vehicle-analysis" element={<VehicleAnalysis/>} />
               <Route path="route-analysis" element={<RouteAnalysis/>} />
               <Route path="expenses" element={<div className="p-6"><h1 className="text-3xl font-bold">Expense Management</h1><p className="text-gray-600 mt-2">Track and manage transportation expenses</p></div>} />
