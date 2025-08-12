@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Package, DollarSign, Receipt, Plus, Truck, CheckCircle, Clock } from 'lucide-react';
-import { Trip, TripStop, TripCollection, useTripManagement, useRoutes, useCities } from '@/hooks/useFirebaseData';
+import { Trip, TripStop, TripCollection, useTripManagement, useRoutes, useCities, useTrips } from '@/hooks/useFirebaseData';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 
@@ -33,9 +33,15 @@ interface CollectionForm {
 
 interface ExpenseForm {
   amount: number;
-  category: string;
+  category: 'fuel-consumption' | 'driver-allowance' | 'cleaner-allowance' | 'toll-tax' | 'parking' | 'maintenance' | 'other';
   description: string;
   location: string;
+}
+
+interface TripCompletionForm {
+  finalCollection: number;
+  actualFuelConsumption: number;
+  notes: string;
 }
 
 const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
@@ -43,12 +49,15 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
   const [showStopDialog, setShowStopDialog] = useState(false);
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [isSelectingFromRoute, setIsSelectingFromRoute] = useState(false);
   const [availableRouteStops, setAvailableRouteStops] = useState<string[]>([]);
+  const [currentLoad, setCurrentLoad] = useState(parseInt(trip.currentLoad?.replace(/\D/g, '') || '0'));
   
   const { addTripStop, addTripCollection, addTripExpense, markStopReached } = useTripManagement();
   const { routes } = useRoutes();
   const { cities } = useCities();
+  const { updateTripStatus } = useTrips();
   
   const stopForm = useForm<StopForm>({
     defaultValues: {
@@ -60,7 +69,12 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
     }
   });
   const collectionForm = useForm<CollectionForm>();
-  const expenseForm = useForm<ExpenseForm>();
+  const expenseForm = useForm<ExpenseForm>({
+    defaultValues: {
+      category: 'other'
+    }
+  });
+  const completionForm = useForm<TripCompletionForm>();
 
   // Get route stops when component mounts
   useEffect(() => {
@@ -78,26 +92,29 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
   };
 
   const calculateCapacityUtilization = () => {
-    if (!trip.stops || trip.stops.length === 0) return 0;
-    
-    const totalLoad = trip.stops.reduce((sum, stop) => {
-      return sum + (stop.loadAmount || 0) - (stop.unloadAmount || 0);
-    }, 0);
-    
     const capacity = parseInt(trip.totalCapacity?.replace(/\D/g, '') || '0');
-    return capacity > 0 ? (totalLoad / capacity) * 100 : 0;
+    return capacity > 0 ? (currentLoad / capacity) * 100 : 0;
+  };
+
+  const updateCurrentLoad = (loadAmount: number, unloadAmount: number) => {
+    const newLoad = currentLoad + loadAmount - unloadAmount;
+    setCurrentLoad(Math.max(0, newLoad));
   };
 
   const onAddStop = async (data: StopForm) => {
     try {
+      const loadAmount = parseInt(data.loadAmount) || 0;
+      const unloadAmount = parseInt(data.unloadAmount) || 0;
+      
       await addTripStop(trip.id, {
         stopName: data.stopName,
-        loadAmount: parseInt(data.loadAmount) || 0,
-        unloadAmount: parseInt(data.unloadAmount) || 0,
+        loadAmount,
+        unloadAmount,
         notes: data.notes,
         reachedAt: new Date().toISOString(),
         status: 'pending' as const
       });
+      
       toast.success('Stop added successfully');
       setShowStopDialog(false);
       stopForm.reset();
@@ -141,12 +158,36 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
 
   const handleMarkStopReached = async (stopId: string) => {
     try {
+      const stop = trip.stops?.find(s => s.id === stopId);
+      if (stop) {
+        updateCurrentLoad(stop.loadAmount, stop.unloadAmount);
+      }
       await markStopReached(trip.id, stopId);
       toast.success('Stop marked as reached');
     } catch (error) {
       toast.error('Failed to mark stop as reached');
     }
   };
+
+  const handleCompleteTrip = async (data: TripCompletionForm) => {
+    try {
+      await updateTripStatus(trip.id, 'completed');
+      toast.success('Trip completed successfully');
+      setShowCompletionDialog(false);
+    } catch (error) {
+      toast.error('Failed to complete trip');
+    }
+  };
+
+  const expenseCategories = [
+    { value: 'fuel-consumption', label: 'Fuel Consumption' },
+    { value: 'driver-allowance', label: 'Driver Allowance' },
+    { value: 'cleaner-allowance', label: 'Cleaner Allowance' },
+    { value: 'toll-tax', label: 'Toll Tax' },
+    { value: 'parking', label: 'Parking' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'other', label: 'Other' }
+  ];
 
   const totalCollections = trip.collections?.reduce((sum, col) => sum + col.amount, 0) || 0;
   const totalExpenses = trip.expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
@@ -157,7 +198,55 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Active Trip Management</span>
-          <Badge className="bg-blue-500">In Progress</Badge>
+          <div className="flex items-center space-x-2">
+            <Badge className="bg-blue-500">In Progress</Badge>
+            <Dialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  Complete Trip
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Complete Trip</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={completionForm.handleSubmit(handleCompleteTrip)} className="space-y-4">
+                  <div>
+                    <Label htmlFor="finalCollection">Final Collection (₹)</Label>
+                    <Input 
+                      type="number" 
+                      {...completionForm.register('finalCollection', { required: true, valueAsNumber: true })} 
+                      defaultValue={totalCollections}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="actualFuelConsumption">Actual Fuel Consumption (L/Kg)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.1"
+                      {...completionForm.register('actualFuelConsumption', { required: true, valueAsNumber: true })} 
+                      defaultValue={parseFloat(trip.fuelConsumption) || 0}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notes">Completion Notes</Label>
+                    <Textarea {...completionForm.register('notes')} placeholder="Any additional notes about the trip completion..." />
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <h4 className="font-medium">Trip Summary</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>Total Collections: ₹{totalCollections}</div>
+                      <div>Total Expenses: ₹{totalExpenses}</div>
+                      <div className={`font-bold col-span-2 ${tripProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {tripProfit >= 0 ? 'Profit' : 'Loss'}: ₹{Math.abs(tripProfit)}
+                      </div>
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full">Complete Trip</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardTitle>
         <div className="text-sm text-gray-600">
           <p>{trip.pickupLocation} → {trip.dropLocation}</p>
@@ -318,7 +407,7 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
                   </div>
                   <div>
                     <span className="text-gray-500">Current Load:</span>
-                    <p className="font-medium">{trip.currentLoad || '0kg'}</p>
+                    <p className="font-medium">{currentLoad}kg</p>
                   </div>
                 </div>
               </div>
@@ -410,7 +499,21 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
                     </div>
                     <div>
                       <Label htmlFor="category">Category</Label>
-                      <Input {...expenseForm.register('category', { required: true })} placeholder="e.g., Toll, Fuel, Food" />
+                      <Select 
+                        value={expenseForm.watch('category')} 
+                        onValueChange={(value) => expenseForm.setValue('category', value as any)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select expense category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {expenseCategories.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="description">Description</Label>
@@ -426,27 +529,43 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
               </Dialog>
             </div>
 
-            <Card className="p-4 bg-red-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Receipt className="w-5 h-5 text-red-600" />
-                  <span className="font-medium">Total Expenses</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-4 bg-red-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Receipt className="w-5 h-5 text-red-600" />
+                    <span className="font-medium">Total Expenses</span>
+                  </div>
+                  <span className="text-2xl font-bold text-red-600">₹{totalExpenses}</span>
                 </div>
-                <span className="text-2xl font-bold text-red-600">₹{totalExpenses}</span>
-              </div>
-            </Card>
+              </Card>
+              
+              <Card className={`p-4 ${tripProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className={`w-5 h-5 ${tripProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                    <span className="font-medium">{tripProfit >= 0 ? 'Trip Profit' : 'Trip Loss'}</span>
+                  </div>
+                  <span className={`text-2xl font-bold ${tripProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ₹{Math.abs(tripProfit)}
+                  </span>
+                </div>
+              </Card>
+            </div>
 
             <div className="space-y-3">
               {trip.expenses?.map((expense, index) => (
                 <Card key={index} className="p-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-medium">₹{expense.amount}</h4>
-                      <p className="text-sm text-gray-600">{expense.description}</p>
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
-                        <Badge variant="outline" className="text-xs">{expense.category}</Badge>
-                        <span>{expense.location}</span>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-medium">₹{expense.amount}</h4>
+                        <Badge variant="outline">
+                          {expenseCategories.find(cat => cat.value === expense.category)?.label || expense.category}
+                        </Badge>
                       </div>
+                      <p className="text-sm text-gray-600">{expense.description}</p>
+                      <p className="text-xs text-gray-500">{expense.location}</p>
                     </div>
                     <div className="text-xs text-gray-500">
                       <Clock className="w-3 h-3 inline mr-1" />
