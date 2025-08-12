@@ -185,7 +185,13 @@ export const useVehicles = () => {
     return await addDoc(vehiclesRef, { ...vehicleData, companyId: userInfo.companyId });
   };
 
-  return { vehicles, loading, addVehicle };
+  const updateVehicle = async (vehicleId: string, vehicleData: Partial<Vehicle>) => {
+    if (!userInfo?.companyId) return;
+    const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicleId);
+    return await updateDoc(vehicleRef, vehicleData);
+  };
+
+  return { vehicles, loading, addVehicle, updateVehicle };
 };
 
 export const useTrips = () => {

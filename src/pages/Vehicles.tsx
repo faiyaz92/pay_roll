@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Truck, Gauge, Wrench, Calendar, MapPin } from 'lucide-react';
-import { useVehicles } from '@/hooks/useFirebaseData';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, Truck, Gauge, Wrench, Calendar, MapPin, Edit } from 'lucide-react';
+import { useVehicles, Vehicle } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddVehicleForm from '@/components/Forms/AddVehicleForm';
+import EditVehicleForm from '@/components/Forms/EditVehicleForm';
 
 const Vehicles: React.FC = () => {
   const { vehicles, loading } = useVehicles();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -26,6 +29,10 @@ const Vehicles: React.FC = () => {
 
   const handleAddSuccess = () => {
     setIsModalOpen(false);
+  };
+
+  const handleEditSuccess = () => {
+    setEditingVehicle(null);
   };
 
   if (loading) {
@@ -167,10 +174,22 @@ const Vehicles: React.FC = () => {
                 </div>
 
                 <div className="flex space-x-2 mt-4">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    <Gauge className="w-4 h-4 mr-1" />
-                    Details
-                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingVehicle(vehicle)}>
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Edit Vehicle - {vehicle.registrationNumber}</DialogTitle>
+                      </DialogHeader>
+                      {editingVehicle && (
+                        <EditVehicleForm vehicle={editingVehicle} onSuccess={handleEditSuccess} />
+                      )}
+                    </DialogContent>
+                  </Dialog>
                   <Button variant="outline" size="sm" className="flex-1">
                     <Wrench className="w-4 h-4 mr-1" />
                     Maintenance

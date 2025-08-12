@@ -17,7 +17,6 @@ const vehicleSchema = z.object({
   year: z.number().min(1990).max(new Date().getFullYear() + 1),
   capacity: z.string().min(1, 'Capacity is required'),
   fuelType: z.string().min(2, 'Fuel type is required'),
-  status: z.enum(['active', 'maintenance', 'available']),
   currentLocation: z.string().min(2, 'Current location is required'),
   mileage: z.string().min(1, 'Mileage is required'),
   mileageValue: z.number().min(1, 'Mileage value is required'),
@@ -45,7 +44,6 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
       year: new Date().getFullYear(),
       capacity: '',
       fuelType: '',
-      status: 'available',
       currentLocation: '',
       mileage: '',
       mileageValue: 0,
@@ -64,7 +62,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         year: data.year,
         capacity: data.capacity,
         fuelType: data.fuelType,
-        status: data.status,
+        status: 'available', // Always set to available for new vehicles
         currentLocation: data.currentLocation,
         mileage: data.mileage,
         mileageValue: data.mileageValue,
@@ -198,28 +196,6 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <FormField
           control={form.control}
