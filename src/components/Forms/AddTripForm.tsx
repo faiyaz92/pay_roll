@@ -108,18 +108,40 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
       if (selectedRoute.baseFare) {
         form.setValue('fare', selectedRoute.baseFare.toString());
       }
+      
+      // Calculate fuel consumption if vehicle is also selected
+      if (selectedVehicle && selectedVehicle.mileageValue) {
+        const fuelConsumption = selectedRoute.distance / selectedVehicle.mileageValue;
+        const unit = selectedVehicle.mileageUnit === 'kmpl' ? 'L' : 'kg';
+        form.setValue('fuelConsumption', `${fuelConsumption.toFixed(2)} ${unit}`);
+        
+        // Calculate fuel cost
+        const fuelCost = calculateFuelCost(
+          selectedVehicle.mileageValue,
+          selectedVehicle.mileageUnit,
+          selectedRoute.distance,
+          selectedVehicle.fuelType
+        );
+        setCalculatedFuelCost(fuelCost);
+      }
     }
-  }, [selectedRoute, form]);
+  }, [selectedRoute, selectedVehicle, form, calculateFuelCost]);
 
   // Update form when vehicle is selected - auto-fill load capacity and calculate fuel cost
   useEffect(() => {
     if (selectedVehicle) {
       form.setValue('totalCapacity', selectedVehicle.capacity);
       
-      // Calculate fuel cost if distance is available
+      // Calculate fuel consumption and cost if distance is available
       const distance = form.watch('distance');
       const distanceValue = parseFloat(distance.replace(/[^0-9.]/g, ''));
       if (distanceValue > 0 && selectedVehicle.mileageValue && selectedVehicle.mileageUnit && selectedVehicle.fuelType) {
+        // Calculate fuel consumption
+        const fuelConsumption = distanceValue / selectedVehicle.mileageValue;
+        const unit = selectedVehicle.mileageUnit === 'kmpl' ? 'L' : 'kg';
+        form.setValue('fuelConsumption', `${fuelConsumption.toFixed(2)} ${unit}`);
+        
+        // Calculate fuel cost
         const fuelCost = calculateFuelCost(
           selectedVehicle.mileageValue, 
           selectedVehicle.mileageUnit, 
@@ -131,12 +153,18 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
     }
   }, [selectedVehicle, form, calculateFuelCost]);
 
-  // Recalculate fuel cost when distance changes
+  // Recalculate fuel consumption and cost when distance changes
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === 'distance' && selectedVehicle && value.distance) {
         const distanceValue = parseFloat(value.distance.replace(/[^0-9.]/g, ''));
         if (distanceValue > 0 && selectedVehicle.mileageValue) {
+          // Calculate fuel consumption
+          const fuelConsumption = distanceValue / selectedVehicle.mileageValue;
+          const unit = selectedVehicle.mileageUnit === 'kmpl' ? 'L' : 'kg';
+          form.setValue('fuelConsumption', `${fuelConsumption.toFixed(2)} ${unit}`);
+          
+          // Calculate fuel cost
           const fuelCost = calculateFuelCost(
             selectedVehicle.mileageValue,
             selectedVehicle.mileageUnit,
@@ -462,12 +490,12 @@ const AddTripForm: React.FC<AddTripFormProps> = ({ onSuccess }) => {
             )}
           />
 
-          <FormField
+           <FormField
             control={form.control}
             name="fuelConsumption"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Fuel Consumption</FormLabel>
+                <FormLabel>Fuel Consumption {selectedVehicle && selectedRoute && '(Auto-calculated)'}</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., 10 L" {...field} />
                 </FormControl>
