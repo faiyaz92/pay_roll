@@ -207,7 +207,12 @@ const Trips: React.FC = () => {
                 </div>
 
                 <div className="flex space-x-2 mt-4">
-                  <Button variant="outline" size="sm" className="flex-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => window.location.href = `/trip-details/${trip.id}`}
+                  >
                     View Details
                   </Button>
                   {trip.status === 'in-progress' && (

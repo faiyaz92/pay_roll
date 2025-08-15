@@ -52,7 +52,14 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [isSelectingFromRoute, setIsSelectingFromRoute] = useState(false);
   const [availableRouteStops, setAvailableRouteStops] = useState<string[]>([]);
-  const [currentLoad, setCurrentLoad] = useState(parseInt(trip.currentLoad?.replace(/\D/g, '') || '0'));
+  const [currentLoad, setCurrentLoad] = useState(() => {
+    const initialLoad = parseInt(trip.currentLoad?.replace(/\D/g, '') || '0');
+    // Calculate current load based on completed stops
+    const completedStops = trip.stops?.filter(stop => stop.status === 'reached') || [];
+    const totalLoaded = completedStops.reduce((sum, stop) => sum + (stop.loadAmount || 0), 0);
+    const totalUnloaded = completedStops.reduce((sum, stop) => sum + (stop.unloadAmount || 0), 0);
+    return initialLoad + totalLoaded - totalUnloaded;
+  });
   
   const { addTripStop, addTripCollection, addTripExpense, markStopReached } = useTripManagement();
   const { routes } = useRoutes();
@@ -200,8 +207,17 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
     { value: 'other', label: 'Other' }
   ];
 
-  const totalCollections = trip.collections?.reduce((sum, col) => sum + col.amount, 0) || 0;
-  const totalExpenses = trip.expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
+  // Include initial trip costs and collections
+  const initialCollection = parseFloat((trip.fare || '0').toString()) || 0;
+  const initialExpenses = (parseFloat((trip.fuelConsumption || '0').toString()) || 0) + 
+                         (parseFloat((trip.driverAllowance || '0').toString()) || 0) + 
+                         (parseFloat((trip.cleanerAllowance || '0').toString()) || 0);
+  
+  const additionalCollections = trip.collections?.reduce((sum, col) => sum + col.amount, 0) || 0;
+  const additionalExpenses = trip.expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
+  
+  const totalCollections = initialCollection + additionalCollections;
+  const totalExpenses = initialExpenses + additionalExpenses;
   const tripProfit = totalCollections - totalExpenses;
 
   return (

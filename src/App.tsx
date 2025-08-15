@@ -19,6 +19,7 @@ import MaintenanceRecords from "./pages/MaintenanceRecords";
 import FuelPrices from "./pages/FuelPrices";
 import VehicleAnalysis from "./pages/VehicleAnalysis";
 import RouteAnalysis from "./pages/RouteAnalysis";
+import TripDetails from "./pages/TripDetails";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -39,6 +40,7 @@ const App = () => (
             }>
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="trips" element={<Trips />} />
+              <Route path="trip-details/:tripId" element={<TripDetails />} />
               <Route path="vehicles" element={<Vehicles />} />
               <Route path="drivers" element={<Drivers />} />
               <Route path="cities" element={<Cities/>} />
