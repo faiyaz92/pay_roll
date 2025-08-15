@@ -98,13 +98,16 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
 
   const updateCurrentLoad = (loadAmount: number, unloadAmount: number) => {
     const newLoad = currentLoad + loadAmount - unloadAmount;
-    setCurrentLoad(Math.max(0, newLoad));
+    const maxCapacity = parseInt(trip.totalCapacity?.replace(/\D/g, '') || '0');
+    setCurrentLoad(Math.max(0, Math.min(newLoad, maxCapacity)));
   };
 
   const onAddStop = async (data: StopForm) => {
     try {
       const loadAmount = parseInt(data.loadAmount) || 0;
       const unloadAmount = parseInt(data.unloadAmount) || 0;
+      
+      console.log('Adding stop:', { stopName: data.stopName, loadAmount, unloadAmount, tripId: trip.id });
       
       await addTripStop(trip.id, {
         stopName: data.stopName,
@@ -119,12 +122,15 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
       setShowStopDialog(false);
       stopForm.reset();
     } catch (error) {
+      console.error('Failed to add stop:', error);
       toast.error('Failed to add stop');
     }
   };
 
   const onAddCollection = async (data: CollectionForm) => {
     try {
+      console.log('Adding collection:', { amount: data.amount, tripId: trip.id });
+      
       await addTripCollection(trip.id, {
         amount: data.amount,
         description: data.description,
@@ -135,12 +141,15 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
       setShowCollectionDialog(false);
       collectionForm.reset();
     } catch (error) {
+      console.error('Failed to add collection:', error);
       toast.error('Failed to add collection');
     }
   };
 
   const onAddExpense = async (data: ExpenseForm) => {
     try {
+      console.log('Adding expense:', { amount: data.amount, category: data.category, tripId: trip.id });
+      
       await addTripExpense(trip.id, {
         amount: data.amount,
         category: data.category,
@@ -152,6 +161,7 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
       setShowExpenseDialog(false);
       expenseForm.reset();
     } catch (error) {
+      console.error('Failed to add expense:', error);
       toast.error('Failed to add expense');
     }
   };
@@ -160,11 +170,12 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
     try {
       const stop = trip.stops?.find(s => s.id === stopId);
       if (stop) {
-        updateCurrentLoad(stop.loadAmount, stop.unloadAmount);
+        updateCurrentLoad(stop.loadAmount || 0, stop.unloadAmount || 0);
       }
       await markStopReached(trip.id, stopId);
-      toast.success('Stop marked as reached');
+      toast.success('Stop marked as reached and load updated');
     } catch (error) {
+      console.error('Error marking stop reached:', error);
       toast.error('Failed to mark stop as reached');
     }
   };

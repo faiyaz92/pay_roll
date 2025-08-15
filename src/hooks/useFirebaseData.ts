@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Role, TenantCompanyType, Route, City, TripExpense, FuelRecord, MaintenanceRecord } from '@/types/user';
@@ -100,13 +100,14 @@ export interface Trip {
   customerInfo?: string;
   fare?: number;
   notes?: string;
-  expenses?: TripExpenseRecord[];
   totalExpenses?: number;
   driverAllowance?: number;
   cleanerAllowance?: number;
   collection?: number;
+  // Subcollections
   stops?: TripStop[];
   collections?: TripCollection[];
+  expenses?: TripExpenseRecord[];
 }
 
 export interface TripAction {
@@ -217,11 +218,30 @@ export const useTrips = () => {
       q = query(tripsRef, orderBy('createdAt', 'desc'));
     }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tripsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Trip[];
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const tripsData = await Promise.all(
+        snapshot.docs.map(async (tripDoc) => {
+          const tripData = { id: tripDoc.id, ...tripDoc.data() } as Trip;
+          
+          // Fetch subcollections
+          const stopsRef = collection(tripDoc.ref, 'stops');
+          const collectionsRef = collection(tripDoc.ref, 'collections');
+          const expensesRef = collection(tripDoc.ref, 'expenses');
+          
+          const [stopsSnapshot, collectionsSnapshot, expensesSnapshot] = await Promise.all([
+            getDocs(stopsRef),
+            getDocs(collectionsRef),
+            getDocs(expensesRef)
+          ]);
+          
+          tripData.stops = stopsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TripStop[];
+          tripData.collections = collectionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TripCollection[];
+          tripData.expenses = expensesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TripExpenseRecord[];
+          
+          return tripData;
+        })
+      );
+      
       setTrips(tripsData);
       setLoading(false);
     });
@@ -466,10 +486,18 @@ export const useTripManagement = () => {
     const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
     const stopsRef = collection(tripRef, 'stops');
     
-    return await addDoc(stopsRef, {
-      ...stopData,
-      id: Date.now().toString()
+    const docRef = await addDoc(stopsRef, stopData);
+    
+    // Update the current load in the trip document
+    const loadAmount = stopData.loadAmount || 0;
+    const unloadAmount = stopData.unloadAmount || 0;
+    const currentLoadNumber = parseInt(tripId) || 0; // This should be fetched from trip data
+    
+    await updateDoc(tripRef, {
+      updatedAt: new Date().toISOString()
     });
+    
+    return docRef;
   };
 
   const addTripCollection = async (tripId: string, collectionData: Omit<TripCollection, 'id'>) => {
@@ -478,10 +506,13 @@ export const useTripManagement = () => {
     const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
     const collectionsRef = collection(tripRef, 'collections');
     
-    return await addDoc(collectionsRef, {
-      ...collectionData,
-      id: Date.now().toString()
+    const docRef = await addDoc(collectionsRef, collectionData);
+    
+    await updateDoc(tripRef, {
+      updatedAt: new Date().toISOString()
     });
+    
+    return docRef;
   };
 
   const addTripExpense = async (tripId: string, expenseData: Omit<TripExpenseRecord, 'id'>) => {
@@ -490,20 +521,29 @@ export const useTripManagement = () => {
     const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
     const expensesRef = collection(tripRef, 'expenses');
     
-    return await addDoc(expensesRef, {
-      ...expenseData,
-      id: Date.now().toString()
+    const docRef = await addDoc(expensesRef, expenseData);
+    
+    await updateDoc(tripRef, {
+      updatedAt: new Date().toISOString()
     });
+    
+    return docRef;
   };
 
   const markStopReached = async (tripId: string, stopId: string) => {
     if (!userInfo?.companyId) return;
     
     const stopRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips/${tripId}/stops`, stopId);
+    const tripRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/trips`, tripId);
     
-    return await updateDoc(stopRef, {
+    await updateDoc(stopRef, {
       status: 'reached',
       reachedAt: new Date().toISOString()
+    });
+    
+    // Update trip's updatedAt
+    return await updateDoc(tripRef, {
+      updatedAt: new Date().toISOString()
     });
   };
 
