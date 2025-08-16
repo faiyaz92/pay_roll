@@ -209,9 +209,12 @@ const ActiveTripManager: React.FC<ActiveTripManagerProps> = ({ trip }) => {
 
   // Include initial trip costs and collections
   const initialCollection = parseFloat((trip.fare || '0').toString()) || 0;
-  const initialExpenses = (parseFloat((trip.fuelConsumption || '0').toString()) || 0) + 
-                         (parseFloat((trip.driverAllowance || '0').toString()) || 0) + 
-                         (parseFloat((trip.cleanerAllowance || '0').toString()) || 0);
+  const initialDriverAllowance = parseFloat((trip.driverAllowance || '0').toString()) || 0;
+  const initialCleanerAllowance = parseFloat((trip.cleanerAllowance || '0').toString()) || 0;
+  // Calculate fuel cost from consumption - assuming fuel price needs to be calculated
+  const fuelConsumptionLiters = parseFloat((trip.fuelConsumption || '0').toString()) || 0;
+  const estimatedFuelCost = fuelConsumptionLiters * 100; // Placeholder rate, should come from fuel prices
+  const initialExpenses = estimatedFuelCost + initialDriverAllowance + initialCleanerAllowance;
   
   const additionalCollections = trip.collections?.reduce((sum, col) => sum + col.amount, 0) || 0;
   const additionalExpenses = trip.expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
