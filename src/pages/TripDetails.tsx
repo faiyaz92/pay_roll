@@ -83,11 +83,16 @@ const TripDetails: React.FC = () => {
     }
   };
 
-  // Calculate financial summary
-  const initialCollection = parseFloat((trip.fare || '0').toString()) || 0;
-  const initialExpenses = (parseFloat((trip.fuelConsumption || '0').toString()) || 0) + 
-                         (parseFloat((trip.driverAllowance || '0').toString()) || 0) + 
-                         (parseFloat((trip.cleanerAllowance || '0').toString()) || 0);
+  // Calculate financial summary  
+  const initialFare = parseFloat((trip.fare || '0').toString()) || 0;
+  const initialCollectionAmount = parseFloat((trip.collection || '0').toString()) || 0;
+  const initialCollection = initialFare + initialCollectionAmount;
+  
+  const initialDriverAllowance = parseFloat((trip.driverAllowance || '0').toString()) || 0;
+  const initialCleanerAllowance = parseFloat((trip.cleanerAllowance || '0').toString()) || 0;
+  const fuelConsumptionLiters = parseFloat((trip.fuelConsumption || '0').toString()) || 0;
+  const estimatedFuelCost = fuelConsumptionLiters * 100; // Placeholder rate
+  const initialExpenses = estimatedFuelCost + initialDriverAllowance + initialCleanerAllowance;
   
   const additionalCollections = trip.collections?.reduce((sum, col) => sum + col.amount, 0) || 0;
   const additionalExpenses = trip.expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
