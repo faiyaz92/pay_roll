@@ -2,6 +2,7 @@
 import React from 'react';
 import DashboardStats from '@/components/Dashboard/DashboardStats';
 import LiveTripsMap from '@/components/Dashboard/LiveTripsMap';
+import ActiveTripsList from '@/components/Dashboard/ActiveTripsList';
 
 const Dashboard: React.FC = () => {
   return (
@@ -12,6 +13,8 @@ const Dashboard: React.FC = () => {
       </div>
       
       <DashboardStats />
+      
+      <ActiveTripsList />
       
       <LiveTripsMap />
     </div>

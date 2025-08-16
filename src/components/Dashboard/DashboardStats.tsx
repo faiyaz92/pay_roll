@@ -2,10 +2,32 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Truck, Navigation, Users, MapPin, TrendingUp, AlertTriangle } from 'lucide-react';
-import { useDashboardStats } from '@/hooks/useFirebaseData';
+import { useDashboardStats, useCities, useTrips } from '@/hooks/useFirebaseData';
 
 const DashboardStats: React.FC = () => {
   const stats = useDashboardStats();
+  const { cities } = useCities();
+  const { trips } = useTrips();
+
+  // Calculate load efficiency from active trips
+  const activeTrips = trips.filter(trip => trip.status === 'in-progress');
+  const overloadedTrips = activeTrips.filter(trip => {
+    const currentLoad = parseFloat((trip.currentLoad || '0').toString());
+    const capacity = parseFloat((trip.totalCapacity || '0').toString());
+    return capacity > 0 && (currentLoad / capacity) > 0.9;
+  });
+  
+  const totalTripsWithLoad = activeTrips.filter(trip => 
+    parseFloat((trip.totalCapacity || '0').toString()) > 0
+  );
+  
+  const avgLoadEfficiency = totalTripsWithLoad.length > 0 
+    ? Math.round(totalTripsWithLoad.reduce((acc, trip) => {
+        const currentLoad = parseFloat((trip.currentLoad || '0').toString());
+        const capacity = parseFloat((trip.totalCapacity || '0').toString());
+        return acc + (capacity > 0 ? (currentLoad / capacity) * 100 : 0);
+      }, 0) / totalTripsWithLoad.length)
+    : 0;
 
   const statsData = [
     {
@@ -34,27 +56,27 @@ const DashboardStats: React.FC = () => {
     },
     {
       title: 'Cities Covered',
-      value: '15',
-      change: '2 new routes',
+      value: cities.length.toString(),
+      change: `${cities.length} total cities`,
       icon: MapPin,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
     },
     {
       title: 'Load Efficiency',
-      value: '87%',
-      change: '+5% this week',
+      value: `${avgLoadEfficiency}%`,
+      change: `${totalTripsWithLoad.length} trips tracked`,
       icon: TrendingUp,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-100',
+      color: avgLoadEfficiency >= 80 ? 'text-emerald-600' : 'text-yellow-600',
+      bgColor: avgLoadEfficiency >= 80 ? 'bg-emerald-100' : 'bg-yellow-100',
     },
     {
       title: 'Alerts',
-      value: '3',
-      change: 'Capacity warnings',
+      value: overloadedTrips.length.toString(),
+      change: overloadedTrips.length > 0 ? 'Overload warnings' : 'No warnings',
       icon: AlertTriangle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
+      color: overloadedTrips.length > 0 ? 'text-red-600' : 'text-green-600',
+      bgColor: overloadedTrips.length > 0 ? 'bg-red-100' : 'bg-green-100',
     },
   ];
 
