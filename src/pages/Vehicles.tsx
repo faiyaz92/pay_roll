@@ -246,7 +246,7 @@ const Vehicles: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredVehicles.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
+            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow flex flex-col">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div>
@@ -264,131 +264,140 @@ const Vehicles: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-                {/* Key Metrics */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-gray-600">Investment</div>
-                    <div className="font-semibold text-blue-600">
-                      ₹{vehicle.initialInvestment?.toLocaleString() || 'N/A'}
+              <CardContent className="flex flex-col flex-grow">
+                <div className="space-y-4 flex-grow">
+                  {/* Key Metrics */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-600">Investment</div>
+                      <div className="font-semibold text-blue-600">
+                        ₹{vehicle.initialInvestment?.toLocaleString() || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">
+                        {vehicle.financialData?.isCurrentlyRented ? "Monthly Rent" : "Current Value"}
+                      </div>
+                      <div className={`font-semibold ${vehicle.financialData?.isCurrentlyRented ? 'text-green-600' : ''}`}>
+                        {vehicle.financialData?.isCurrentlyRented 
+                          ? `₹${Math.round(getCurrentMonthlyRent(vehicle)).toLocaleString()}`
+                          : `₹${vehicle.residualValue?.toLocaleString() || 'N/A'}`
+                        }
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-600">
-                      {vehicle.financialData?.isCurrentlyRented ? "Monthly Rent" : "Current Value"}
-                    </div>
-                    <div className={`font-semibold ${vehicle.financialData?.isCurrentlyRented ? 'text-green-600' : ''}`}>
-                      {vehicle.financialData?.isCurrentlyRented 
-                        ? `₹${Math.round(getCurrentMonthlyRent(vehicle)).toLocaleString()}`
-                        : `₹${vehicle.residualValue?.toLocaleString() || 'N/A'}`
-                      }
-                    </div>
-                  </div>
-                </div>
 
-                {/* Rental Status */}
-                {vehicle.financialData?.isCurrentlyRented ? (
-                  <div className="bg-green-50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-700">Currently Rented</span>
+                  {/* Rental Status */}
+                  {vehicle.financialData?.isCurrentlyRented ? (
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">Currently Rented</span>
+                      </div>
+                      <div className="text-xs text-green-600">
+                        Generating ₹{Math.round(getCurrentMonthlyRent(vehicle)).toLocaleString()}/month
+                      </div>
                     </div>
-                    <div className="text-xs text-green-600">
-                      Generating ₹{Math.round(getCurrentMonthlyRent(vehicle)).toLocaleString()}/month
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Car className="h-4 w-4 text-gray-600" />
-                      <span className="text-sm font-medium text-gray-700">Available for Rental</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      No rental income currently
-                    </div>
-                  </div>
-                )}
-
-                {/* Financial Performance */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Monthly Profit</span>
-                    <span className={`font-medium ${
-                      calculateMonthlyProfit(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {vehicle.financialData?.isCurrentlyRented 
-                        ? `₹${Math.round(calculateMonthlyProfit(vehicle)).toLocaleString()}`
-                        : 'Not Rented'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">ROI</span>
-                    <span className={`font-medium ${
-                      calculateROI(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {calculateROI(vehicle).toFixed(1)}%
-                    </span>
-                  </div>
-                  {vehicle.financialData && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Total Earnings</span>
-                      <span className="font-medium text-green-600">
-                        ₹{vehicle.financialData.totalEarnings.toLocaleString()}
-                      </span>
+                  ) : (
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Car className="h-4 w-4 text-gray-600" />
+                        <span className="text-sm font-medium text-gray-700">Available for Rental</span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        No rental income currently
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {/* Loan Progress (if applicable) */}
-                {vehicle.financingType === 'loan' && vehicle.loanDetails && (
+                  {/* Financial Performance */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">EMI Progress</span>
-                      <span className="text-sm font-medium">
-                        {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments}
+                      <span className="text-sm text-gray-600">Monthly Profit</span>
+                      <span className={`font-medium ${
+                        calculateMonthlyProfit(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {vehicle.financialData?.isCurrentlyRented 
+                          ? `₹${Math.round(calculateMonthlyProfit(vehicle)).toLocaleString()}`
+                          : 'Not Rented'
+                        }
                       </span>
                     </div>
-                    <Progress 
-                      value={((vehicle.loanDetails.paidInstallments?.length || 0) / vehicle.loanDetails.totalInstallments) * 100} 
-                      className="h-2"
-                    />
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Outstanding:</span>
-                      <span className="font-medium text-red-600">
-                        ₹{(vehicle.financialData?.outstandingLoan || 0).toLocaleString()}
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">ROI</span>
+                      <span className={`font-medium ${
+                        calculateROI(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {calculateROI(vehicle).toFixed(1)}%
                       </span>
                     </div>
-                    {vehicle.financialData?.nextEMIDue && (
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-500">Next EMI:</span>
-                        <span className={`${vehicle.financialData.daysUntilEMI <= 7 ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                          {vehicle.financialData.daysUntilEMI >= 0 ? 
-                            `${vehicle.financialData.daysUntilEMI} days` : 
-                            'Overdue'
-                          }
+                    {vehicle.financialData && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Earnings</span>
+                        <span className="font-medium text-green-600">
+                          ₹{vehicle.financialData.totalEarnings.toLocaleString()}
                         </span>
                       </div>
                     )}
                   </div>
-                )}
 
-                {/* Vehicle Details */}
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Fuel className="h-4 w-4" />
-                    {vehicle.odometer?.toLocaleString() || 'N/A'} km
+                  {/* Vehicle Details */}
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <Fuel className="h-4 w-4" />
+                      {vehicle.odometer?.toLocaleString() || 'N/A'} km
+                    </div>
+                    {vehicle.needsMaintenance && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Maintenance Due
+                      </Badge>
+                    )}
                   </div>
-                  {vehicle.needsMaintenance && (
-                    <Badge variant="destructive" className="text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Maintenance Due
-                    </Badge>
+                </div>
+
+                {/* Loan Progress (if applicable) - Always at same position */}
+                <div className="mt-4">
+                  {vehicle.financingType === 'loan' && vehicle.loanDetails ? (
+                    <div className="space-y-2 bg-blue-50 p-3 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">EMI Progress</span>
+                        <span className="text-sm font-medium">
+                          {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments}
+                        </span>
+                      </div>
+                      <Progress 
+                        value={((vehicle.loanDetails.paidInstallments?.length || 0) / vehicle.loanDetails.totalInstallments) * 100} 
+                        className="h-2"
+                      />
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Outstanding:</span>
+                        <span className="font-medium text-red-600">
+                          ₹{(vehicle.financialData?.outstandingLoan || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      {vehicle.financialData?.nextEMIDue && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-500">Next EMI:</span>
+                          <span className={`${vehicle.financialData.daysUntilEMI <= 7 ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                            {vehicle.financialData.daysUntilEMI >= 0 ? 
+                              `${vehicle.financialData.daysUntilEMI} days` : 
+                              'Overdue'
+                            }
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 p-3 rounded-lg">
+                      <div className="text-sm font-medium text-emerald-700">Cash Purchase</div>
+                      <div className="text-xs text-emerald-600">No EMI obligations</div>
+                    </div>
                   )}
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-2">
+                {/* Action Buttons - Always at bottom */}
+                <div className="flex gap-2 pt-4">
                   <Button 
                     variant="outline" 
                     size="sm" 

@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
 import { Vehicle } from '@/types/user';
+import { Camera, Upload, X } from 'lucide-react';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 // Enhanced Fleet Rental Vehicle Schema
 const vehicleSchema = z.object({
@@ -59,6 +61,33 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
   const { addVehicle } = useFirebaseData();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('basic');
+
+  // Vehicle Images State
+  const [vehicleImages, setVehicleImages] = useState<{
+    front: File | null;
+    back: File | null;
+    interior: File | null;
+    documents: File | null;
+  }>({
+    front: null,
+    back: null,
+    interior: null,
+    documents: null
+  });
+  
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<{
+    front: string | null;
+    back: string | null;
+    interior: string | null;
+    documents: string | null;
+  }>({
+    front: null,
+    back: null,
+    interior: null,
+    documents: null
+  });
+  
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   const form = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleSchema),
@@ -120,6 +149,53 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
       }
     }
   }, [watchLoanAmount, watchInterestRate, watchTenureMonths, watchFinancingType, form]);
+
+  // Image handling functions
+  const handleImageChange = (imageType: 'front' | 'back' | 'interior' | 'documents', file: File | null) => {
+    setVehicleImages(prev => ({
+      ...prev,
+      [imageType]: file
+    }));
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreviewUrls(prev => ({
+          ...prev,
+          [imageType]: e.target?.result as string
+        }));
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreviewUrls(prev => ({
+        ...prev,
+        [imageType]: null
+      }));
+    }
+  };
+
+  const removeImage = (imageType: 'front' | 'back' | 'interior' | 'documents') => {
+    handleImageChange(imageType, null);
+  };
+
+  // Upload images to Cloudinary
+  const uploadVehicleImages = async () => {
+    const uploadedImages: Record<string, string> = {};
+    
+    for (const [type, file] of Object.entries(vehicleImages)) {
+      if (file) {
+        try {
+          const cloudinaryUrl = await uploadToCloudinary(file);
+          uploadedImages[type] = cloudinaryUrl;
+        } catch (error) {
+          console.error(`Failed to upload ${type} image:`, error);
+          throw new Error(`Failed to upload ${type} image`);
+        }
+      }
+    }
+    
+    return uploadedImages;
+  };
 
   // Calculate initial investment
   const calculateInitialInvestment = () => {
@@ -184,6 +260,21 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
 
   const onSubmit = async (data: VehicleFormData) => {
     try {
+      setIsUploadingImages(true);
+      
+      // Upload vehicle images first
+      let uploadedImages = {};
+      try {
+        uploadedImages = await uploadVehicleImages();
+      } catch (error) {
+        toast({
+          title: 'Image Upload Failed',
+          description: error.message || 'Failed to upload vehicle images. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       // Calculate initial investment
       const initialInvestment = calculateInitialInvestment();
 
@@ -282,7 +373,10 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         monthlyEarnings: 0,
         monthlyExpenses: 0,
         totalEarnings: 0,
-        totalExpenses: 0
+        totalExpenses: 0,
+        
+        // Vehicle Images
+        images: uploadedImages
       };
 
       await addVehicle(vehicleData);
@@ -301,6 +395,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         description: error.message || 'Failed to add vehicle',
         variant: 'destructive',
       });
+    } finally {
+      setIsUploadingImages(false);
     }
   };
 
@@ -469,6 +565,174 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                {/* Vehicle Images Upload Section */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <Camera className="w-5 h-5 mr-2" />
+                    Vehicle Images
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Front Image */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Front View</label>
+                      <div className="relative">
+                        {imagePreviewUrls.front ? (
+                          <div className="relative">
+                            <img 
+                              src={imagePreviewUrls.front} 
+                              alt="Vehicle Front" 
+                              className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeImage('front')}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50">
+                            <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                            <span className="text-xs text-gray-500">Click to upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                handleImageChange('front', file);
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Back Image */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Back View</label>
+                      <div className="relative">
+                        {imagePreviewUrls.back ? (
+                          <div className="relative">
+                            <img 
+                              src={imagePreviewUrls.back} 
+                              alt="Vehicle Back" 
+                              className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeImage('back')}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50">
+                            <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                            <span className="text-xs text-gray-500">Click to upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                handleImageChange('back', file);
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Interior Image */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Interior</label>
+                      <div className="relative">
+                        {imagePreviewUrls.interior ? (
+                          <div className="relative">
+                            <img 
+                              src={imagePreviewUrls.interior} 
+                              alt="Vehicle Interior" 
+                              className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeImage('interior')}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50">
+                            <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                            <span className="text-xs text-gray-500">Click to upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                handleImageChange('interior', file);
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Documents Image */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Documents</label>
+                      <div className="relative">
+                        {imagePreviewUrls.documents ? (
+                          <div className="relative">
+                            <img 
+                              src={imagePreviewUrls.documents} 
+                              alt="Vehicle Documents" 
+                              className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-gray-300"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => removeImage('documents')}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50">
+                            <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                            <span className="text-xs text-gray-500">Click to upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                handleImageChange('documents', file);
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Upload clear images of your vehicle. These will help with identification and record keeping.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -864,8 +1128,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
             Next
           </Button>
 
-          <Button type="submit" className="flex-1" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? 'Adding Vehicle...' : 'Add Vehicle to Fleet'}
+          <Button type="submit" className="flex-1" disabled={form.formState.isSubmitting || isUploadingImages}>
+            {isUploadingImages ? 'Uploading Images...' : form.formState.isSubmitting ? 'Adding Vehicle...' : 'Add Vehicle to Fleet'}
           </Button>
         </div>
       </form>

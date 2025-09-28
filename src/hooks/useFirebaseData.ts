@@ -7,6 +7,15 @@ import { Role, TenantCompanyType, FuelRecord, MaintenanceRecord, Vehicle, LoanDe
 
 // Fleet Rental Business Interfaces (based on BRD)
 
+export interface DocumentUpload {
+  id: string;
+  name: string;
+  url: string;
+  type: 'license' | 'idCard' | 'photo' | 'additional';
+  uploadedAt: string;
+  size?: number;
+}
+
 export interface Driver {
   id: string;
   name: string;
@@ -19,18 +28,28 @@ export interface Driver {
   joinDate: string;
   isActive: boolean;
   companyId: string;
-  // Identity documents
-  drivingLicense: {
+  userType: string; // Required for Firestore query filtering
+  
+  // Document management with Cloudinary URLs
+  documents: {
+    drivingLicense: DocumentUpload | null;
+    idCard: DocumentUpload | null;
+    photo: DocumentUpload | null;
+    additional: DocumentUpload[]; // Up to 2 additional documents (total 5)
+  };
+  
+  // Legacy fields for backward compatibility (deprecated)
+  drivingLicense?: {
     number: string;
     expiry: string;
     photoUrl: string;
   };
-  idCard: {
+  idCard?: {
     number: string;
     photoUrl: string;
   };
-  // Additional fields
-  photoUrl: string;
+  photoUrl?: string;
+  
   createdAt: string;
   updatedAt: string;
 }
@@ -176,19 +195,31 @@ export const useDrivers = () => {
   const paths = useFirestorePaths(userInfo?.companyId);
 
   useEffect(() => {
+    console.log('useDrivers useEffect triggered');
+    console.log('userInfo:', userInfo);
+    console.log('companyId:', userInfo?.companyId);
+    
     if (!userInfo?.companyId) {
+      console.log('No companyId, setting loading to false');
       setLoading(false);
       return;
     }
 
+    console.log('Setting up drivers listener');
     const driversRef = collection(firestore, paths.getUsersPath());
-    const q = query(driversRef, where('userType', '==', 'Driver'), orderBy('name'));
+    console.log('Drivers collection path:', paths.getUsersPath());
+    
+    const q = query(driversRef, where('userType', '==', 'Driver'));
+    console.log('Drivers query created without orderBy');
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const driversData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Driver[];
+      console.log('Drivers snapshot received, doc count:', snapshot.docs.length);
+      const driversData = snapshot.docs.map(doc => {
+        const data = { id: doc.id, ...doc.data() };
+        console.log('Driver doc:', data);
+        return data;
+      }) as Driver[];
+      console.log('Processed drivers data:', driversData);
       setDrivers(driversData);
       setLoading(false);
     }, (error) => {
@@ -196,19 +227,39 @@ export const useDrivers = () => {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('Unsubscribing from drivers listener');
+      unsubscribe();
+    };
   }, [userInfo?.companyId, paths]);
 
   const addDriver = async (driverData: Omit<Driver, 'id'>) => {
-    if (!userInfo?.companyId) throw new Error('No company ID');
+    console.log('addDriver function called');
+    console.log('userInfo in addDriver:', userInfo);
+    console.log('companyId in addDriver:', userInfo?.companyId);
+    
+    if (!userInfo?.companyId) {
+      console.error('No company ID in addDriver');
+      throw new Error('No company ID');
+    }
+    
     const driversRef = collection(firestore, paths.getUsersPath());
+    console.log('addDriver collection path:', paths.getUsersPath());
+    
     const now = new Date().toISOString();
-    return await addDoc(driversRef, { 
+    const dataToSave = { 
       ...driverData, 
       companyId: userInfo.companyId,
       createdAt: now,
       updatedAt: now
-    });
+    };
+    
+    console.log('Data to save to Firestore:', dataToSave);
+    
+    const result = await addDoc(driversRef, dataToSave);
+    console.log('Firestore addDoc result:', result);
+    
+    return result;
   };
 
   const updateDriver = async (driverId: string, driverData: Partial<Driver>) => {
@@ -629,6 +680,13 @@ interface VehicleFinancialData {
   totalEarnings: number;
   totalExpenses: number;
   currentROI: number;
+  roiAmount: number; // ROI in actual amount
+  totalEmiPaid: number; // Total EMI amount paid so far
+  totalInvestmentWithPrepayments: number; // Initial investment + prepayments
+  isInvestmentCovered: boolean; // Whether profit >= total investment
+  grossProfitLoss: number; // Current value + profit - loan (what you get if sold)
+  projectedYearlyProfit: number; // Projected profit for one year
+  avgMonthlyProfit: number; // Average monthly profit for projections
   isCurrentlyRented: boolean;
   currentAssignment?: Assignment;
   outstandingLoan: number;
@@ -703,10 +761,37 @@ const calculateVehicleFinancials = (
     outstandingLoan = (vehicle.loanDetails?.outstandingLoan || 0);
   }
   
-  // Calculate actual cash-based ROI
-  // Only consider earnings vs total cash invested (excluding unrealized asset value)
-  const netCashFlow = totalEarnings - totalExpenses;
-  const currentROI = totalInvestment > 0 ? (netCashFlow / totalInvestment) * 100 : 0;
+  // Calculate total EMI paid so far
+  const totalEmiPaid = amortizationSchedule
+    .filter(emi => emi.isPaid)
+    .reduce((sum, emi) => sum + (emi.interest || 0) + (emi.principal || 0), 0);
+  
+  // Calculate total investment including prepayments
+  // Prepayments are typically recorded in the expenses or a separate field
+  const prepaymentAmount = vehicleExpenses
+    .filter(e => e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal'))
+    .reduce((sum, e) => sum + e.amount, 0);
+  const totalInvestmentWithPrepayments = totalInvestment + prepaymentAmount;
+  
+  // Calculate ROI based on simple business logic as requested
+  // ROI = (Total Earnings - Total Expenses - EMI Paid) vs (Initial Investment + Prepayments)
+  const netCashFlow = totalEarnings - totalExpenses - totalEmiPaid;
+  const currentValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost;
+  
+  // Simple business ROI: Actual cash performance vs total investment
+  const currentROI = totalInvestmentWithPrepayments > 0 ? (netCashFlow / totalInvestmentWithPrepayments) * 100 : 0;
+  const roiAmount = netCashFlow; // ROI in actual amount (profit/loss)
+  
+  // Check if investment is covered (profit >= total investment)
+  const isInvestmentCovered = netCashFlow >= totalInvestmentWithPrepayments;
+  
+  // Calculate gross profit/loss (what you get if you sell the taxi)
+  const vehicleValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost;
+  const grossProfitLoss = vehicleValue + netCashFlow - outstandingLoan;
+  
+  // Calculate yearly projections
+  const avgMonthlyProfit = monthlyProfit; // Current monthly profit calculation
+  const projectedYearlyProfit = avgMonthlyProfit * 12; // Project for full year
   
   // Note: This ROI calculation shows actual cash returns from the business
   // If totalEarnings = 0, ROI will be negative showing the loss of invested capital
@@ -718,6 +803,13 @@ const calculateVehicleFinancials = (
     totalEarnings,
     totalExpenses,
     currentROI,
+    roiAmount,
+    totalEmiPaid,
+    totalInvestmentWithPrepayments,
+    isInvestmentCovered,
+    grossProfitLoss,
+    projectedYearlyProfit,
+    avgMonthlyProfit,
     isCurrentlyRented: !!currentAssignment,
     currentAssignment,
     outstandingLoan,

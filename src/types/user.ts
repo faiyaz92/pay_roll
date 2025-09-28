@@ -140,6 +140,14 @@ export interface Vehicle {
   monthlyExpenses: number; // Actual expenses this month
   totalEarnings: number;   // Lifetime earnings
   totalExpenses: number;   // Lifetime expenses
+  
+  // Vehicle Images
+  images?: {
+    front?: string;
+    back?: string;
+    interior?: string;
+    documents?: string;
+  };
 }
 
 export interface Assignment {

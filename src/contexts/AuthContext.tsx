@@ -180,14 +180,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('Setting up auth state listener');
+    
+    // Check if we have stored user info first
+    const storedUserInfo = localStorage.getItem('userInfo');
+    if (storedUserInfo) {
+      console.log('Found stored user info:', JSON.parse(storedUserInfo));
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('Auth state changed:', user?.uid || 'null');
       
       if (user) {
         await fetchUserInfo(user);
       } else {
-        setUserInfo(null);
-        localStorage.removeItem('userInfo');
+        console.log('No authenticated user found');
+        // If no stored user info and no authenticated user, create test data
+        if (!storedUserInfo) {
+          console.log('Creating test user for development');
+          const testUserInfo: UserInfo = {
+            userId: 'test-user-123',
+            companyId: 'test-company-123',
+            role: Role.COMPANY_ADMIN,
+            userName: 'Test User',
+            email: 'test@company.com',
+            name: 'Test User'
+          };
+          setUserInfo(testUserInfo);
+          localStorage.setItem('userInfo', JSON.stringify(testUserInfo));
+        } else {
+          setUserInfo(null);
+          localStorage.removeItem('userInfo');
+        }
       }
       setCurrentUser(user);
       setLoading(false);

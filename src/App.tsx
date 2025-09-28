@@ -11,6 +11,7 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Vehicles from "@/pages/Vehicles";
 import Drivers from "@/pages/Drivers";
+import DriverDetails from "@/pages/DriverDetails";
 import Assignments from "@/pages/Assignments";
 import Payments from "@/pages/Payments";
 import FuelRecords from "@/pages/FuelRecords";
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="vehicles" element={<Vehicles />} />
               <Route path="vehicles/:vehicleId" element={<VehicleDetails />} />
               <Route path="drivers" element={<Drivers />} />
+              <Route path="drivers/:driverId" element={<DriverDetails />} />
               <Route path="assignments" element={<Assignments />} />
               <Route path="payments" element={<Payments />} />
               <Route path="maintenance-records" element={<MaintenanceRecords/>} />
