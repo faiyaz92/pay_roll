@@ -285,9 +285,45 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm truncate flex-1">{doc.name}</span>
+                <div className="space-y-3">
+                  {/* Inline Image Preview for Additional Documents */}
+                  {doc.url && !doc.url.includes('.pdf') && (
+                    <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
+                      <img
+                        src={doc.url}
+                        alt={doc.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="absolute top-2 right-2 p-1 h-6 w-6"
+                        onClick={() => handlePreview(doc.url)}
+                      >
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Document Info */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm truncate flex-1">{doc.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {(doc.size || 0) < 1024 * 1024 
+                          ? `${Math.round((doc.size || 0) / 1024)} KB`
+                          : `${((doc.size || 0) / (1024 * 1024)).toFixed(1)} MB`
+                        }
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {doc.url.includes('.pdf') ? 'PDF' : 'Image'}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

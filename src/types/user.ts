@@ -162,6 +162,25 @@ export interface Assignment {
   endDate: Date | null;
   status: 'active' | 'ended' | 'idle';
   companyId: string;
+  
+  // Additional assignment details
+  securityDeposit: number;
+  agreementDuration: number; // months
+  driverAddress: string;
+  emergencyContact: string;
+  specialTerms?: string;
+  
+  // Document URLs (Cloudinary links)
+  documents?: {
+    agreement?: string;
+    vehicleHandover?: string;
+    driverPhoto?: string;
+    additional?: string; // JSON string of array
+  };
+  
+  // System fields
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Payment {

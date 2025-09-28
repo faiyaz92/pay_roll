@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Car, User, Calendar, DollarSign, Clock, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Car, User, Calendar, DollarSign, Clock, Eye, Edit, Trash2, MapPin, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { Assignment } from '@/types/user';
 import AddItemModal from '@/components/Modals/AddItemModal';
-import AddAssignmentForm from '@/components/Forms/AddAssignmentForm';
+// If the file exists at src/components/Forms/AddAssignmentForm.tsx, ensure it is exported as default.
+// If the file is in a different location, update the import path accordingly, for example:
+import AddAssignmentForm from '../components/Forms/AddAssignmentForm';
+// Or, if the file is named differently or in another folder, update the path to match the actual file location.
 import { useNavigate } from 'react-router-dom';
 
 const Assignments: React.FC = () => {
@@ -56,31 +61,57 @@ const Assignments: React.FC = () => {
     return driver ? driver.name : driverId;
   };
 
-  const calculateDuration = (startDate: Date, endDate: Date | null) => {
-    const start = new Date(startDate);
-    const end = endDate ? new Date(endDate) : new Date();
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 30) {
-      return `${diffDays} days`;
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      const remainingDays = diffDays % 30;
-      return `${months}m ${remainingDays}d`;
-    } else {
-      const years = Math.floor(diffDays / 365);
-      const months = Math.floor((diffDays % 365) / 30);
-      return `${years}y ${months}m`;
+  const calculateDuration = (startDate: Date | string, endDate: Date | string | null) => {
+    try {
+      const start = startDate instanceof Date ? startDate : new Date(startDate);
+      const end = endDate 
+        ? (endDate instanceof Date ? endDate : new Date(endDate))
+        : new Date();
+      
+      // Check if dates are valid
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return '0 days';
+      }
+      
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 30) {
+        return `${diffDays} days`;
+      } else if (diffDays < 365) {
+        const months = Math.floor(diffDays / 30);
+        const remainingDays = diffDays % 30;
+        return `${months}m ${remainingDays}d`;
+      } else {
+        const years = Math.floor(diffDays / 365);
+        const months = Math.floor((diffDays % 365) / 30);
+        return `${years}y ${months}m`;
+      }
+    } catch (error) {
+      console.error('Error calculating duration:', error);
+      return '0 days';
     }
   };
 
   const calculateTotalEarnings = (assignment: Assignment) => {
-    const startDate = new Date(assignment.startDate);
-    const endDate = assignment.endDate ? new Date(assignment.endDate) : new Date();
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.floor(diffDays / 7) * assignment.weeklyRent;
+    try {
+      const startDate = assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate);
+      const endDate = assignment.endDate 
+        ? (assignment.endDate instanceof Date ? assignment.endDate : new Date(assignment.endDate))
+        : new Date();
+      
+      // Check if dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return 0;
+      }
+      
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return Math.floor(diffDays / 7) * assignment.weeklyRent;
+    } catch (error) {
+      console.error('Error calculating total earnings:', error);
+      return 0;
+    }
   };
 
   const handleAddSuccess = () => {
@@ -116,10 +147,7 @@ const Assignments: React.FC = () => {
           isOpen={showAddModal}
           onOpenChange={setShowAddModal}
         >
-          <div className="p-4">
-            <p className="text-center text-gray-600">Assignment form will be created next</p>
-            <Button onClick={handleAddSuccess} className="w-full mt-4">Close</Button>
-          </div>
+          <AddAssignmentForm onSuccess={handleAddSuccess} />
         </AddItemModal>
       </div>
 
@@ -190,87 +218,201 @@ const Assignments: React.FC = () => {
             </Card>
           ) : (
             <div className="space-y-4">
-              {activeAssignments.map((assignment) => (
-                <Card key={assignment.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-3 flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <Car className="w-5 h-5 text-blue-600" />
-                            <h3 className="font-semibold text-lg">{getVehicleName(assignment.vehicleId)}</h3>
+              {activeAssignments.map((assignment) => {
+                const vehicle = vehicles.find(v => v.id === assignment.vehicleId);
+                const driver = drivers.find(d => d.id === assignment.driverId);
+                
+                return (
+                  <Card key={assignment.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
+                    <CardHeader className="pb-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-4">
+                          {/* Vehicle Image */}
+                          <div className="relative">
+                            {vehicle?.images?.front ? (
+                              <img 
+                                src={vehicle.images.front} 
+                                alt="Vehicle" 
+                                className="w-16 h-16 object-cover rounded-lg border-2 border-gray-200"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gray-100 rounded-lg border-2 border-gray-200 flex items-center justify-center">
+                                <Car className="w-8 h-8 text-gray-400" />
+                              </div>
+                            )}
+                            <Badge 
+                              className={`absolute -top-2 -right-2 ${getStatusColor(assignment.status)} text-xs`}
+                            >
+                              {assignment.status}
+                            </Badge>
                           </div>
-                          <Badge className={getStatusColor(assignment.status)}>
-                            {assignment.status}
-                          </Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Driver</div>
-                              <div className="text-gray-600">{getDriverName(assignment.driverId)}</div>
+                          
+                          {/* Vehicle & Assignment Info */}
+                          <div className="flex-1 space-y-1">
+                            <h3 className="text-xl font-semibold text-gray-900">
+                              {getVehicleName(assignment.vehicleId)}
+                            </h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <User className="w-4 h-4" />
+                              <span>Assigned to {getDriverName(assignment.driverId)}</span>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Weekly Rent</div>
-                              <div className="text-gray-600">₹{assignment.weeklyRent.toLocaleString()}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Collection Day</div>
-                              <div className="text-gray-600">
-                                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][assignment.collectionDay]}
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                <span>Started {
+                                  (() => {
+                                    try {
+                                      const date = assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate);
+                                      return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleDateString();
+                                    } catch {
+                                      return 'Invalid Date';
+                                    }
+                                  })()
+                                }</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                <span>{calculateDuration(assignment.startDate, assignment.endDate)}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Duration</div>
-                              <div className="text-gray-600">{calculateDuration(assignment.startDate, assignment.endDate)}</div>
-                            </div>
-                          </div>
                         </div>
                         
-                        <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg">
-                          <div className="text-sm">
-                            <div className="font-medium text-green-900">Total Earnings</div>
-                            <div className="text-green-700">₹{calculateTotalEarnings(assignment).toLocaleString()}</div>
-                          </div>
-                          <div className="text-sm">
-                            <div className="font-medium text-green-900">Monthly Income</div>
-                            <div className="text-green-700">₹{((assignment.weeklyRent * 52) / 12).toFixed(0).toLocaleString()}</div>
-                          </div>
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => navigate(`/assignments/${assignment.id}`)}
+                            className="hover:bg-blue-50 hover:border-blue-200"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Details
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="hover:bg-gray-50"
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex gap-2 ml-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/assignments/${assignment.id}`)}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Details
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                        >
-                          <Edit className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
+                    </CardHeader>
+                    
+                    <CardContent className="space-y-4">
+                      {/* Driver Details Card */}
+                      <Card className="bg-gray-50 border-gray-200">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            {/* Driver Avatar */}
+                            <Avatar className="w-12 h-12">
+                              <AvatarImage src={driver?.photoUrl} alt={driver?.name} />
+                              <AvatarFallback className="bg-blue-100 text-blue-600">
+                                {driver?.name?.charAt(0) || 'D'}
+                              </AvatarFallback>
+                            </Avatar>
+                            
+                            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Driver Name</Label>
+                                <p className="font-medium">{driver?.name || 'Unknown Driver'}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Phone</Label>
+                                <div className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-gray-400" />
+                                  <p className="font-medium text-sm">{driver?.phone || 'N/A'}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">License</Label>
+                                <p className="font-medium text-sm">{driver?.licenseNumber || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Collection Day</Label>
+                                <p className="font-medium text-sm">
+                                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][assignment.collectionDay]}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Financial Summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Card className="bg-green-50 border-green-200">
+                          <CardContent className="p-4 text-center">
+                            <DollarSign className="w-6 h-6 mx-auto mb-2 text-green-600" />
+                            <div className="text-lg font-bold text-green-900">
+                              ₹{assignment.weeklyRent.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-green-600">Weekly Rent</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-blue-50 border-blue-200">
+                          <CardContent className="p-4 text-center">
+                            <Calendar className="w-6 h-6 mx-auto mb-2 text-blue-600" />
+                            <div className="text-lg font-bold text-blue-900">
+                              ₹{((assignment.weeklyRent * 52) / 12).toFixed(0).toLocaleString()}
+                            </div>
+                            <div className="text-xs text-blue-600">Monthly Revenue</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-purple-50 border-purple-200">
+                          <CardContent className="p-4 text-center">
+                            <DollarSign className="w-6 h-6 mx-auto mb-2 text-purple-600" />
+                            <div className="text-lg font-bold text-purple-900">
+                              ₹{calculateTotalEarnings(assignment).toLocaleString()}
+                            </div>
+                            <div className="text-xs text-purple-600">Total Earned</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-orange-50 border-orange-200">
+                          <CardContent className="p-4 text-center">
+                            <Clock className="w-6 h-6 mx-auto mb-2 text-orange-600" />
+                            <div className="text-lg font-bold text-orange-900">
+                              {Math.floor(calculateTotalEarnings(assignment) / assignment.weeklyRent)}
+                            </div>
+                            <div className="text-xs text-orange-600">Weeks Active</div>
+                          </CardContent>
+                        </Card>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Vehicle Info */}
+                      {vehicle && (
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Make & Model</Label>
+                                <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Year</Label>
+                                <p className="font-medium">{vehicle.year}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Odometer</Label>
+                                <p className="font-medium">{vehicle.odometer.toLocaleString()} km</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-gray-500 uppercase">Initial Reading</Label>
+                                <p className="font-medium">{assignment.initialOdometer.toLocaleString()} km</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -285,69 +427,182 @@ const Assignments: React.FC = () => {
             </Card>
           ) : (
             <div className="space-y-4">
-              {endedAssignments.map((assignment) => (
-                <Card key={assignment.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-3 flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <Car className="w-5 h-5 text-gray-600" />
-                            <h3 className="font-semibold text-lg">{getVehicleName(assignment.vehicleId)}</h3>
+              {endedAssignments.map((assignment) => {
+                const vehicle = vehicles.find(v => v.id === assignment.vehicleId);
+                const driver = drivers.find(d => d.id === assignment.driverId);
+                
+                return (
+                  <Card key={assignment.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-gray-400">
+                    <CardHeader className="pb-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-4">
+                          {/* Vehicle Image */}
+                          <div className="relative grayscale">
+                            {vehicle?.images?.front ? (
+                              <img 
+                                src={vehicle.images.front} 
+                                alt="Vehicle" 
+                                className="w-16 h-16 object-cover rounded-lg border-2 border-gray-200"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gray-100 rounded-lg border-2 border-gray-200 flex items-center justify-center">
+                                <Car className="w-8 h-8 text-gray-400" />
+                              </div>
+                            )}
+                            <Badge 
+                              className={`absolute -top-2 -right-2 ${getStatusColor(assignment.status)} text-xs`}
+                            >
+                              {assignment.status}
+                            </Badge>
                           </div>
-                          <Badge className={getStatusColor(assignment.status)}>
-                            {assignment.status}
-                          </Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Driver</div>
-                              <div className="text-gray-600">{getDriverName(assignment.driverId)}</div>
+                          
+                          {/* Vehicle & Assignment Info */}
+                          <div className="flex-1 space-y-1">
+                            <h3 className="text-xl font-semibold text-gray-700">
+                              {getVehicleName(assignment.vehicleId)}
+                            </h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <User className="w-4 h-4" />
+                              <span>Was assigned to {getDriverName(assignment.driverId)}</span>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Start Date</div>
-                              <div className="text-gray-600">{new Date(assignment.startDate).toLocaleDateString()}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">End Date</div>
-                              <div className="text-gray-600">
-                                {assignment.endDate ? new Date(assignment.endDate).toLocaleDateString() : 'N/A'}
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                <span>{
+                                  (() => {
+                                    try {
+                                      const startDate = assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate);
+                                      const endDate = assignment.endDate 
+                                        ? (assignment.endDate instanceof Date ? assignment.endDate : new Date(assignment.endDate))
+                                        : null;
+                                      
+                                      const startStr = isNaN(startDate.getTime()) ? 'Invalid Date' : startDate.toLocaleDateString();
+                                      const endStr = endDate 
+                                        ? (isNaN(endDate.getTime()) ? 'Invalid Date' : endDate.toLocaleDateString())
+                                        : 'Ongoing';
+                                      
+                                      return `${startStr} - ${endStr}`;
+                                    } catch {
+                                      return 'Invalid Date - Invalid Date';
+                                    }
+                                  })()
+                                }</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                <span>{calculateDuration(assignment.startDate, assignment.endDate)}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">Total Earned</div>
-                              <div className="text-gray-600">₹{calculateTotalEarnings(assignment).toLocaleString()}</div>
-                            </div>
-                          </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => navigate(`/assignments/${assignment.id}`)}
+                            className="hover:bg-gray-50"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View History
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex gap-2 ml-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/assignments/${assignment.id}`)}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Details
-                        </Button>
+                    </CardHeader>
+                    
+                    <CardContent className="space-y-4">
+                      {/* Assignment Summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4 text-center">
+                            <DollarSign className="w-6 h-6 mx-auto mb-2 text-gray-500" />
+                            <div className="text-lg font-bold text-gray-700">
+                              ₹{assignment.weeklyRent.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-gray-500">Weekly Rent</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4 text-center">
+                            <Calendar className="w-6 h-6 mx-auto mb-2 text-gray-500" />
+                            <div className="text-lg font-bold text-gray-700">
+                              {Math.floor(calculateTotalEarnings(assignment) / assignment.weeklyRent)}
+                            </div>
+                            <div className="text-xs text-gray-500">Total Weeks</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4 text-center">
+                            <DollarSign className="w-6 h-6 mx-auto mb-2 text-gray-500" />
+                            <div className="text-lg font-bold text-gray-700">
+                              ₹{calculateTotalEarnings(assignment).toLocaleString()}
+                            </div>
+                            <div className="text-xs text-gray-500">Total Earned</div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4 text-center">
+                            <Clock className="w-6 h-6 mx-auto mb-2 text-gray-500" />
+                            <div className="text-lg font-bold text-gray-700">
+                              {assignment.endDate ? 'Completed' : 'Ongoing'}
+                            </div>
+                            <div className="text-xs text-gray-500">Status</div>
+                          </CardContent>
+                        </Card>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Driver & Vehicle Summary */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4">
+                            <h4 className="font-medium text-gray-700 mb-2">Driver Details</h4>
+                            <div className="space-y-2 text-sm text-gray-600">
+                              <div className="flex justify-between">
+                                <span>Name:</span>
+                                <span className="font-medium">{driver?.name || 'Unknown'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>License:</span>
+                                <span className="font-medium">{driver?.licenseNumber || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Collection Day:</span>
+                                <span className="font-medium">
+                                  {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][assignment.collectionDay]}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4">
+                            <h4 className="font-medium text-gray-700 mb-2">Vehicle Details</h4>
+                            <div className="space-y-2 text-sm text-gray-600">
+                              <div className="flex justify-between">
+                                <span>Make & Model:</span>
+                                <span className="font-medium">{vehicle ? `${vehicle.make} ${vehicle.model}` : 'Unknown'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Year:</span>
+                                <span className="font-medium">{vehicle?.year || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Initial Odometer:</span>
+                                <span className="font-medium">{assignment.initialOdometer.toLocaleString()} km</span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
