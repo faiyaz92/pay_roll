@@ -264,7 +264,7 @@ const Drivers: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {sortedDrivers.map((driver) => (
-            <Card key={driver.id} className="hover:shadow-lg transition-shadow">
+            <Card key={driver.id} className="hover:shadow-lg transition-shadow flex flex-col">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center space-x-3">
@@ -292,75 +292,78 @@ const Drivers: React.FC = () => {
                   {getStatusBadge(driver)}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <Phone className="w-4 h-4 text-gray-400" />
-                    <span>{driver.phone}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{driver.address || 'Address not set'}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">License:</span>
-                    <span className="font-medium">{driver.licenseNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Email:</span>
-                    <span className="font-medium">{driver.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Status:</span>
-                    <span className="font-medium">{driver.isActive ? 'Active' : 'Inactive'}</span>
-                  </div>
-                </div>
-
-                {driver.rentedVehicles && driver.rentedVehicles.length > 0 && (
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Truck className="w-4 h-4 text-gray-400" />
-                    <span>Vehicles: {driver.rentedVehicles.length} rented</span>
-                  </div>
-                )}
-
-                {/* Document Status */}
-                {driver.documents && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Documents:</span>
-                    <div className="flex space-x-1">
-                      <Badge variant={driver.documents.drivingLicense ? "default" : "secondary"} className="text-xs">
-                        License
-                      </Badge>
-                      <Badge variant={driver.documents.idCard ? "default" : "secondary"} className="text-xs">
-                        ID
-                      </Badge>
-                      <Badge variant={driver.documents.photo ? "default" : "secondary"} className="text-xs">
-                        Photo
-                      </Badge>
-                      {driver.documents.additional?.length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{driver.documents.additional.length}
-                        </Badge>
-                      )}
+              <CardContent className="flex flex-col flex-grow">
+                <div className="space-y-4 flex-grow">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <span>{driver.phone}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      <span>{driver.address || 'Address not set'}</span>
                     </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Weekly Rent</p>
-                    <p className="font-bold text-lg">₹{driver.totalWeeklyRent.toLocaleString()}</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">License:</span>
+                      <span className="font-medium">{driver.licenseNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Email:</span>
+                      <span className="font-medium">{driver.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Status:</span>
+                      <span className="font-medium">{driver.isActive ? 'Active' : 'Inactive'}</span>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Join Date</p>
-                    <p className="font-medium">{new Date(driver.joinDate).toLocaleDateString()}</p>
+
+                  {driver.rentedVehicles && driver.rentedVehicles.length > 0 && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Truck className="w-4 h-4 text-gray-400" />
+                      <span>Vehicles: {driver.rentedVehicles.length} rented</span>
+                    </div>
+                  )}
+
+                  {/* Document Status */}
+                  {driver.documents && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Documents:</span>
+                      <div className="flex space-x-1">
+                        <Badge variant={driver.documents.drivingLicense ? "default" : "secondary"} className="text-xs">
+                          License
+                        </Badge>
+                        <Badge variant={driver.documents.idCard ? "default" : "secondary"} className="text-xs">
+                          ID
+                        </Badge>
+                        <Badge variant={driver.documents.photo ? "default" : "secondary"} className="text-xs">
+                          Photo
+                        </Badge>
+                        {driver.documents.additional?.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{driver.documents.additional.length}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Weekly Rent</p>
+                      <p className="font-bold text-lg">₹{driver.totalWeeklyRent.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Join Date</p>
+                      <p className="font-medium">{new Date(driver.joinDate).toLocaleDateString()}</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex space-x-2 mt-4">
+                {/* Action Buttons - Always at bottom */}
+                <div className="flex space-x-2 pt-4">
                   <Button 
                     variant="outline" 
                     size="sm" 
