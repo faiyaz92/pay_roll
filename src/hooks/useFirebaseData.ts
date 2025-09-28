@@ -677,12 +677,10 @@ const calculateVehicleFinancials = (
   const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;
   const monthlyProfit = monthlyRent - monthlyExpenses - monthlyEMI;
 
-  // Calculate ROI
+  // Calculate ROI - subtract outstanding loan from current value
   const totalInvestment = vehicle.initialInvestment + totalExpenses;
   const currentValue = vehicle.residualValue;
-  const netWorth = totalEarnings - totalExpenses + currentValue;
-  const currentROI = totalInvestment > 0 ? ((netWorth - totalInvestment) / totalInvestment) * 100 : 0;
-
+  
   // Calculate outstanding loan and next EMI due
   const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
   const totalInstallments = vehicle.loanDetails?.totalInstallments || 0;
@@ -695,7 +693,8 @@ const calculateVehicleFinancials = (
   if (amortizationSchedule.length > 0) {
     const unpaidSchedules = amortizationSchedule.filter(s => !s.isPaid);
     if (unpaidSchedules.length > 0) {
-      outstandingLoan = unpaidSchedules[0].outstanding + unpaidSchedules[0].principal;
+      // Calculate outstanding loan from unpaid EMIs
+      outstandingLoan = unpaidSchedules.reduce((sum, emi) => sum + (emi.principal || 0), 0);
       nextEMIDue = unpaidSchedules[0].dueDate;
       daysUntilEMI = Math.ceil((new Date(nextEMIDue).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     }
@@ -703,6 +702,11 @@ const calculateVehicleFinancials = (
     // Fallback calculation if no amortization schedule
     outstandingLoan = (vehicle.loanDetails?.outstandingLoan || 0);
   }
+  
+  // Net asset value = current value - outstanding loan  
+  const netAssetValue = currentValue - outstandingLoan;
+  const netWorth = totalEarnings - totalExpenses + netAssetValue;
+  const currentROI = totalInvestment > 0 ? ((netWorth - totalInvestment) / totalInvestment) * 100 : 0;
 
   return {
     monthlyRent,

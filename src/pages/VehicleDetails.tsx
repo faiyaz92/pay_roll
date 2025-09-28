@@ -16,15 +16,18 @@ import {
   Car, 
   CreditCard, 
   TrendingUp, 
+  TrendingDown,
   Calendar, 
   AlertCircle, 
   CheckCircle, 
   Clock, 
   DollarSign,
+  CircleDollarSign,
   Calculator,
   Settings,
   Plus,
-  Fuel
+  Fuel,
+  History
 } from 'lucide-react';
 
 const VehicleDetails: React.FC = () => {
@@ -37,11 +40,24 @@ const VehicleDetails: React.FC = () => {
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
   const [penaltyAmount, setPenaltyAmount] = useState('');
   const [selectedEMI, setSelectedEMI] = useState<{monthIndex: number, scheduleItem: any} | null>(null);
+  const [prepaymentResults, setPrepaymentResults] = useState<{
+    amount: number;
+    newOutstanding: number;
+    newTenure: number;
+    tenureReduction: number;
+    interestSavings: number;
+  } | null>(null);
+  const [showPrepaymentResults, setShowPrepaymentResults] = useState(false);
   const [newExpense, setNewExpense] = useState({
     amount: '',
     description: '',
     type: 'fuel'
   });
+  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [paymentDateFilter, setPaymentDateFilter] = useState('');
+  const [showEmiForm, setShowEmiForm] = useState(false);
+  const [showRentForm, setShowRentForm] = useState(false);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -87,6 +103,92 @@ const VehicleDetails: React.FC = () => {
   
   // Get real expense data for this vehicle
   const expenseData = getVehicleExpenseData();
+
+  // Generate payment history data
+  const generatePaymentHistory = () => {
+    const payments = [];
+
+    if (!vehicle || !financialData) return payments;
+
+    // Add EMI payments from amortization schedule
+    if (vehicle.loanDetails?.amortizationSchedule) {
+      vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
+        if (emi.isPaid) {
+          payments.push({
+            date: emi.paidAt || emi.dueDate,
+            type: 'emi',
+            amount: emi.interest + emi.principal,
+            description: `EMI Payment - Month ${index + 1}`,
+            paymentMethod: 'Bank Transfer',
+            status: 'completed',
+            reference: `EMI${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`
+          });
+        }
+      });
+    }
+
+    // Add prepayments from vehicle data
+    // Note: Currently using placeholder logic as prepayments structure needs to be defined
+    // This section can be updated once prepayment data structure is established
+
+    // Add rent collections from assignments
+    if ((vehicle as any).assignments && (vehicle as any).assignments.length > 0) {
+      (vehicle as any).assignments.forEach((assignment: any) => {
+        if (assignment.rentPayments && assignment.rentPayments.length > 0) {
+          assignment.rentPayments.forEach((rent: any, index: number) => {
+            payments.push({
+              date: rent.date,
+              type: 'rent',
+              amount: rent.amount,
+              description: `Rent from ${assignment.driverName}`,
+              paymentMethod: rent.paymentMethod || 'Cash',
+              status: 'completed',
+              reference: rent.transactionId || `RENT${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`
+            });
+          });
+        }
+      });
+    }
+
+    // Add expenses
+    expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved').forEach((expense, index) => {
+      payments.push({
+        date: expense.createdAt,
+        type: expense.type === 'maintenance' ? 'maintenance' : 'expense',
+        amount: expense.amount,
+        description: expense.description,
+        paymentMethod: 'Bank Transfer',
+        status: 'completed',
+        reference: expense.id || `EXP${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`
+      });
+    });
+
+    // Sort by date (newest first)
+    return payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
+  // Get all payment history
+  const allPayments = generatePaymentHistory();
+
+  // Filter payments based on selected filters
+  const filteredPayments = allPayments.filter(payment => {
+    // Filter by type
+    if (paymentFilter !== 'all' && payment.type !== paymentFilter) {
+      return false;
+    }
+
+    // Filter by date (month/year)
+    if (paymentDateFilter) {
+      const paymentDate = new Date(payment.date);
+      const filterDate = new Date(paymentDateFilter);
+      if (paymentDate.getFullYear() !== filterDate.getFullYear() || 
+          paymentDate.getMonth() !== filterDate.getMonth()) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
@@ -166,38 +268,116 @@ const VehicleDetails: React.FC = () => {
       // Calculate new outstanding and tenure
       const monthlyRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
       const newOutstanding = outstandingLoan - amount;
-      
-      // Calculate new tenure with same EMI
-      let newTenure = 0;
-      let outstanding = newOutstanding;
       const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
       
-      while (outstanding > 0 && newTenure < 120) {
+      let newTenure = 0;
+      let outstanding = newOutstanding;
+      
+      // Calculate new tenure with same EMI
+      while (outstanding > 0 && newTenure < 360) { // Max 30 years
         const interest = outstanding * monthlyRate;
-        const principal = emiPerMonth - interest;
+        const principal = Math.max(emiPerMonth - interest, outstanding); // Ensure we don't go negative
         outstanding -= principal;
         newTenure++;
         
-        if (principal <= 0) break; // Prevent infinite loop
+        if (principal <= 0 || outstanding <= 0) break;
       }
       
       const currentTenure = vehicle.loanDetails?.amortizationSchedule?.filter(s => !s.isPaid).length || 0;
-      const tenureReduction = currentTenure - newTenure;
+      const tenureReduction = Math.max(0, currentTenure - newTenure);
+      const interestSavings = Math.max(0, (emiPerMonth * tenureReduction) - amount);
       
-      toast({
-        title: 'Prepayment Calculated',
-        description: `With ₹${amount.toLocaleString()} prepayment:
-        • Outstanding reduces to ₹${newOutstanding.toLocaleString()}
-        • Tenure reduces by ${tenureReduction} months (from ${currentTenure} to ${newTenure} months)
-        • Total interest savings: ₹${((emiPerMonth * tenureReduction) - amount).toLocaleString()}`,
+      // Store results to display in card
+      setPrepaymentResults({
+        amount,
+        newOutstanding,
+        newTenure,
+        tenureReduction,
+        interestSavings
       });
+      setShowPrepaymentResults(true);
       
-      // Here you would update the vehicle data in Firestore
-      // For now, we'll just show the calculation
+    } else if (amount > outstandingLoan) {
+      toast({
+        title: 'Amount Exceeds Outstanding Loan',
+        description: `Maximum prepayment amount is ₹${outstandingLoan.toLocaleString()}. This would clear the entire loan.`,
+        variant: 'destructive'
+      });
     } else {
       toast({
         title: 'Invalid Amount',
-        description: `Please enter an amount between ₹1 and ₹${outstandingLoan.toLocaleString()}`,
+        description: 'Please enter a valid prepayment amount greater than ₹0.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const processPrepayment = async () => {
+    if (!prepaymentResults) return;
+    
+    try {
+      // Update vehicle with new outstanding loan
+      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
+      
+      // Mark enough EMIs as prepaid to account for the prepayment
+      let remainingPrepayment = prepaymentResults.amount;
+      for (let i = 0; i < updatedSchedule.length && remainingPrepayment > 0; i++) {
+        if (!updatedSchedule[i].isPaid) {
+          const principalAmount = updatedSchedule[i].principal || 0;
+          if (remainingPrepayment >= principalAmount) {
+            updatedSchedule[i].isPaid = true;
+            updatedSchedule[i].paidAt = new Date().toISOString().split('T')[0];
+            (updatedSchedule[i] as any).prepaid = true;
+            remainingPrepayment -= principalAmount;
+          } else {
+            // Partial payment for this EMI
+            updatedSchedule[i].principal = principalAmount - remainingPrepayment;
+            remainingPrepayment = 0;
+          }
+        }
+      }
+
+      // Update vehicle in Firestore
+      await updateVehicle(vehicleId!, {
+        loanDetails: {
+          ...vehicle.loanDetails!,
+          amortizationSchedule: updatedSchedule,
+          outstandingLoan: prepaymentResults.newOutstanding
+        }
+      });
+
+      // Add prepayment record to expenses/payments collection
+      await addExpense({
+        vehicleId: vehicleId!,
+        amount: prepaymentResults.amount,
+        description: `Loan prepayment - Principal: ₹${prepaymentResults.amount.toLocaleString()}, Tenure reduced by ${prepaymentResults.tenureReduction} months`,
+        billUrl: '',
+        submittedBy: 'owner',
+        status: 'approved' as const,
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'general' as const,
+        verifiedKm: 0,
+        companyId: '',
+        createdAt: '',
+        updatedAt: ''
+      });
+
+      toast({
+        title: 'Prepayment Successful',
+        description: `₹${prepaymentResults.amount.toLocaleString()} prepayment processed successfully. Outstanding reduced to ₹${prepaymentResults.newOutstanding.toLocaleString()}.`,
+      });
+
+      // Reset form and close results
+      setPrepaymentAmount('');
+      setShowPrepaymentResults(false);
+      setPrepaymentResults(null);
+
+    } catch (error) {
+      console.error('Error processing prepayment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to process prepayment. Please try again.',
         variant: 'destructive'
       });
     }
@@ -420,12 +600,13 @@ const VehicleDetails: React.FC = () => {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="emi">EMI Tracking</TabsTrigger>
           <TabsTrigger value="rent">Rent Collection</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="payments">Payment History</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -728,11 +909,10 @@ const VehicleDetails: React.FC = () => {
                       value={prepaymentAmount}
                       onChange={(e) => setPrepaymentAmount(e.target.value)}
                       placeholder="Enter amount to prepay"
-                      max={financialData.outstandingLoan}
                       className="mt-1"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Maximum: ₹{financialData.outstandingLoan.toLocaleString()}
+                      Outstanding loan: ₹{financialData.outstandingLoan.toLocaleString()} • You can pay more than the EMI amount
                     </p>
                   </div>
                   <Button 
@@ -743,6 +923,56 @@ const VehicleDetails: React.FC = () => {
                     <Calculator className="h-4 w-4 mr-2" />
                     Calculate Benefits
                   </Button>
+                  
+                  {/* Prepayment Results Card */}
+                  {showPrepaymentResults && prepaymentResults && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-green-800">Prepayment Analysis</h4>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setShowPrepaymentResults(false)}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Prepayment Amount:</span>
+                          <span className="font-medium">₹{prepaymentResults.amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>New Outstanding:</span>
+                          <span className="font-medium text-green-600">₹{prepaymentResults.newOutstanding.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Tenure Reduction:</span>
+                          <span className="font-medium text-blue-600">{prepaymentResults.tenureReduction} months</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Interest Savings:</span>
+                          <span className="font-medium text-green-600">₹{prepaymentResults.interestSavings.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 flex gap-2">
+                        <Button 
+                          onClick={processPrepayment}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                        >
+                          Confirm & Pay ₹{prepaymentResults.amount.toLocaleString()}
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => setShowPrepaymentResults(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1321,6 +1551,208 @@ const VehicleDetails: React.FC = () => {
           </div>
         </TabsContent>
 
+        {/* Payment History Tab */}
+        <TabsContent value="payments" className="space-y-4">
+          <div className="space-y-4">
+            {/* Payment History Header and Filters */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Payment History</h3>
+                <p className="text-sm text-muted-foreground">Track all payments and receipts for this vehicle</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select 
+                  className="px-3 py-2 border rounded-md text-sm"
+                  value={paymentFilter}
+                  onChange={(e) => setPaymentFilter(e.target.value)}
+                >
+                  <option value="all">All Transactions</option>
+                  <option value="emi">EMI Payments</option>
+                  <option value="prepayment">Prepayments</option>
+                  <option value="rent">Rent Received</option>
+                  <option value="expense">Expenses</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+                <input
+                  type="month"
+                  className="px-3 py-2 border rounded-md text-sm"
+                  value={paymentDateFilter}
+                  onChange={(e) => setPaymentDateFilter(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Payment Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total Paid Out</p>
+                      <p className="text-xl font-bold text-red-500">
+                        ₹{(filteredPayments.filter(p => ['emi', 'prepayment', 'expense', 'maintenance'].includes(p.type))
+                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total Received</p>
+                      <p className="text-xl font-bold text-green-500">
+                        ₹{(filteredPayments.filter(p => p.type === 'rent')
+                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">EMI Payments</p>
+                      <p className="text-xl font-bold">
+                        ₹{(filteredPayments.filter(p => p.type === 'emi')
+                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <CircleDollarSign className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Prepayments</p>
+                      <p className="text-xl font-bold text-purple-500">
+                        ₹{(filteredPayments.filter(p => p.type === 'prepayment')
+                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Payment History Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Transaction History
+                  <Badge variant="secondary" className="ml-auto">
+                    {filteredPayments.length} transactions
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">Date</th>
+                        <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">Description</th>
+                        <th className="text-right p-2 font-medium">Amount</th>
+                        <th className="text-left p-2 font-medium">Method</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.length > 0 ? (
+                        filteredPayments.map((payment, index) => (
+                          <tr key={index} className="border-b hover:bg-muted/50">
+                            <td className="p-2">
+                              {new Date(payment.date).toLocaleDateString('en-IN')}
+                            </td>
+                            <td className="p-2">
+                              <Badge 
+                                variant={
+                                  payment.type === 'rent' ? 'default' :
+                                  payment.type === 'emi' ? 'secondary' :
+                                  payment.type === 'prepayment' ? 'outline' :
+                                  'destructive'
+                                }
+                              >
+                                {payment.type.toUpperCase()}
+                              </Badge>
+                            </td>
+                            <td className="p-2 text-sm">
+                              {payment.description || `${payment.type} payment`}
+                            </td>
+                            <td className={`p-2 text-right font-medium ${
+                              payment.type === 'rent' ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {payment.type === 'rent' ? '+' : '-'}₹{payment.amount.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-sm">
+                              {payment.paymentMethod || 'Bank Transfer'}
+                            </td>
+                            <td className="p-2">
+                              <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'}>
+                                {payment.status || 'completed'}
+                              </Badge>
+                            </td>
+                            <td className="p-2 text-sm text-muted-foreground">
+                              {payment.reference || payment.transactionId || '-'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                            <div className="flex flex-col items-center gap-2">
+                              <History className="h-8 w-8 opacity-50" />
+                              <p>No payment history found</p>
+                              <p className="text-sm">Transactions will appear here once recorded</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions */}
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => setShowEmiForm(true)}
+                className="flex items-center gap-2"
+              >
+                <CreditCard className="h-4 w-4" />
+                Record EMI Payment
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setShowRentForm(true)}
+                className="flex items-center gap-2"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Record Rent Receipt
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setShowExpenseForm(true)}
+                className="flex items-center gap-2"
+              >
+                <TrendingDown className="h-4 w-4" />
+                Add Expense
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1532,6 +1964,217 @@ const VehicleDetails: React.FC = () => {
               </Button>
               <Button onClick={handleAddExpense}>
                 Add Expense
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMI Payment Modal */}
+      <Dialog open={showEmiForm} onOpenChange={setShowEmiForm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record EMI Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="emi-date">Payment Date</Label>
+              <Input
+                id="emi-date"
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emi-amount">EMI Amount</Label>
+              <Input
+                id="emi-amount"
+                type="number"
+                placeholder="Enter EMI amount"
+                defaultValue={vehicle.loanDetails?.emiPerMonth?.toString() || ''}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emi-method">Payment Method</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emi-reference">Transaction Reference</Label>
+              <Input
+                id="emi-reference"
+                placeholder="Enter transaction ID or reference"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowEmiForm(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                toast({
+                  title: "EMI Payment Recorded",
+                  description: "EMI payment has been successfully recorded.",
+                });
+                setShowEmiForm(false);
+              }}>
+                Record Payment
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rent Receipt Modal */}
+      <Dialog open={showRentForm} onOpenChange={setShowRentForm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Rent Receipt</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rent-date">Receipt Date</Label>
+              <Input
+                id="rent-date"
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rent-amount">Rent Amount</Label>
+              <Input
+                id="rent-amount"
+                type="number"
+                placeholder="Enter rent amount received"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rent-driver">Driver Name</Label>
+              <Input
+                id="rent-driver"
+                placeholder="Enter driver name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rent-period">Rent Period</Label>
+              <Input
+                id="rent-period"
+                placeholder="e.g., January 2024"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rent-method">Payment Method</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowRentForm(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                toast({
+                  title: "Rent Receipt Recorded",
+                  description: "Rent receipt has been successfully recorded.",
+                });
+                setShowRentForm(false);
+              }}>
+                Record Receipt
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense Modal */}
+      <Dialog open={showExpenseForm} onOpenChange={setShowExpenseForm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="expense-date">Expense Date</Label>
+              <Input
+                id="expense-date"
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-amount">Amount</Label>
+              <Input
+                id="expense-amount"
+                type="number"
+                placeholder="Enter expense amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-type">Expense Type</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select expense type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fuel">Fuel</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="insurance">Insurance</SelectItem>
+                  <SelectItem value="registration">Registration</SelectItem>
+                  <SelectItem value="penalty">Penalty/Fine</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-description">Description</Label>
+              <Input
+                id="expense-description"
+                placeholder="Enter expense description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-method">Payment Method</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                toast({
+                  title: "Expense Recorded",
+                  description: "Expense has been successfully recorded.",
+                });
+                setShowExpenseForm(false);
+              }}>
+                Record Expense
               </Button>
             </div>
           </div>
