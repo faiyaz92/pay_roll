@@ -6,14 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Plus, 
-  Car, 
-  Search, 
-  Eye, 
-  Edit, 
-  DollarSign, 
-  TrendingUp, 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Plus,
+  Car,
+  Search,
+  Eye,
+  Edit,
+  DollarSign,
+  TrendingUp,
   AlertCircle,
   CreditCard,
   Calendar,
@@ -29,7 +30,9 @@ const Vehicles: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editVehicle, setEditVehicle] = useState(null);
+
   const { vehicles, vehiclesWithFinancials, loading, deleteVehicle } = useFirebaseData();
   const handleDeleteVehicle = async (vehicleId: string) => {
     if (window.confirm('Are you sure you want to delete this vehicle?')) {
@@ -44,25 +47,25 @@ const Vehicles: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      available: { 
-        color: 'bg-green-500 hover:bg-green-600', 
+      available: {
+        color: 'bg-green-500 hover:bg-green-600',
         text: 'Available',
         icon: <Car className="h-4 w-4" />
       },
-      rented: { 
-        color: 'bg-blue-500 hover:bg-blue-600', 
+      rented: {
+        color: 'bg-blue-500 hover:bg-blue-600',
         text: 'Rented',
         icon: <DollarSign className="h-4 w-4" />
       },
-      maintenance: { 
-        color: 'bg-red-500 hover:bg-red-600', 
+      maintenance: {
+        color: 'bg-red-500 hover:bg-red-600',
         text: 'Maintenance',
         icon: <AlertCircle className="h-4 w-4" />
       },
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
-    
+
     return (
       <Badge className={`${config.color} text-white flex items-center gap-1`}>
         {config.icon}
@@ -73,25 +76,25 @@ const Vehicles: React.FC = () => {
 
   const getFinancialStatusBadge = (financialStatus: string) => {
     const statusConfig = {
-      cash: { 
-        color: 'bg-emerald-500 hover:bg-emerald-600', 
+      cash: {
+        color: 'bg-emerald-500 hover:bg-emerald-600',
         text: 'Cash Purchase',
         icon: <TrendingUp className="h-4 w-4" />
       },
-      loan_active: { 
-        color: 'bg-yellow-500 hover:bg-yellow-600', 
+      loan_active: {
+        color: 'bg-yellow-500 hover:bg-yellow-600',
         text: 'Loan Active',
         icon: <CreditCard className="h-4 w-4" />
       },
-      loan_cleared: { 
-        color: 'bg-purple-500 hover:bg-purple-600', 
+      loan_cleared: {
+        color: 'bg-purple-500 hover:bg-purple-600',
         text: 'Loan Cleared',
         icon: <Calendar className="h-4 w-4" />
       },
     };
-    
+
     const config = statusConfig[financialStatus as keyof typeof statusConfig] || statusConfig.cash;
-    
+
     return (
       <Badge className={`${config.color} text-white flex items-center gap-1`}>
         {config.icon}
@@ -116,13 +119,13 @@ const Vehicles: React.FC = () => {
   };
 
   const filteredVehicles = vehiclesWithFinancials.filter(vehicle => {
-    const matchesSearch = 
+    const matchesSearch =
       vehicle.vehicleName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${vehicle.make} ${vehicle.model}`.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -132,7 +135,7 @@ const Vehicles: React.FC = () => {
     const rented = vehicles.filter(v => v.status === 'rented').length;
     const maintenance = vehicles.filter(v => v.status === 'maintenance').length;
     const loanActive = vehicles.filter(v => v.financialStatus === 'loan_active').length;
-    
+
     return { total, available, rented, maintenance, loanActive };
   };
 
@@ -161,10 +164,16 @@ const Vehicles: React.FC = () => {
             Manage your rental vehicle fleet with comprehensive financial tracking
           </p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Vehicle
-        </Button>
+
+        {/* Add Vehicle Modal */}
+        <AddItemModal
+          isOpen={showAddModal}
+          onOpenChange={setShowAddModal}
+          title="Add New Vehicle to Fleet"
+          buttonText="Add Vehicle"
+        >
+          <AddVehicleForm onSuccess={() => setShowAddModal(false)} />
+        </AddItemModal>
       </div>
 
       {/* Fleet Statistics */}
@@ -212,7 +221,7 @@ const Vehicles: React.FC = () => {
             className="pl-10"
           />
         </div>
-        
+
         <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-auto">
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -230,17 +239,11 @@ const Vehicles: React.FC = () => {
             <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
             <p className="text-gray-600 mb-4">
-              {vehicles.length === 0 
+              {vehicles.length === 0
                 ? "Get started by adding your first vehicle to the fleet."
                 : "Try adjusting your search or filter criteria."
               }
             </p>
-            {vehicles.length === 0 && (
-              <Button onClick={() => setShowAddModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Vehicle
-              </Button>
-            )}
           </CardContent>
         </Card>
       ) : (
@@ -279,7 +282,7 @@ const Vehicles: React.FC = () => {
                         {vehicle.financialData?.isCurrentlyRented ? "Monthly Rent" : "Current Value"}
                       </div>
                       <div className={`font-semibold ${vehicle.financialData?.isCurrentlyRented ? 'text-green-600' : ''}`}>
-                        {vehicle.financialData?.isCurrentlyRented 
+                        {vehicle.financialData?.isCurrentlyRented
                           ? `₹${Math.round(getCurrentMonthlyRent(vehicle)).toLocaleString()}`
                           : `₹${vehicle.residualValue?.toLocaleString() || 'N/A'}`
                         }
@@ -314,10 +317,9 @@ const Vehicles: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">Monthly Profit</span>
-                      <span className={`font-medium ${
-                        calculateMonthlyProfit(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {vehicle.financialData?.isCurrentlyRented 
+                      <span className={`font-medium ${calculateMonthlyProfit(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                        {vehicle.financialData?.isCurrentlyRented
                           ? `₹${Math.round(calculateMonthlyProfit(vehicle)).toLocaleString()}`
                           : 'Not Rented'
                         }
@@ -325,9 +327,8 @@ const Vehicles: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">ROI</span>
-                      <span className={`font-medium ${
-                        calculateROI(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <span className={`font-medium ${calculateROI(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {calculateROI(vehicle).toFixed(1)}%
                       </span>
                     </div>
@@ -366,8 +367,8 @@ const Vehicles: React.FC = () => {
                           {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments}
                         </span>
                       </div>
-                      <Progress 
-                        value={((vehicle.loanDetails.paidInstallments?.length || 0) / vehicle.loanDetails.totalInstallments) * 100} 
+                      <Progress
+                        value={((vehicle.loanDetails.paidInstallments?.length || 0) / vehicle.loanDetails.totalInstallments) * 100}
                         className="h-2"
                       />
                       <div className="flex justify-between items-center text-sm">
@@ -380,8 +381,8 @@ const Vehicles: React.FC = () => {
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-gray-500">Next EMI:</span>
                           <span className={`${vehicle.financialData.daysUntilEMI <= 7 ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                            {vehicle.financialData.daysUntilEMI >= 0 ? 
-                              `${vehicle.financialData.daysUntilEMI} days` : 
+                            {vehicle.financialData.daysUntilEMI >= 0 ?
+                              `${vehicle.financialData.daysUntilEMI} days` :
                               'Overdue'
                             }
                           </span>
@@ -398,9 +399,9 @@ const Vehicles: React.FC = () => {
 
                 {/* Action Buttons - Always at bottom */}
                 <div className="flex gap-2 pt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => navigate(`/vehicles/${vehicle.id}`)}
                     className="flex-1"
                   >
@@ -411,14 +412,14 @@ const Vehicles: React.FC = () => {
                     variant="outline" 
                     size="sm"
                     onClick={() => {
-                      // Handle edit - you can implement edit modal or navigate to edit page
-                      console.log('Edit vehicle:', vehicle.id);
+                      setEditVehicle(vehicle);
+                      setEditModalOpen(true);
                     }}
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     size="sm"
                     onClick={() => handleDeleteVehicle(vehicle.id)}
                   >
@@ -431,15 +432,23 @@ const Vehicles: React.FC = () => {
         </div>
       )}
 
-      {/* Add Vehicle Modal */}
-      <AddItemModal
-        isOpen={showAddModal}
-        onOpenChange={setShowAddModal}
-        title="Add New Vehicle to Fleet"
-        buttonText="Add Vehicle"
-      >
-        <AddVehicleForm onSuccess={() => setShowAddModal(false)} />
-      </AddItemModal>
+      {/* Edit Vehicle Modal */}
+      {editVehicle && (
+        <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Edit Vehicle: {editVehicle.vehicleName || editVehicle.make + ' ' + editVehicle.model}
+              </DialogTitle>
+            </DialogHeader>
+            <AddVehicleForm 
+              vehicle={editVehicle} 
+              onSuccess={() => setEditModalOpen(false)} 
+              mode="edit" 
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

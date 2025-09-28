@@ -55,10 +55,12 @@ type VehicleFormData = z.infer<typeof vehicleSchema>;
 
 interface AddVehicleFormProps {
   onSuccess: () => void;
+  vehicle?: any | null;
+  mode?: 'add' | 'edit';
 }
 
-const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
-  const { addVehicle } = useFirebaseData();
+const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = null, mode = 'add' }) => {
+  const { addVehicle, updateVehicle } = useFirebaseData();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('basic');
 
@@ -92,28 +94,28 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
   const form = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleSchema),
     defaultValues: {
-      vehicleName: '',
-      registrationNumber: '',
-      make: '',
-      model: '',
-      year: new Date().getFullYear(),
-      condition: 'new',
-      purchasePrice: 0,
-      depreciationRate: 15, // Default 15% yearly
-      financingType: 'loan',
-      loanAmount: 0,
-      downPayment: 0,
-      interestRate: 8.5,
-      emiPerMonth: 0,
-      tenureMonths: 60,
-      loanAccountNumber: '',
-      firstInstallmentDate: '',
-      operationStartDate: '',
-      lastPaidInstallmentDate: '',
-      previousExpenses: 0,
-      previousRentEarnings: 0,
-      odometer: 0,
-      lastMaintenanceKm: 0,
+      vehicleName: vehicle?.vehicleName || '',
+      registrationNumber: vehicle?.registrationNumber || '',
+      make: vehicle?.make || '',
+      model: vehicle?.model || '',
+      year: vehicle?.year || new Date().getFullYear(),
+      condition: vehicle?.condition || 'new',
+      purchasePrice: vehicle?.initialCost || 0,
+      depreciationRate: vehicle?.depreciationRate ? (vehicle.depreciationRate * 100) : 15,
+      financingType: vehicle?.financingType || 'loan',
+      loanAmount: vehicle?.loanDetails?.totalLoan || 0,
+      downPayment: vehicle?.loanDetails?.downPayment || 0,
+      interestRate: vehicle?.loanDetails?.interestRate || 8.5,
+      emiPerMonth: vehicle?.loanDetails?.emiPerMonth || 0,
+      tenureMonths: vehicle?.loanDetails?.totalInstallments || 60,
+      loanAccountNumber: vehicle?.loanDetails?.loanAccountNumber || '',
+      firstInstallmentDate: vehicle?.firstInstallmentDate || '',
+      operationStartDate: vehicle?.operationStartDate || '',
+      lastPaidInstallmentDate: vehicle?.lastPaidInstallmentDate || '',
+      previousExpenses: vehicle?.previousData?.expenses || 0,
+      previousRentEarnings: vehicle?.previousData?.rentEarnings || 0,
+      odometer: vehicle?.odometer || 0,
+      lastMaintenanceKm: vehicle?.lastMaintenanceKm || 0,
     },
   });
 
@@ -275,116 +277,160 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         return;
       }
       
-      // Calculate initial investment
-      const initialInvestment = calculateInitialInvestment();
+      if (mode === 'edit' && vehicle) {
+        // Update existing vehicle
+        const updateData: Partial<Vehicle> = {
+          vehicleName: data.vehicleName,
+          registrationNumber: data.registrationNumber,
+          make: data.make,
+          model: data.model,
+          year: data.year,
+          condition: data.condition,
+          initialCost: data.purchasePrice,
+          residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
+          depreciationRate: data.depreciationRate / 100,
+          financingType: data.financingType,
+          odometer: data.odometer,
+          lastMaintenanceKm: data.lastMaintenanceKm,
+          
+          // Update loan details if applicable
+          loanDetails: data.financingType === 'loan' ? {
+            ...vehicle.loanDetails,
+            totalLoan: data.loanAmount || 0,
+            emiPerMonth: data.emiPerMonth || 0,
+            totalInstallments: data.tenureMonths || 0,
+            interestRate: data.interestRate || 0,
+            downPayment: data.downPayment || 0,
+            loanAccountNumber: data.loanAccountNumber || '',
+          } : vehicle.loanDetails,
+          
+          // Update images if new ones uploaded
+          images: Object.keys(uploadedImages).length > 0 ? 
+            { ...vehicle.images, ...uploadedImages } : 
+            vehicle.images,
+          
+          updatedAt: new Date().toISOString(),
+        };
 
-      // Calculate paid installments for historical data
-      let paidInstallments = 0;
-      if (data.condition === 'new_in_operation' && data.firstInstallmentDate && data.lastPaidInstallmentDate) {
-        paidInstallments = calculatePaidInstallments(data.firstInstallmentDate, data.lastPaidInstallmentDate);
-      }
-
-      // Generate amortization schedule
-      let amortizationSchedule = [];
-      let outstandingLoan = 0;
-      
-      if (data.financingType === 'loan' && data.loanAmount && data.emiPerMonth && data.tenureMonths) {
-        amortizationSchedule = generateAmortizationSchedule(
-          data.loanAmount,
-          data.emiPerMonth,
-          data.tenureMonths,
-          data.interestRate || 8.5,
-          data.firstInstallmentDate || new Date().toISOString(),
-          paidInstallments
-        );
+        await updateVehicle(vehicle.id, updateData);
         
-        // Calculate current outstanding
-        const unpaidInstallments = amortizationSchedule.filter(schedule => !schedule.isPaid);
-        outstandingLoan = unpaidInstallments.length > 0 ? 
-          unpaidInstallments[0].outstanding + unpaidInstallments[0].principal : 0;
-      }
-
-      // Determine financial status
-      let financialStatus: 'cash' | 'loan_active' | 'loan_cleared' = 'cash';
-      if (data.financingType === 'cash') {
-        financialStatus = 'cash';
-      } else if (outstandingLoan > 0) {
-        financialStatus = 'loan_active';
+        toast({
+          title: 'Success',
+          description: `Vehicle "${data.vehicleName}" updated successfully!`,
+        });
       } else {
-        financialStatus = 'loan_cleared';
-      }
+        // Create new vehicle (original add logic)
+        // Calculate initial investment
+        const initialInvestment = calculateInitialInvestment();
 
-      const vehicleData: Omit<Vehicle, 'id'> = {
-        // Basic Information
-        vehicleName: data.vehicleName,
-        registrationNumber: data.registrationNumber,
-        make: data.make,
-        model: data.model,
-        year: data.year,
-        condition: data.condition,
+        // Calculate paid installments for historical data
+        let paidInstallments = 0;
+        if (data.condition === 'new_in_operation' && data.firstInstallmentDate && data.lastPaidInstallmentDate) {
+          paidInstallments = calculatePaidInstallments(data.firstInstallmentDate, data.lastPaidInstallmentDate);
+        }
 
-        // Financial Details
-        initialCost: data.purchasePrice,
-        residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
-        depreciationRate: data.depreciationRate / 100,
-        initialInvestment,
-        financingType: data.financingType,
-
-        // Current State
-        odometer: data.odometer,
-        status: 'available',
-        financialStatus,
-        assignedDriverId: '',
-
-        // Loan Details
-        loanDetails: {
-          totalLoan: data.loanAmount || 0,
-          outstandingLoan,
-          emiPerMonth: data.emiPerMonth || 0,
-          totalInstallments: data.tenureMonths || 0,
-          interestRate: data.interestRate || 0,
-          downPayment: data.downPayment || 0,
-          loanAccountNumber: data.loanAccountNumber || '',
-          emiDueDate: 1, // Default to 1st of month
-          paidInstallments: Array(paidInstallments).fill(new Date().toISOString()),
-          amortizationSchedule,
-        },
-
-        // Historical Data
-        previousData: {
-          expenses: data.previousExpenses || 0,
-          emiPaid: paidInstallments,
-          rentEarnings: data.previousRentEarnings || 0,
-        },
-
-        // Operational Data
-        expenses: [],
-        payments: [],
-        history: [],
-        lastMaintenanceKm: data.lastMaintenanceKm,
-        needsMaintenance: false,
-        maintenanceHistory: [],
-        averageDailyKm: 0,
-
-        // System Fields
-        companyId: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        monthlyEarnings: 0,
-        monthlyExpenses: 0,
-        totalEarnings: 0,
-        totalExpenses: 0,
+        // Generate amortization schedule
+        let amortizationSchedule = [];
+        let outstandingLoan = 0;
         
-        // Vehicle Images
-        images: uploadedImages
-      };
+        if (data.financingType === 'loan' && data.loanAmount && data.emiPerMonth && data.tenureMonths) {
+          amortizationSchedule = generateAmortizationSchedule(
+            data.loanAmount,
+            data.emiPerMonth,
+            data.tenureMonths,
+            data.interestRate || 8.5,
+            data.firstInstallmentDate || new Date().toISOString(),
+            paidInstallments
+          );
+          
+          // Calculate current outstanding
+          const unpaidInstallments = amortizationSchedule.filter(schedule => !schedule.isPaid);
+          outstandingLoan = unpaidInstallments.length > 0 ? 
+            unpaidInstallments[0].outstanding + unpaidInstallments[0].principal : 0;
+        }
 
-      await addVehicle(vehicleData);
-      
-      toast({
-        title: 'Success',
-        description: `Vehicle "${data.vehicleName}" added successfully! ${paidInstallments > 0 ? `${paidInstallments} EMI installments marked as paid.` : ''}`,
-      });
+        // Determine financial status
+        let financialStatus: 'cash' | 'loan_active' | 'loan_cleared' = 'cash';
+        if (data.financingType === 'cash') {
+          financialStatus = 'cash';
+        } else if (outstandingLoan > 0) {
+          financialStatus = 'loan_active';
+        } else {
+          financialStatus = 'loan_cleared';
+        }
+
+        const vehicleData: Omit<Vehicle, 'id'> = {
+          // Basic Information
+          vehicleName: data.vehicleName,
+          registrationNumber: data.registrationNumber,
+          make: data.make,
+          model: data.model,
+          year: data.year,
+          condition: data.condition,
+
+          // Financial Details
+          initialCost: data.purchasePrice,
+          residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
+          depreciationRate: data.depreciationRate / 100,
+          initialInvestment,
+          financingType: data.financingType,
+
+          // Current State
+          odometer: data.odometer,
+          status: 'available',
+          financialStatus,
+          assignedDriverId: '',
+
+          // Loan Details
+          loanDetails: {
+            totalLoan: data.loanAmount || 0,
+            outstandingLoan,
+            emiPerMonth: data.emiPerMonth || 0,
+            totalInstallments: data.tenureMonths || 0,
+            interestRate: data.interestRate || 0,
+            downPayment: data.downPayment || 0,
+            loanAccountNumber: data.loanAccountNumber || '',
+            emiDueDate: 1, // Default to 1st of month
+            paidInstallments: Array(paidInstallments).fill(new Date().toISOString()),
+            amortizationSchedule,
+          },
+
+          // Historical Data
+          previousData: {
+            expenses: data.previousExpenses || 0,
+            emiPaid: paidInstallments,
+            rentEarnings: data.previousRentEarnings || 0,
+          },
+
+          // Operational Data
+          expenses: [],
+          payments: [],
+          history: [],
+          lastMaintenanceKm: data.lastMaintenanceKm,
+          needsMaintenance: false,
+          maintenanceHistory: [],
+          averageDailyKm: 0,
+
+          // System Fields
+          companyId: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          monthlyEarnings: 0,
+          monthlyExpenses: 0,
+          totalEarnings: 0,
+          totalExpenses: 0,
+          
+          // Vehicle Images
+          images: uploadedImages
+        };
+
+        await addVehicle(vehicleData);
+        
+        toast({
+          title: 'Success',
+          description: `Vehicle "${data.vehicleName}" added successfully! ${paidInstallments > 0 ? `${paidInstallments} EMI installments marked as paid.` : ''}`,
+        });
+      }
       
       form.reset();
       onSuccess();
@@ -1129,7 +1175,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
           </Button>
 
           <Button type="submit" className="flex-1" disabled={form.formState.isSubmitting || isUploadingImages}>
-            {isUploadingImages ? 'Uploading Images...' : form.formState.isSubmitting ? 'Adding Vehicle...' : 'Add Vehicle to Fleet'}
+            {isUploadingImages ? 'Uploading Images...' : form.formState.isSubmitting ? (mode === 'edit' ? 'Updating Vehicle...' : 'Adding Vehicle...') : (mode === 'edit' ? 'Update Vehicle' : 'Add Vehicle to Fleet')}
           </Button>
         </div>
       </form>

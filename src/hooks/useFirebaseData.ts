@@ -255,7 +255,13 @@ export const useDrivers = () => {
     });
   };
 
-  return { drivers, loading, addDriver, updateDriver };
+  const deleteDriver = async (driverId: string) => {
+    if (!userInfo?.companyId) throw new Error('No company ID');
+    const driverRef = doc(firestore, paths.getUsersPath(), driverId);
+    return await deleteDoc(driverRef);
+  };
+
+  return { drivers, loading, addDriver, updateDriver, deleteDriver };
 };
 
 export const useVehicles = () => {

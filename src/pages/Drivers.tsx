@@ -3,15 +3,35 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye } from 'lucide-react';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddDriverForm from '@/components/Forms/AddDriverForm';
-import { useFirebaseData } from '@/hooks/useFirebaseData';
+import { useDrivers } from '@/hooks/useFirebaseData';
 
 const Drivers: React.FC = () => {
   const navigate = useNavigate();
-  const { drivers, loading, addDriver } = useFirebaseData();
+  const { drivers, loading, addDriver, updateDriver, deleteDriver } = useDrivers();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editDriver, setEditDriver] = useState(null);
+  // Delete driver handler
+  const handleDeleteDriver = async (driverId: string) => {
+    if (window.confirm('Are you sure you want to delete this driver?')) {
+      try {
+        await deleteDriver(driverId);
+        // Optionally show toast
+      } catch (error) {
+        // Optionally show error toast
+      }
+    }
+  };
+
+  // Edit modal success handler
+  const handleEditSuccess = () => {
+    setEditModalOpen(false);
+    setEditDriver(null);
+  };
 
   console.log('=== DRIVERS DEBUG INFO ===');
   console.log('Drivers component render');
@@ -363,30 +383,72 @@ const Drivers: React.FC = () => {
                 </div>
 
                 {/* Action Buttons - Always at bottom */}
-                <div className="flex space-x-2 pt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => navigate(`/drivers/${driver.id}`)}
-                  >
-                    <Eye className="w-3 h-3 mr-1" />
-                    Profile
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => navigate(`/drivers/${driver.id}?tab=assignments`)}
-                  >
-                    Assignment
-                  </Button>
+                <div className="space-y-2 pt-4">
+                  {/* First row: Profile and Assignment */}
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => navigate(`/drivers/${driver.id}`)}
+                    >
+                      <Eye className="w-3 h-3 mr-1" />
+                      Profile
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => navigate(`/drivers/${driver.id}?tab=assignments`)}
+                    >
+                      Assignment
+                    </Button>
+                  </div>
+                  {/* Second row: Edit and Delete */}
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setEditDriver(driver);
+                        setEditModalOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleDeleteDriver(driver.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+    {/* Edit Driver Modal */}
+    {editDriver && (
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Driver: {editDriver.name}
+            </DialogTitle>
+          </DialogHeader>
+          <AddDriverForm 
+            driver={editDriver} 
+            onSuccess={handleEditSuccess} 
+            mode="edit" 
+          />
+        </DialogContent>
+      </Dialog>
+    )}
     </div>
   );
 };

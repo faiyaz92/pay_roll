@@ -27,12 +27,14 @@ type DriverFormData = z.infer<typeof driverSchema>;
 
 interface AddDriverFormProps {
   onSuccess: () => void;
+  driver?: Driver | null;
+  mode?: 'add' | 'edit';
 }
 
-const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
+const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess, driver = null, mode = 'add' }) => {
   const { userInfo } = useAuth();
   const { toast } = useToast();
-  const { addDriver } = useDrivers();
+  const { addDriver, updateDriver } = useDrivers();
   
   // Document state
   const [documents, setDocuments] = useState<{
@@ -41,21 +43,30 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
     photo: DocumentWithFile | null;
     additional: DocumentWithFile[];
   }>({
-    drivingLicense: null,
-    idCard: null,
-    photo: null,
-    additional: []
+    drivingLicense: driver?.documents?.drivingLicense ? {
+      ...driver.documents.drivingLicense,
+      file: undefined
+    } : null,
+    idCard: driver?.documents?.idCard ? {
+      ...driver.documents.idCard,
+      file: undefined
+    } : null,
+    photo: driver?.documents?.photo ? {
+      ...driver.documents.photo,
+      file: undefined
+    } : null,
+    additional: driver?.documents?.additional || []
   });
   const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<DriverFormData>({
     resolver: zodResolver(driverSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      licenseNumber: '',
-      address: '',
+      name: driver?.name || '',
+      email: driver?.email || '',
+      phone: driver?.phone || '',
+      licenseNumber: driver?.licenseNumber || '',
+      address: driver?.address || '',
     },
   });
 
@@ -95,8 +106,8 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
         return;
       }
 
-      // Validate required documents
-      if (!documents.drivingLicense || !documents.idCard || !documents.photo) {
+      // Validate required documents for add mode only
+      if (mode === 'add' && (!documents.drivingLicense || !documents.idCard || !documents.photo)) {
         toast({
           title: 'Missing Documents',
           description: 'Please upload Driving License, ID Card, and Driver Photo.',
@@ -108,10 +119,10 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
       console.log('Using company ID:', userInfo.companyId);
       setIsUploading(true);
 
-      // Upload all documents to Cloudinary
+      // Upload all documents to Cloudinary (only new documents with files)
       const uploadPromises: Promise<DocumentUpload>[] = [];
       
-      // Upload required documents
+      // Upload required documents only if they have files (new uploads)
       if (documents.drivingLicense && documents.drivingLicense.file) {
         uploadPromises.push(uploadDocument(documents.drivingLicense, 'license'));
       }
@@ -133,57 +144,97 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
       const uploadedDocs = await Promise.all(uploadPromises);
       console.log('Documents uploaded successfully:', uploadedDocs);
 
-      // Organize uploaded documents
+      // Organize uploaded documents, keeping existing ones if no new upload
       const organizedDocs = {
-        drivingLicense: uploadedDocs.find(doc => doc.type === 'license') || null,
-        idCard: uploadedDocs.find(doc => doc.type === 'idCard') || null,
-        photo: uploadedDocs.find(doc => doc.type === 'photo') || null,
-        additional: uploadedDocs.filter(doc => doc.type === 'additional')
+        drivingLicense: uploadedDocs.find(doc => doc.type === 'license') || documents.drivingLicense || null,
+        idCard: uploadedDocs.find(doc => doc.type === 'idCard') || documents.idCard || null,
+        photo: uploadedDocs.find(doc => doc.type === 'photo') || documents.photo || null,
+        additional: [
+          ...uploadedDocs.filter(doc => doc.type === 'additional'),
+          ...(documents.additional.filter(doc => !doc.file) || [])
+        ]
       };
 
-      // Create driver record for fleet rental business with document URLs
-      const driverData: Omit<Driver, 'id'> = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        licenseNumber: data.licenseNumber,
-        address: data.address,
-        rentedVehicles: [], // Initially no vehicles rented
-        totalWeeklyRent: 0, // Will be calculated when vehicles are assigned
-        joinDate: new Date().toISOString(),
-        isActive: true,
-        companyId: userInfo.companyId,
-        userType: 'Driver', // Required for Firestore query filtering
-        
-        // New document structure with Cloudinary URLs
-        documents: organizedDocs,
-        
-        // Legacy fields for backward compatibility (using new documents)
-        drivingLicense: {
-          number: data.licenseNumber,
-          expiry: '',
-          photoUrl: organizedDocs.drivingLicense?.url || '',
-        },
-        idCard: {
-          number: '',
-          photoUrl: organizedDocs.idCard?.url || '',
-        },
-        photoUrl: organizedDocs.photo?.url || '',
-        
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      if (mode === 'edit' && driver) {
+        // Update existing driver
+        const updateData: Partial<Driver> = {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          licenseNumber: data.licenseNumber,
+          address: data.address,
+          documents: organizedDocs,
+          
+          // Legacy fields for backward compatibility (using new documents)
+          drivingLicense: {
+            number: data.licenseNumber,
+            expiry: '',
+            photoUrl: organizedDocs.drivingLicense?.url || '',
+          },
+          idCard: {
+            number: '',
+            photoUrl: organizedDocs.idCard?.url || '',
+          },
+          photoUrl: organizedDocs.photo?.url || '',
+          
+          updatedAt: new Date().toISOString(),
+        };
 
-      console.log('Driver data to be saved:', driverData);
-      console.log('Calling addDriver function...');
-      
-      const result = await addDriver(driverData);
-      console.log('addDriver result:', result);
-      
-      toast({
-        title: 'Success',
-        description: 'Driver added successfully with all documents uploaded securely.',
-      });
+        console.log('Driver data to be updated:', updateData);
+        console.log('Calling updateDriver function...');
+        
+        const result = await updateDriver(driver.id, updateData);
+        console.log('updateDriver result:', result);
+        
+        toast({
+          title: 'Success',
+          description: 'Driver updated successfully with all documents.',
+        });
+      } else {
+        // Create new driver
+        const driverData: Omit<Driver, 'id'> = {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          licenseNumber: data.licenseNumber,
+          address: data.address,
+          rentedVehicles: [], // Initially no vehicles rented
+          totalWeeklyRent: 0, // Will be calculated when vehicles are assigned
+          joinDate: new Date().toISOString(),
+          isActive: true,
+          companyId: userInfo.companyId,
+          userType: 'Driver', // Required for Firestore query filtering
+          
+          // New document structure with Cloudinary URLs
+          documents: organizedDocs,
+          
+          // Legacy fields for backward compatibility (using new documents)
+          drivingLicense: {
+            number: data.licenseNumber,
+            expiry: '',
+            photoUrl: organizedDocs.drivingLicense?.url || '',
+          },
+          idCard: {
+            number: '',
+            photoUrl: organizedDocs.idCard?.url || '',
+          },
+          photoUrl: organizedDocs.photo?.url || '',
+          
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        console.log('Driver data to be saved:', driverData);
+        console.log('Calling addDriver function...');
+        
+        const result = await addDriver(driverData);
+        console.log('addDriver result:', result);
+        
+        toast({
+          title: 'Success',
+          description: 'Driver added successfully with all documents uploaded securely.',
+        });
+      }
       
       // Reset form and documents
       form.reset();
@@ -312,8 +363,8 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
           {isUploading 
             ? 'Uploading Documents...' 
             : form.formState.isSubmitting 
-              ? 'Adding Driver...' 
-              : 'Add Driver with Documents'
+              ? (mode === 'edit' ? 'Updating Driver...' : 'Adding Driver...') 
+              : (mode === 'edit' ? 'Update Driver' : 'Add Driver with Documents')
           }
         </Button>
       </form>
