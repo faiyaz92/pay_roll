@@ -49,8 +49,11 @@ const DriverDetails: React.FC = () => {
     const driverAssns = assignments.filter(a => a.driverId === driverId);
     setDriverAssignments(driverAssns);
 
-    // Get driver's payments
-    const driverPmts = payments.filter(p => p.driverId === driverId);
+    // Get driver's payments - payments are linked through assignments
+    const driverAssignmentIds = driverAssns.map(a => a.id);
+    const driverPmts = payments.filter(p => 
+      p.driverId === driverId || driverAssignmentIds.includes(p.assignmentId)
+    );
     setDriverPayments(driverPmts);
 
     // Calculate analytics
@@ -60,24 +63,25 @@ const DriverDetails: React.FC = () => {
   const calculateDriverAnalytics = (driver: Driver, assns: any[], pmts: any[]) => {
     const now = new Date();
     
-    // Payment analytics
-    const totalPaid = pmts.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const onTimePayments = pmts.filter(p => {
-      if (!p.dueDate || !p.collectedAt) return false;
-      return new Date(p.collectedAt) <= new Date(p.dueDate);
+    // Payment analytics - only count paid payments
+    const paidPayments = pmts.filter(p => p.status === 'paid');
+    const totalPaid = paidPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+    const onTimePayments = paidPayments.filter(p => {
+      if (!p.nextDueDate || !p.paidAt) return false;
+      return new Date(p.paidAt) <= new Date(p.nextDueDate);
     }).length;
-    const latePayments = pmts.length - onTimePayments;
+    const latePayments = paidPayments.length - onTimePayments;
     
-    // Calculate average delay
-    const delays = pmts
-      .filter(p => p.dueDate && p.collectedAt && new Date(p.collectedAt) > new Date(p.dueDate))
-      .map(p => Math.ceil((new Date(p.collectedAt).getTime() - new Date(p.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+    // Calculate average delay for late payments
+    const delays = paidPayments
+      .filter(p => p.nextDueDate && p.paidAt && new Date(p.paidAt) > new Date(p.nextDueDate))
+      .map(p => Math.ceil((new Date(p.paidAt).getTime() - new Date(p.nextDueDate).getTime()) / (1000 * 60 * 60 * 24)));
     const averagePaymentDelay = delays.length > 0 ? delays.reduce((a, b) => a + b, 0) / delays.length : 0;
 
     // Credit score calculation (0-1000)
     let creditScore = 700; // Base score
-    if (pmts.length > 0) {
-      const onTimeRatio = onTimePayments / pmts.length;
+    if (paidPayments.length > 0) {
+      const onTimeRatio = onTimePayments / paidPayments.length;
       creditScore += (onTimeRatio * 200) - 100; // -100 to +100 based on on-time ratio
       creditScore -= Math.min(averagePaymentDelay * 2, 100); // Penalty for delays
       creditScore = Math.max(300, Math.min(900, creditScore)); // Clamp between 300-900
@@ -94,14 +98,15 @@ const DriverDetails: React.FC = () => {
     const activeAssignments = assns.filter(a => !a.endDate);
     const currentVehicleCount = activeAssignments.length;
 
-    // Calculate total due and next payment
-    const weeklyRent = driver.totalWeeklyRent || 0;
-    const unpaidWeeks = activeAssignments.length; // Simplified - should be calculated based on actual due dates
-    const totalDue = weeklyRent * unpaidWeeks;
+    // Calculate total due - sum of all due payments
+    const duePayments = pmts.filter(p => p.status === 'due' || p.status === 'overdue');
+    const totalDue = duePayments.reduce((sum, p) => sum + (p.amountDue || 0), 0);
     
-    // Next due date (assuming weekly payments)
-    const nextDueDate = new Date();
-    nextDueDate.setDate(nextDueDate.getDate() + 7);
+    // Next due date and amount
+    const nextDuePayment = duePayments
+      .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())[0];
+    const nextDueDate = nextDuePayment?.nextDueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const nextDueAmount = nextDuePayment?.amountDue || 0;
 
     setAnalytics({
       creditScore: Math.round(creditScore),
@@ -110,8 +115,8 @@ const DriverDetails: React.FC = () => {
       onTimePayments,
       latePayments,
       averagePaymentDelay: Math.round(averagePaymentDelay),
-      nextDueDate: nextDueDate.toISOString(),
-      nextDueAmount: weeklyRent,
+      nextDueDate: nextDueDate,
+      nextDueAmount: nextDueAmount,
       totalEngagementDays,
       currentVehicleCount
     });

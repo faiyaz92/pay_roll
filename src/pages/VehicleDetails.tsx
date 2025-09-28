@@ -43,7 +43,7 @@ const VehicleDetails: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { userInfo } = useAuth();
-  const { vehicles, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments } = useFirebaseData();
+  const { vehicles, drivers, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments } = useFirebaseData();
   const [prepaymentAmount, setPrepaymentAmount] = useState('');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
@@ -113,6 +113,12 @@ const VehicleDetails: React.FC = () => {
   
   // Get real expense data for this vehicle
   const expenseData = getVehicleExpenseData();
+
+  // Helper function to get driver name
+  const getDriverName = (driverId: string) => {
+    const driver = drivers.find(d => d.id === driverId);
+    return driver ? driver.name : driverId;
+  };
 
   // Generate payment history data
   const generatePaymentHistory = () => {
@@ -264,7 +270,8 @@ const VehicleDetails: React.FC = () => {
       weeklyRent: assignment.weeklyRent,
       dailyRent: assignment.dailyRent,
       startDate: assignment.startDate,
-      collectionDay: assignment.collectionDay
+      collectionDay: assignment.collectionDay,
+      driverId: assignment.driverId
     };
   };
 
@@ -709,8 +716,8 @@ const VehicleDetails: React.FC = () => {
                         
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                           <div>
-                            <Label className="text-gray-500">Driver ID</Label>
-                            <p className="font-medium">{assignment.driverId}</p>
+                            <Label className="text-gray-500">Driver</Label>
+                            <p className="font-medium">{getDriverName(assignment.driverId)}</p>
                           </div>
                           <div>
                             <Label className="text-gray-500">Start Date</Label>
@@ -974,6 +981,12 @@ const VehicleDetails: React.FC = () => {
                 </div>
                 {financialData.isCurrentlyRented && getCurrentAssignmentDetails() ? (
                   <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Driver:</span>
+                      <span className="font-medium text-blue-600">
+                        {getDriverName(getCurrentAssignmentDetails()!.driverId)}
+                      </span>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Weekly Rent:</span>
                       <span className="font-medium text-green-600">
