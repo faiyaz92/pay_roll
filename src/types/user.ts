@@ -1,3 +1,5 @@
+import { DocumentUpload } from "@/hooks/useFirebaseData";
+
 export enum Role {
   COMPANY_ADMIN = 'company_admin'
   // Future roles can be added here as needed
@@ -154,33 +156,30 @@ export interface Assignment {
   id: string;
   vehicleId: string;
   driverId: string;
-  startDate: Date;
+  startDate: Date | string | any; // Allow Firebase Timestamp
+  endDate: Date | string | any | null; // Allow Firebase Timestamp
   dailyRent: number;
-  weeklyRent: number; // Auto-calculated as dailyRent * 7
+  weeklyRent: number;
   collectionDay: number; // 0-6 (Sunday-Saturday)
   initialOdometer: number;
-  endDate: Date | null;
   status: 'active' | 'ended' | 'idle';
-  companyId: string;
-  
-  // Additional assignment details
+  // Add the missing fields that were causing type errors:
   securityDeposit: number;
-  agreementDuration: number; // months
+  agreementDuration: number;
   driverAddress: string;
   emergencyContact: string;
   specialTerms?: string;
-  
-  // Document URLs (Cloudinary links)
+  // Optional fields for document management:
   documents?: {
     agreement?: string;
     vehicleHandover?: string;
     driverPhoto?: string;
     additional?: string; // JSON string of array
   };
-  
-  // System fields
-  createdAt: string;
-  updatedAt: string;
+  // System fields:
+  createdAt?: Date | string | any;
+  updatedAt?: Date | string | any;
+  companyId: string;
 }
 
 export interface Payment {

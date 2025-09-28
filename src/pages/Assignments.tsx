@@ -61,11 +61,16 @@ const Assignments: React.FC = () => {
     return driver ? driver.name : driverId;
   };
 
-  const calculateDuration = (startDate: Date | string, endDate: Date | string | null) => {
+  // Fix the instanceof check for dates - Firebase dates might be Timestamp objects
+  const calculateDuration = (startDate: Date | string | { toDate(): Date }, endDate: Date | string | { toDate(): Date } | null) => {
     try {
-      const start = startDate instanceof Date ? startDate : new Date(startDate);
+      const start = startDate && typeof (startDate as any).toDate === 'function' 
+        ? (startDate as { toDate(): Date }).toDate() 
+        : (startDate instanceof Date ? startDate : new Date(startDate as string));
       const end = endDate 
-        ? (endDate instanceof Date ? endDate : new Date(endDate))
+        ? (endDate && typeof (endDate as any).toDate === 'function' 
+            ? (endDate as { toDate(): Date }).toDate() 
+            : (endDate instanceof Date ? endDate : new Date(endDate as string)))
         : new Date();
       
       // Check if dates are valid
@@ -95,9 +100,13 @@ const Assignments: React.FC = () => {
 
   const calculateTotalEarnings = (assignment: Assignment) => {
     try {
-      const startDate = assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate);
+      const startDate = assignment.startDate && typeof (assignment.startDate as any).toDate === 'function' 
+        ? (assignment.startDate as { toDate(): Date }).toDate() 
+        : (assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate as string));
       const endDate = assignment.endDate 
-        ? (assignment.endDate instanceof Date ? assignment.endDate : new Date(assignment.endDate))
+        ? (assignment.endDate && typeof (assignment.endDate as any).toDate === 'function' 
+            ? (assignment.endDate as { toDate(): Date }).toDate() 
+            : (assignment.endDate instanceof Date ? assignment.endDate : new Date(assignment.endDate as string)))
         : new Date();
       
       // Check if dates are valid

@@ -33,11 +33,11 @@ const assignmentSchema = z.object({
 
 type AssignmentFormData = z.infer<typeof assignmentSchema>;
 
-interface DocumentUpload {
+interface AssignmentDocumentUpload {
   id: string;
   name: string;
   url: string;
-  type: 'agreement' | 'vehicle_handover' | 'driver_photo' | 'additional';
+  type: 'agreement' | 'vehicleHandover' | 'driverPhoto' | 'additional';
   uploadedAt: string;
   size: number;
   file?: File;
@@ -58,10 +58,10 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
   
   // Assignment Documents State
   const [assignmentDocs, setAssignmentDocs] = useState<{
-    agreement: DocumentUpload | null;
-    vehicleHandover: DocumentUpload | null;
-    driverPhoto: DocumentUpload | null;
-    additional: DocumentUpload[];
+    agreement: AssignmentDocumentUpload | null;
+    vehicleHandover: AssignmentDocumentUpload | null;
+    driverPhoto: AssignmentDocumentUpload | null;
+    additional: AssignmentDocumentUpload[];
   }>({
     agreement: null,
     vehicleHandover: null,
@@ -153,7 +153,7 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    const newDoc: DocumentUpload = {
+    const newDoc: AssignmentDocumentUpload = {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: file.name,
       url: URL.createObjectURL(file),
@@ -231,7 +231,7 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
     
     // Upload main documents
     for (const [type, doc] of Object.entries(assignmentDocs)) {
-      if (doc && type !== 'additional') {
+      if (doc && type !== 'additional' && !Array.isArray(doc)) {
         try {
           const cloudinaryUrl = await uploadToCloudinary(doc.file!);
           uploadedDocs[type] = cloudinaryUrl;
@@ -297,7 +297,7 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
       const assignmentData: Omit<Assignment, 'id'> = {
         vehicleId: data.vehicleId,
         driverId: data.driverId,
-        startDate: new Date(data.startDate),
+        startDate: new Date(data.startDate).toISOString(),
         dailyRent: data.dailyRent,
         weeklyRent: weeklyRent,
         collectionDay: data.collectionDay,
@@ -305,17 +305,17 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
         endDate: null, // Will be set when assignment ends
         status: 'active',
         companyId: userInfo.companyId,
-        
+
         // Additional assignment details
         securityDeposit: data.securityDeposit,
         agreementDuration: data.agreementDuration,
         driverAddress: data.driverAddress,
         emergencyContact: data.emergencyContact,
         specialTerms: data.specialTerms || '',
-        
+
         // Document URLs
         documents: uploadedImages,
-        
+
         // System fields
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

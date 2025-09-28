@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
-import { Role, TenantCompanyType, FuelRecord, MaintenanceRecord, Vehicle, LoanDetails } from '@/types/user';
+import { Role, TenantCompanyType, FuelRecord, MaintenanceRecord, Vehicle, LoanDetails, Assignment } from '@/types/user';
 
 // Fleet Rental Business Interfaces (based on BRD)
 
@@ -67,22 +67,6 @@ export interface MaintenanceHistory {
   odometerAtMaintenance: number;
   description: string;
   expenseId: string;
-}
-
-export interface Assignment {
-  id: string;
-  vehicleId: string;
-  driverId: string;
-  startDate: string;
-  dailyRent: number;
-  weeklyRent: number; // Auto-calculated = dailyRent * 7
-  collectionDay: number; // 0-6 (Sunday-Saturday)
-  initialOdometer: number;
-  endDate: string | null;
-  status: 'active' | 'ended' | 'idle';
-  companyId: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Expense {
