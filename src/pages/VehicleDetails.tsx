@@ -67,6 +67,7 @@ const VehicleDetails: React.FC = () => {
   const [showEmiForm, setShowEmiForm] = useState(false);
   const [showRentForm, setShowRentForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -560,7 +561,12 @@ const VehicleDetails: React.FC = () => {
   };
 
   const markRentCollected = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
+    // Prevent double-click processing
+    if (isProcessingRentPayment === weekIndex) return;
+    
     try {
+      setIsProcessingRentPayment(weekIndex);
+      
       if (!assignment || !vehicle.assignedDriverId) {
         toast({
           title: 'Error',
@@ -620,13 +626,13 @@ const VehicleDetails: React.FC = () => {
         updatedAt: new Date().toISOString()
       };
 
-      // Add payment record directly to payments collection
-      const paymentsRef = collection(firestore, `tenantCompanies/${userInfo.companyId}/payments`);
+      // Add payment record directly to payments collection using correct path
+      const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/payments`);
       await addDoc(paymentsRef, paymentData);
 
       toast({
-        title: 'Rent Collected Successfully',
-        description: `Weekly rent of ₹${assignment.weeklyRent.toLocaleString()} for assignment week ${weekIndex + 1} (${weekStartDate.toLocaleDateString('en-IN')}) has been recorded.`,
+        title: 'Rent Collected Successfully! 🎉',
+        description: `Weekly rent of ₹${assignment.weeklyRent.toLocaleString()} for assignment week ${weekIndex + 1} (${weekStartDate.toLocaleDateString('en-IN')}) has been recorded and will reflect in earnings immediately.`,
       });
 
     } catch (error) {
@@ -636,6 +642,8 @@ const VehicleDetails: React.FC = () => {
         description: 'Failed to record rent payment. Please try again.',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessingRentPayment(null);
     }
   };
 
@@ -1696,11 +1704,13 @@ const VehicleDetails: React.FC = () => {
                             status = `${daysUntil} days`;
                           }
                           
+                          // Determine if payment can be made (current week or overdue)
+                          const canMarkPaid = !weekRentPayment && (isCurrentWeek || isPastWeek);
+                          
                           return (
                             <Card 
                               key={weekIndex} 
-                              className={`${bgColor} ${!weekRentPayment && (isCurrentWeek || isPastWeek) ? 'cursor-pointer hover:shadow-md' : 'cursor-default'} transition-shadow`}
-                              onClick={() => !weekRentPayment && (isCurrentWeek || isPastWeek) && markRentCollected(weekIndex, currentAssignment, weekStartDate)}
+                              className={`${bgColor} transition-shadow`}
                             >
                               <CardContent className="p-3 text-center">
                                 <div className={`${textColor} mb-1`}>
@@ -1717,9 +1727,25 @@ const VehicleDetails: React.FC = () => {
                                     {status}
                                   </div>
                                 )}
-                                {weekRentPayment && (
+                                {weekRentPayment ? (
                                   <div className={`text-xs ${textColor} mt-1 font-semibold`}>
                                     ₹{weekRentPayment.amountPaid.toLocaleString()}
+                                  </div>
+                                ) : canMarkPaid ? (
+                                  <Button 
+                                    size="sm" 
+                                    className="text-xs py-1 px-2 h-6 w-full mt-2"
+                                    disabled={isProcessingRentPayment === weekIndex}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markRentCollected(weekIndex, currentAssignment, weekStartDate);
+                                    }}
+                                  >
+                                    {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Paid'}
+                                  </Button>
+                                ) : (
+                                  <div className={`text-xs ${textColor} mt-1`}>
+                                    ₹{currentAssignment.weeklyRent.toLocaleString()}
                                   </div>
                                 )}
                               </CardContent>
