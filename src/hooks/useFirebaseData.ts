@@ -677,9 +677,9 @@ const calculateVehicleFinancials = (
   const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;
   const monthlyProfit = monthlyRent - monthlyExpenses - monthlyEMI;
 
-  // Calculate ROI - subtract outstanding loan from current value
+  // Calculate ROI based on cash flows, not asset value
+  // ROI should reflect actual returns from the business operation
   const totalInvestment = vehicle.initialInvestment + totalExpenses;
-  const currentValue = vehicle.residualValue;
   
   // Calculate outstanding loan and next EMI due
   const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
@@ -703,10 +703,13 @@ const calculateVehicleFinancials = (
     outstandingLoan = (vehicle.loanDetails?.outstandingLoan || 0);
   }
   
-  // Net asset value = current value - outstanding loan  
-  const netAssetValue = currentValue - outstandingLoan;
-  const netWorth = totalEarnings - totalExpenses + netAssetValue;
-  const currentROI = totalInvestment > 0 ? ((netWorth - totalInvestment) / totalInvestment) * 100 : 0;
+  // Calculate actual cash-based ROI
+  // Only consider earnings vs total cash invested (excluding unrealized asset value)
+  const netCashFlow = totalEarnings - totalExpenses;
+  const currentROI = totalInvestment > 0 ? (netCashFlow / totalInvestment) * 100 : 0;
+  
+  // Note: This ROI calculation shows actual cash returns from the business
+  // If totalEarnings = 0, ROI will be negative showing the loss of invested capital
 
   return {
     monthlyRent,
