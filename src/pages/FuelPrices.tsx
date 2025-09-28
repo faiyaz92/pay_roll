@@ -8,7 +8,7 @@ const FuelPrices: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Fuel Price Management</h1>
         <p className="text-muted-foreground">
-          Set current fuel prices for automatic trip cost calculations
+          Set current fuel prices for automatic rental cost calculations
         </p>
       </div>
 

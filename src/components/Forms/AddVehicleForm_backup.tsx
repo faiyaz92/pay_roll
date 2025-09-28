@@ -1,147 +1,140 @@
-import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import React, { useState, useEffect } from 'react';om 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';/components/ui/select';
+import { Progress } from '@/components/ui/progress';mLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+  Plus,  Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  Car, { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+  Search, abel } from '@/components/ui/label';
+  Eye, { Checkbox } from '@/components/ui/checkbox';
+  Edit,  useFirebaseData } from '@/hooks/useFirebaseData';
+  DollarSign, ast } from '@/hooks/use-toast';
+  TrendingUp, le } from '@/types/user';
+  AlertCircle,
+  CreditCard,ehicle Schema with new conditions
+  Calendar,leSchema = z.object({
+  Fuelasic Vehicle Information
+} from 'lucide-react';g().min(2, 'Vehicle name is required'),
+import AddItemModal from '@/components/Modals/AddItemModal'; is required'),
+import AddVehicleForm from '@/components/Forms/AddVehicleForm';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
-import { useToast } from '@/hooks/use-toast';
-import { Vehicle } from '@/types/user';
-
-// Enhanced Fleet Rental Vehicle Schema
-const vehicleSchema = z.object({
-  // Basic Vehicle Information
-  vehicleName: z.string().min(2, 'Vehicle name is required'),
-  registrationNumber: z.string().min(3, 'Registration number is required'),
-  make: z.string().min(2, 'Make is required'),
-  model: z.string().min(2, 'Model is required'),
-  year: z.number().min(1990).max(new Date().getFullYear() + 1),
+import { toast } from '@/hooks/use-toast';).getFullYear() + 1),
   condition: z.enum(['new', 'used', 'new_in_operation']),
+const Vehicles: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');is required'),
+  const [showAddModal, setShowAddModal] = useState(false);on rate should be between 0 and 100%'),
+  const [statusFilter, setStatusFilter] = useState('all');
   
-  // Financial Information
-  purchasePrice: z.number().min(1, 'Purchase price is required'),
-  depreciationRate: z.number().min(0).max(100, 'Depreciation rate should be between 0 and 100%'),
-  financingType: z.enum(['cash', 'loan']),
-  
-  // Loan Details (conditional)
-  loanAmount: z.number().optional(),
-  downPayment: z.number().optional(),
-  interestRate: z.number().optional(),
-  emiPerMonth: z.number().optional(),
-  tenureMonths: z.number().optional(),
-  loanAccountNumber: z.string().optional(),
-  firstInstallmentDate: z.string().optional(),
-  
-  // Historical Data for vehicles in operation
-  operationStartDate: z.string().optional(),
+  const { vehicles, loading, deleteVehicle } = useFirebaseData();
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (window.confirm('Are you sure you want to delete this vehicle?')) {
+      try {ate: z.number().optional(),
+        await deleteVehicle(vehicleId);
+        toast({ title: 'Vehicle Deleted', description: 'Vehicle has been deleted successfully.' });
+      } catch (error: any) {g().optional(),
+        toast({ title: 'Error', description: error.message || 'Failed to delete vehicle', variant: 'destructive' });
+      }
+    }Historical Data for vehicles in operation
+  };erationStartDate: z.string().optional(),
   lastPaidInstallmentDate: z.string().optional(),
-  previousExpenses: z.number().optional(),
-  previousRentEarnings: z.number().optional(),
-  
-  // Maintenance
-  odometer: z.number().min(0, 'Odometer reading is required'),
-  lastMaintenanceKm: z.number().min(0, 'Last maintenance km is required'),
-});
-
-type VehicleFormData = z.infer<typeof vehicleSchema>;
-
-interface AddVehicleFormProps {
-  onSuccess: () => void;
-}
-
-const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
-  const { addVehicle } = useFirebaseData();
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('basic');
-
-  const form = useForm<VehicleFormData>({
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {number().optional(),
+      available: { 
+        color: 'bg-green-500 hover:bg-green-600', 
+        text: 'Available',(0, 'Odometer reading is required'),
+        icon: <Car className="h-4 w-4" />ast maintenance km is required'),
+      },
+      rented: { 
+        color: 'bg-blue-500 hover:bg-blue-600', ema>;
+        text: 'Rented',
+        icon: <DollarSign className="h-4 w-4" />
+      },ess: () => void;
+      maintenance: { 
+        color: 'bg-red-500 hover:bg-red-600', 
+        text: 'Maintenance',FC<AddVehicleFormProps> = ({ onSuccess }) => {
+        icon: <AlertCircle className="h-4 w-4" />
+      },{ toast } = useToast();
+    };t [activeTab, setActiveTab] = useState('basic');
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
     resolver: zodResolver(vehicleSchema),
-    defaultValues: {
-      vehicleName: '',
-      registrationNumber: '',
-      make: '',
-      model: '',
-      year: new Date().getFullYear(),
-      condition: 'new',
+    return (alues: {
+      <Badge className={`${config.color} text-white flex items-center gap-1`}>
+        {config.icon}ber: '',
+        {config.text}
+      </Badge>',
+    );year: new Date().getFullYear(),
+  };  condition: 'new',
       purchasePrice: 0,
-      depreciationRate: 15, // Default 15% yearly
-      financingType: 'loan',
-      loanAmount: 0,
-      downPayment: 0,
-      interestRate: 8.5,
-      emiPerMonth: 0,
-      tenureMonths: 60,
-      loanAccountNumber: '',
-      firstInstallmentDate: '',
-      operationStartDate: '',
-      lastPaidInstallmentDate: '',
-      previousExpenses: 0,
-      previousRentEarnings: 0,
-      odometer: 0,
-      lastMaintenanceKm: 0,
-    },
-  });
-
-  const watchFinancingType = form.watch('financingType');
-  const watchCondition = form.watch('condition');
-  const watchPurchasePrice = form.watch('purchasePrice');
-  const watchDownPayment = form.watch('downPayment');
-  const watchLoanAmount = form.watch('loanAmount');
-  const watchInterestRate = form.watch('interestRate');
-  const watchTenureMonths = form.watch('tenureMonths');
-
-  // Auto-calculate loan amount when purchase price and down payment change
-  useEffect(() => {
-    if (watchPurchasePrice && watchDownPayment && watchFinancingType === 'loan') {
-      const calculatedLoanAmount = watchPurchasePrice - watchDownPayment;
-      if (calculatedLoanAmount > 0) {
-        form.setValue('loanAmount', calculatedLoanAmount);
-      }
-    }
-  }, [watchPurchasePrice, watchDownPayment, watchFinancingType, form]);
-
-  // Auto-calculate EMI when loan details change
-  useEffect(() => {
+  const getFinancialStatusBadge = (financialStatus: string) => {
+    const statusConfig = {',
+      cash: { nt: 0,
+        color: 'bg-emerald-500 hover:bg-emerald-600', 
+        text: 'Cash Purchase',
+        icon: <TrendingUp className="h-4 w-4" />
+      },nureMonths: 60,
+      loan_active: { er: '',
+        color: 'bg-yellow-500 hover:bg-yellow-600', 
+        text: 'Loan Active',,
+        icon: <CreditCard className="h-4 w-4" />
+      },eviousExpenses: 0,
+      loan_cleared: { ings: 0,
+        color: 'bg-purple-500 hover:bg-purple-600', 
+        text: 'Loan Cleared',
+        icon: <Calendar className="h-4 w-4" />
+      },
+    };
+    nst watchFinancingType = form.watch('financingType');
+    const config = statusConfig[financialStatus as keyof typeof statusConfig] || statusConfig.cash;
+    nst watchLoanAmount = form.watch('loanAmount');
+    return (hInterestRate = form.watch('interestRate');
+      <Badge className={`${config.color} text-white flex items-center gap-1`}>
+        {config.icon}Price = form.watch('purchasePrice');
+        {config.text}ent = form.watch('downPayment');
+      </Badge>
+    );uto-calculate EMI when loan details change
+  };eEffect(() => {
     if (watchLoanAmount && watchInterestRate && watchTenureMonths && watchFinancingType === 'loan') {
-      const principal = watchLoanAmount;
-      const monthlyRate = watchInterestRate / 12 / 100;
-      const months = watchTenureMonths;
+  const calculateMonthlyProfit = (vehicle: any) => {
+    // Use real rental dataatchInterestRate / 12 / 100;
+    const monthlyRent = vehicle.currentRental ? 
+      (vehicle.currentRental.weeklyRent * 52) / 12 : 0;
+    const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;thlyRate, months)) / 
+    const monthlyExpenses = vehicle.monthlyExpenses || 0;;
       
-      if (monthlyRate > 0) {
-        const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / 
-                    (Math.pow(1 + monthlyRate, months) - 1);
-        form.setValue('emiPerMonth', Math.round(emi));
-      }
-    }
+    return monthlyRent - monthlyEMI - monthlyExpenses;
+  };}
   }, [watchLoanAmount, watchInterestRate, watchTenureMonths, watchFinancingType, form]);
-
-  // Calculate initial investment
-  const calculateInitialInvestment = () => {
-    const downPayment = watchDownPayment || 0;
-    const previousExpenses = form.watch('previousExpenses') || 0;
-    return watchFinancingType === 'cash' ? watchPurchasePrice : downPayment + previousExpenses;
-  };
-
-  // Calculate installments paid based on dates
-  const calculatePaidInstallments = (firstDate: string, lastPaidDate: string) => {
-    if (!firstDate || !lastPaidDate) return 0;
+  const calculateROI = (vehicle: any) => {
+    const totalInvested = vehicle.initialInvestment + vehicle.totalExpenses;
+    const totalEarned = vehicle.totalEarnings;
+    const currentValue = vehicle.residualValue;&& watchFinancingType === 'loan') {
+      const calculatedLoanAmount = watchPurchasePrice - watchDownPayment;
+    if (totalInvested === 0) return 0;
+    return ((totalEarned + currentValue - totalInvested) / totalInvested) * 100;
+  };  }
+    }
+  const filteredVehicles = vehicles.filter(vehicle => {ingType, form]);
+    const matchesSearch = 
+      vehicle.vehicleName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `${vehicle.make} ${vehicle.model}`.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const first = new Date(firstDate);
+    const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
     const lastPaid = new Date(lastPaidDate);
-    
-    const monthsDiff = (lastPaid.getFullYear() - first.getFullYear()) * 12 + 
+    return matchesSearch && matchesStatus;
+  });onst monthsDiff = (lastPaid.getFullYear() - first.getFullYear()) * 12 + 
                       (lastPaid.getMonth() - first.getMonth()) + 1;
-    
-    return Math.max(0, monthsDiff);
-  };
-
-  // Generate amortization schedule
+  const getVehicleStats = () => {
+    const total = vehicles.length;;
+    const available = vehicles.filter(v => v.status === 'available').length;
+    const rented = vehicles.filter(v => v.status === 'rented').length;
+  // Generate comprehensive amortization schedule
   const generateAmortizationSchedule = (
     loanAmount: number,
     emiPerMonth: number,
@@ -164,7 +157,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
       dueDate.setMonth(startDate.getMonth() + (month - 1));
 
       const isPaid = month <= paidInstallments;
-      const paidAt = isPaid ? new Date(dueDate.getTime() - (Math.random() * 5 * 24 * 60 * 60 * 1000)).toISOString() : null;
+      const paidDate = isPaid ? new Date(dueDate.getTime() - (3 * 24 * 60 * 60 * 1000)) : null; // 3 days before due date as mock paid date
 
       schedule.push({
         month,
@@ -173,7 +166,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         outstanding: Math.round(outstanding * 100) / 100,
         dueDate: dueDate.toISOString(),
         isPaid,
-        paidAt,
+        paidDate: paidDate?.toISOString() || null,
+        canEdit: isPaid ? false : true, // Will be calculated based on 3-day rule
       });
 
       if (outstanding <= 0) break;
@@ -185,12 +179,16 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
   const onSubmit = async (data: VehicleFormData) => {
     try {
       // Calculate initial investment
-      const initialInvestment = calculateInitialInvestment();
+      const initialInvestment = data.financingType === 'cash' ? 
+        data.purchasePrice : (data.downPayment || 0) + (data.previousExpenses || 0);
 
       // Calculate paid installments for historical data
       let paidInstallments = 0;
       if (data.condition === 'new_in_operation' && data.firstInstallmentDate && data.lastPaidInstallmentDate) {
         paidInstallments = calculatePaidInstallments(data.firstInstallmentDate, data.lastPaidInstallmentDate);
+      } else if (data.condition === 'used' && data.previousExpenses) {
+        // Estimate based on operation period
+        paidInstallments = Math.floor((data.previousExpenses || 0) / (data.emiPerMonth || 1));
       }
 
       // Generate amortization schedule
@@ -231,20 +229,20 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         model: data.model,
         year: data.year,
         condition: data.condition,
-
+        
         // Financial Details
         initialCost: data.purchasePrice,
         residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
         depreciationRate: data.depreciationRate / 100,
         initialInvestment,
         financingType: data.financingType,
-
+        
         // Current State
         odometer: data.odometer,
         status: 'available',
         financialStatus,
         assignedDriverId: '',
-
+        
         // Loan Details
         loanDetails: {
           totalLoan: data.loanAmount || 0,
@@ -254,18 +252,19 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
           interestRate: data.interestRate || 0,
           downPayment: data.downPayment || 0,
           loanAccountNumber: data.loanAccountNumber || '',
-          emiDueDate: 1, // Default to 1st of month
-          paidInstallments: Array(paidInstallments).fill(new Date().toISOString()),
+          firstInstallmentDate: data.firstInstallmentDate || new Date().toISOString(),
+          paidInstallments: paidInstallments,
           amortizationSchedule,
         },
-
+        
         // Historical Data
         previousData: {
           expenses: data.previousExpenses || 0,
           emiPaid: paidInstallments,
           rentEarnings: data.previousRentEarnings || 0,
+          operationStartDate: data.operationStartDate || new Date().toISOString(),
         },
-
+        
         // Operational Data
         expenses: [],
         payments: [],
@@ -274,15 +273,11 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
         needsMaintenance: false,
         maintenanceHistory: [],
         averageDailyKm: 0,
-
+        
         // System Fields
         companyId: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        monthlyEarnings: 0,
-        monthlyExpenses: 0,
-        totalEarnings: 0,
-        totalExpenses: 0
       };
 
       await addVehicle(vehicleData);
@@ -304,6 +299,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
     }
   };
 
+  const isHistoricalDataRequired = watchCondition === 'used' || watchCondition === 'new_in_operation';
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -322,37 +319,35 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                 <CardTitle>Vehicle Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="vehicleName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vehicle Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Innova Gold, Swift Blue" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="registrationNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Number Plate</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., MH12AB1234" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="vehicleName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vehicle Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Innova Gold, Swift Blue" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="registrationNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Number Plate</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., MH12AB1234" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="make"
@@ -380,7 +375,9 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                       </FormItem>
                     )}
                   />
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="year"
@@ -398,72 +395,32 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="condition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Condition</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="flex flex-col space-y-2"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="new" id="new" />
-                            <Label htmlFor="new">New (Just Purchased)</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="new_in_operation" id="new_in_operation" />
-                            <Label htmlFor="new_in_operation">New but In Operation (Migrating to this software)</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="used" id="used" />
-                            <Label htmlFor="used">Used (Pre-owned)</Label>
-                          </div>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="odometer"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Current Odometer (km)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="e.g., 25000"
-                            {...field} 
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={form.control}
-                    name="lastMaintenanceKm"
+                    name="condition"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last Maintenance at (km)</FormLabel>
+                        <FormLabel>Vehicle Condition</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="e.g., 20000"
-                            {...field} 
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          />
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-col space-y-2"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="new" id="new" />
+                              <Label htmlFor="new">New</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="new_in_operation" id="new_in_operation" />
+                              <Label htmlFor="new_in_operation">New but in Operation</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="used" id="used" />
+                              <Label htmlFor="used">Used (Pre-owned)</Label>
+                            </div>
+                          </RadioGroup>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -481,46 +438,44 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                 <CardTitle>Financial Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="purchasePrice"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Purchase Price (₹)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="e.g., 1500000"
-                            {...field} 
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <FormField
+                  control={form.control}
+                  name="purchasePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Purchase Price (₹)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="e.g., 1500000"
+                          {...field} 
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                  <FormField
-                    control={form.control}
-                    name="depreciationRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Yearly Depreciation Rate (%)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.1"
-                            placeholder="e.g., 15 for 15% per year"
-                            {...field} 
-                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="depreciationRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Yearly Depreciation Rate (%)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.1"
+                          placeholder="e.g., 15 for 15% per year"
+                          {...field} 
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -548,15 +503,6 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                     </FormItem>
                   )}
                 />
-
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Calculated Values:</h4>
-                  <div className="space-y-1 text-sm text-blue-700">
-                    <p>Initial Investment: ₹{calculateInitialInvestment().toLocaleString()}</p>
-                    <p>Current Value: ₹{(watchPurchasePrice * (1 - (form.watch('depreciationRate') / 100))).toLocaleString()}</p>
-                    <p>Yearly Depreciation: ₹{(watchPurchasePrice * (form.watch('depreciationRate') / 100)).toLocaleString()}</p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -599,6 +545,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                           <FormControl>
                             <Input 
                               type="number" 
+                              placeholder="Will be calculated automatically"
                               {...field} 
                               onChange={(e) => field.onChange(parseInt(e.target.value))}
                             />
@@ -658,9 +605,9 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                           <FormControl>
                             <Input 
                               type="number" 
+                              placeholder="Auto calculated"
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value))}
-                              className="bg-gray-50"
                             />
                           </FormControl>
                           <FormMessage />
@@ -669,35 +616,33 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstInstallmentDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Installment Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <FormField
+                    control={form.control}
+                    name="firstInstallmentDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Installment Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                    <FormField
-                      control={form.control}
-                      name="loanAccountNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Loan Account Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., HDFC123456789" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="loanAccountNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Loan Account Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., HDFC123456789" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </CardContent>
               </Card>
             ) : (
@@ -711,7 +656,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
 
           {/* Historical Data Tab */}
           <TabsContent value="history" className="space-y-4">
-            {(watchCondition === 'used' || watchCondition === 'new_in_operation') ? (
+            {isHistoricalDataRequired ? (
               <Card>
                 <CardHeader>
                   <CardTitle>Historical Data</CardTitle>
@@ -739,47 +684,26 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                     />
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="previousExpenses"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Previous Cumulative Expenses (₹)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g., 150000"
-                              {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <FormField
+                    control={form.control}
+                    name="previousExpenses"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Previous Cumulative Expenses (₹)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="e.g., 150000"
+                            {...field} 
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                    <FormField
-                      control={form.control}
-                      name="previousRentEarnings"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Previous Total Rent Earnings (₹)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g., 400000"
-                              {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {watchFinancingType === 'loan' && watchCondition === 'new_in_operation' && (
+                  {watchFinancingType === 'loan' && (
                     <FormField
                       control={form.control}
                       name="lastPaidInstallmentDate"
@@ -797,6 +721,25 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
                       )}
                     />
                   )}
+
+                  <FormField
+                    control={form.control}
+                    name="previousRentEarnings"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Previous Total Rent Earnings (₹)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="e.g., 400000"
+                            {...field} 
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {watchCondition === 'new_in_operation' && (
                     <div className="bg-blue-50 p-4 rounded-lg">
@@ -874,3 +817,4 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess }) => {
 };
 
 export default AddVehicleForm;
+

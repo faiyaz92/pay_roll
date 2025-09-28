@@ -3,12 +3,43 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, User, Phone, MapPin, Truck, Clock } from 'lucide-react';
-import { useDrivers } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddDriverForm from '@/components/Forms/AddDriverForm';
 
 const Drivers: React.FC = () => {
-  const { drivers, loading } = useDrivers();
+  // Mock data for drivers
+  const drivers = [
+    {
+      id: 'driver_001',
+      name: 'Rajesh Kumar',
+      email: 'rajesh@example.com',
+      phone: '+91-9876543210',
+      licenseNumber: 'MH1420110012345',
+      experience: '5 years',
+      status: 'available',
+      currentLocation: 'Mumbai',
+      assignedVehicle: null,
+      totalTrips: 150,
+      rating: 4.5,
+      joinDate: '2020-03-15'
+    },
+    {
+      id: 'driver_002', 
+      name: 'Amit Sharma',
+      email: 'amit@example.com',
+      phone: '+91-9876543211',
+      licenseNumber: 'KA0520110098765',
+      experience: '8 years',
+      status: 'on-trip',
+      currentLocation: 'Bangalore',
+      assignedVehicle: 'vehicle_002',
+      totalTrips: 300,
+      rating: 4.8,
+      joinDate: '2018-08-20'
+    }
+  ];
+  
+  const loading = false;
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getStatusBadge = (status: string) => {
@@ -16,7 +47,7 @@ const Drivers: React.FC = () => {
       case 'available':
         return <Badge className="bg-green-100 text-green-800">Available</Badge>;
       case 'on-trip':
-        return <Badge className="bg-blue-100 text-blue-800">On Trip</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800">On Assignment</Badge>;
       case 'off-duty':
         return <Badge className="bg-gray-100 text-gray-800">Off Duty</Badge>;
       default:
@@ -155,7 +186,7 @@ const Drivers: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-500">Total Trips</p>
+                    <p className="text-gray-500">Total Assignments</p>
                     <p className="font-bold text-lg">{driver.totalTrips}</p>
                   </div>
                   <div>
@@ -169,7 +200,7 @@ const Drivers: React.FC = () => {
                     View Profile
                   </Button>
                   <Button variant="outline" size="sm" className="flex-1">
-                    Assign Trip
+                    Create Assignment
                   </Button>
                 </div>
               </CardContent>

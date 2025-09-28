@@ -4,14 +4,54 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Fuel, Filter, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useFuelRecords, useVehicles, useDrivers } from '@/hooks/useFirebaseData';
+import { useVehicles } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 
 const FuelRecords: React.FC = () => {
-  const { fuelRecords, loading } = useFuelRecords();
-  const { vehicles } = useVehicles();
-  const { drivers } = useDrivers();
+  // Mock data for fuel records
+  const fuelRecords = [
+    {
+      id: 'fuel_001',
+      vehicleId: 'vehicle_001', 
+      driverId: 'driver_001',
+      date: '2025-02-05',
+      addedAt: new Date('2025-02-05'),
+      quantity: 50,
+      pricePerLiter: 95.5,
+      amount: 4775,
+      odometer: 32000,
+      fuelStation: 'HP Petrol Pump',
+      fuelType: 'Petrol',
+      location: 'Mumbai Central'
+    },
+    {
+      id: 'fuel_002',
+      vehicleId: 'vehicle_002',
+      driverId: 'driver_002', 
+      date: '2025-02-04',
+      addedAt: new Date('2025-02-04'),
+      quantity: 45,
+      pricePerLiter: 96.2,
+      amount: 4329,
+      odometer: 47000,
+      fuelStation: 'Indian Oil Station',
+      fuelType: 'Petrol',
+      location: 'Bangalore'
+    }
+  ];
+  
+  const vehicles = [
+    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova' },
+    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga' }
+  ];
+  
+  const drivers = [
+    { id: 'driver_001', name: 'Rajesh Kumar' },
+    { id: 'driver_002', name: 'Amit Sharma' }
+  ];
+  
+  const loading = false;
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getVehicleName = (vehicleId: string) => {

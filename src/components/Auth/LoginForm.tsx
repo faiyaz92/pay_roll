@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff, Truck } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Car } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginForm = () => {
@@ -90,9 +90,9 @@ const LoginForm = () => {
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
-            <Truck className="w-8 h-8 text-white" />
+            <Car className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">TransportPro</CardTitle>
+          <CardTitle className="text-2xl font-bold">CarRentalPro</CardTitle>
           <CardDescription>
             {showResetPassword ? 'Reset your password' : 'Sign in to your account'}
           </CardDescription>

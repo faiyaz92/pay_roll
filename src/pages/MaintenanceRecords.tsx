@@ -4,13 +4,51 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Wrench, AlertTriangle, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useMaintenanceRecords, useVehicles } from '@/hooks/useFirebaseData';
+import { useVehicles } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddMaintenanceRecordForm from '@/components/Forms/AddMaintenanceRecordForm';
 
 const MaintenanceRecords: React.FC = () => {
-  const { maintenanceRecords, loading } = useMaintenanceRecords();
-  const { vehicles } = useVehicles();
+  // Mock data for maintenance records
+  const maintenanceRecords = [
+    {
+      id: 'maint_001',
+      vehicleId: 'vehicle_001',
+      type: 'Oil Change',
+      description: 'Regular engine oil change',
+      cost: 3500,
+      amount: 3500,
+      date: new Date('2025-02-01'),
+      addedAt: new Date('2025-02-01'),
+      odometer: 30500,
+      nextServiceOdometer: 35500,
+      serviceCenter: 'Toyota Service Center',
+      serviceProvider: 'Toyota Service Center',
+      status: 'completed'
+    },
+    {
+      id: 'maint_002', 
+      vehicleId: 'vehicle_002',
+      type: 'Brake Service',
+      description: 'Brake pad replacement and fluid change',
+      cost: 8500,
+      amount: 8500,
+      date: new Date('2025-01-28'),
+      addedAt: new Date('2025-01-28'),
+      odometer: 46800,
+      nextServiceOdometer: 51800,
+      serviceCenter: 'Maruti Service Center',
+      serviceProvider: 'Maruti Service Center',
+      status: 'completed'
+    }
+  ];
+  
+  const vehicles = [
+    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova', totalKms: 32000 },
+    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga', totalKms: 47500 }
+  ];
+  
+  const loading = false;
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const getVehicleName = (vehicleId: string) => {

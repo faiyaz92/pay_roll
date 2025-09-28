@@ -8,15 +8,6 @@ export const useFirestorePaths = (companyId?: string) => {
   const tenantCompanies = 'tenantCompanies';
   const usersCollection = 'users';
   const superAdmins = 'superAdmins';
-  const companiesCollection = 'companies';
-  const tasksCollection = 'tasks';
-  const productCollection = 'products';
-  const categoriesCollection = 'categories';
-  const subcategoriesCollection = 'subcategories';
-  const accountLedgers = 'accountLedgers';
-  const transactions = 'transactions';
-  const cartsCollection = 'carts';
-  const wishlistCollection = 'wishlists';
   
   const basePath = `${rootPath}/${companyDirectory}`;
   const tenantCompaniesPath = `${basePath}/${tenantCompanies}`;
@@ -34,42 +25,21 @@ export const useFirestorePaths = (companyId?: string) => {
     getTenantUserPath: (companyId: string, userId: string) => 
       `${tenantCompaniesPath}/${companyId}/${usersCollection}/${userId}`,
     
-    // Transportation specific paths for current company
-    getDriversPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/drivers` : '',
+    // Car Rental specific paths for current company (following BRD structure)
+    getUsersPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/users` : '',
     getVehiclesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/vehicles` : '',
-    getTripsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/trips` : '',
-    getCitiesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/cities` : '',
-    getRoutesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/routes` : '',
-    getMaintenanceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/maintenanceRecords` : '',
-    getFuelRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelRecords` : '',
+    getAssignmentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/assignments` : '',
     getExpensesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/expenses` : '',
-    getCustomersPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/customers` : '',
-    getBookingsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/bookings` : '',
     getPaymentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/payments` : '',
-    getNotificationsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/notifications` : '',
     getReportsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/reports` : '',
+    getSettingsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/settings` : '',
+    getAuditLogsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/auditLogs` : '',
+    getFuelRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelRecords` : '',
+    getMaintenanceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/maintenanceRecords` : '',
     
-    // General business paths
-    getCustomerCompanyPath: (id: string) => `${tenantCompaniesPath}/${id}/${companiesCollection}`,
-    getTaskCollectionPath: (id: string) => `${tenantCompaniesPath}/${id}/${tasksCollection}`,
-    getProductCollectionPath: (id: string) => `${tenantCompaniesPath}/${id}/${productCollection}`,
-    getCategoriesPath: (id: string) => `${tenantCompaniesPath}/${id}/${categoriesCollection}`,
-    getSubcategoriesPath: (id: string) => `${tenantCompaniesPath}/${id}/${subcategoriesCollection}`,
-    getAccountLedgersPath: (id: string) => `${tenantCompaniesPath}/${id}/${accountLedgers}`,
-    getTransactionsPath: (id: string, ledgerId: string) => `${tenantCompaniesPath}/${id}/${accountLedgers}/${ledgerId}/${transactions}`,
-    getCartsPath: (id: string) => `${tenantCompaniesPath}/${id}/${cartsCollection}`,
-    getWishlistPath: (id: string) => `${tenantCompaniesPath}/${id}/${wishlistCollection}`,
-    getStoresPath: (id: string) => `${tenantCompaniesPath}/${id}/stores`,
-    getOrdersPath: (id: string) => `${tenantCompaniesPath}/${id}/orders`,
+    // Vehicle subcollection paths
+    getOdometerHistoryPath: (vehicleId: string) => 
+      companyId ? `${tenantCompaniesPath}/${companyId}/vehicles/${vehicleId}/odometerHistory` : '',
     
-    // Taxi booking paths
-    getTaxiBookingsPath: (id: string) => `${tenantCompaniesPath}/${id}/taxiBookings`,
-    getTaxiTypesPath: (id: string) => `${tenantCompaniesPath}/${id}/settings/taxiBookingSettings/taxiTypes`,
-    getTripTypesPath: (id: string) => `${tenantCompaniesPath}/${id}/settings/taxiBookingSettings/tripTypes`,
-    getServiceTypesPath: (id: string) => `${tenantCompaniesPath}/${id}/settings/taxiBookingSettings/serviceTypes`,
-    getTripStatusesPath: (id: string) => `${tenantCompaniesPath}/${id}/settings/taxiBookingSettings/tripStatuses`,
-    
-    // Analytics paths
-    getVisitorCountersPath: (id: string) => `${tenantCompaniesPath}/${id}/analytics/visitorCounters/daily`,
   }), [companyId, basePath, tenantCompaniesPath]);
 };

@@ -6,14 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useFuelRecords, useVehicles, useDrivers } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 const fuelRecordSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle is required'),
   driverId: z.string().min(1, 'Driver is required'),
-  tripId: z.string().optional(),
   amount: z.string().min(1, 'Amount is required'),
   quantity: z.string().min(1, 'Quantity is required'),
   pricePerLiter: z.string().min(1, 'Price per liter is required'),
@@ -29,9 +27,22 @@ interface AddFuelRecordFormProps {
 }
 
 const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
-  const { addFuelRecord, fuelRecords } = useFuelRecords();
-  const { vehicles } = useVehicles();
-  const { drivers } = useDrivers();
+  // Mock functions for now - replace with actual Firestore integration later
+  const addFuelRecord = async (data: any) => {
+    // This would normally save to Firestore
+    console.log('Adding fuel record:', data);
+  };
+  
+  const fuelRecords = []; // Mock empty array
+  const vehicles = [
+    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova' },
+    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga' }
+  ];
+  const drivers = [
+    { id: 'driver_001', name: 'Rajesh Kumar' },
+    { id: 'driver_002', name: 'Amit Sharma' }
+  ];
+  
   const { userInfo } = useAuth();
   const { toast } = useToast();
 
@@ -40,7 +51,6 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
     defaultValues: {
       vehicleId: '',
       driverId: '',
-      tripId: '',
       amount: '',
       quantity: '',
       pricePerLiter: '',
@@ -70,7 +80,6 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
       const fuelRecordData = {
         vehicleId: data.vehicleId,
         driverId: data.driverId,
-        ...(data.tripId && { tripId: data.tripId }),
         amount: parseFloat(data.amount),
         quantity: parseFloat(data.quantity),
         pricePerLiter: parseFloat(data.pricePerLiter),

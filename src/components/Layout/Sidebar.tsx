@@ -1,37 +1,29 @@
-
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  Truck, 
+  Car, 
   Users, 
-  MapPin, 
-  Route, 
-  Navigation,
-  Settings,
-  LogOut,
-  Wrench,
   Fuel,
   BarChart3,
-  TrendingUp
+  Wrench,
+  LogOut,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Role } from '@/types/user';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Trips', href: '/trips', icon: Navigation },
-  { name: 'Vehicles', href: '/vehicles', icon: Truck, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Drivers', href: '/drivers', icon: Users, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Cities', href: '/cities', icon: MapPin, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Routes', href: '/routes', icon: Route, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Vehicles', href: '/vehicles', icon: Car },
+  { name: 'Drivers', href: '/drivers', icon: Users },
+  { name: 'Assignments', href: '/assignments', icon: FileText },
+  { name: 'Payments', href: '/payments', icon: DollarSign },
   { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
-  { name: 'Fuel Prices', href: '/fuel-prices', icon: Fuel, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Maintenance', href: '/maintenance-records', icon: Wrench, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Vehicle Analysis', href: '/vehicle-analysis', icon: BarChart3, roles: [Role.COMPANY_ADMIN] },
-  { name: 'Route Analysis', href: '/route-analysis', icon: TrendingUp, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Maintenance', href: '/maintenance-records', icon: Wrench },
+  { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
 interface SidebarProps {
@@ -59,11 +51,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       <div className="p-4 border-b border-primary-foreground/10">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-            <Truck className="w-5 h-5 text-white" />
+            <Car className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div>
-              <h1 className="font-bold text-lg">TransportPro</h1>
+              <h1 className="font-bold text-lg">CarRentalPro</h1>
               <p className="text-xs text-primary-foreground/70">Management System</p>
             </div>
           )}
@@ -73,11 +65,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1">
         {navigation.map((item) => {
-          // Check if user has access to this navigation item
-          if (item.roles && !item.roles.includes(userInfo?.role as Role)) {
-            return null;
-          }
-          
           const isActive = location.pathname === item.href;
           return (
             <NavLink

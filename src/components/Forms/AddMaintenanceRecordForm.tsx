@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useMaintenanceRecords, useVehicles } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -28,8 +27,18 @@ interface AddMaintenanceRecordFormProps {
 }
 
 const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess }) => {
-  const { addMaintenanceRecord, maintenanceRecords } = useMaintenanceRecords();
-  const { vehicles } = useVehicles();
+  // Mock functions for now - replace with actual Firestore integration later
+  const addMaintenanceRecord = async (data: any) => {
+    // This would normally save to Firestore
+    console.log('Adding maintenance record:', data);
+  };
+  
+  const maintenanceRecords = []; // Mock empty array
+  const vehicles = [
+    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova' },
+    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga' }
+  ];
+  
   const { userInfo } = useAuth();
   const { toast } = useToast();
 

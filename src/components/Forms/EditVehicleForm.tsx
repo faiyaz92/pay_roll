@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { useVehicles, Vehicle } from '@/hooks/useFirebaseData';
+import { useVehicles } from '@/hooks/useFirebaseData';
+import { Vehicle } from '@/types/user';
 import { useToast } from '@/hooks/use-toast';
 
 const editVehicleSchema = z.object({
@@ -17,7 +18,7 @@ const editVehicleSchema = z.object({
   year: z.number().min(1990).max(new Date().getFullYear() + 1),
   capacity: z.string().min(1, 'Capacity is required'),
   fuelType: z.string().min(2, 'Fuel type is required'),
-  status: z.enum(['active', 'maintenance', 'available']),
+  status: z.enum(['maintenance', 'available', 'rented']),
   currentLocation: z.string().min(2, 'Current location is required'),
   mileage: z.string().min(1, 'Mileage is required'),
   mileageValue: z.number().min(1, 'Mileage value is required'),
@@ -46,15 +47,7 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
       make: vehicle.make,
       model: vehicle.model,
       year: vehicle.year,
-      capacity: vehicle.capacity,
-      fuelType: vehicle.fuelType,
-      status: vehicle.status,
-      currentLocation: vehicle.currentLocation,
-      mileage: vehicle.mileage,
-      mileageValue: vehicle.mileageValue,
-      mileageUnit: vehicle.mileageUnit,
-      totalKms: vehicle.totalKms,
-      insuranceExpiry: vehicle.insuranceExpiry,
+
     },
   });
 
@@ -74,7 +67,12 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
   };
 
   const cancelStatusChange = () => {
-    form.setValue('status', vehicle.status);
+    form.setValue(
+      'status',
+      ['available', 'maintenance', 'rented'].includes(vehicle.status)
+        ? (vehicle.status as 'available' | 'maintenance' | 'rented')
+        : 'available'
+    );
     setShowStatusConfirmation(false);
     setPendingStatusChange(null);
   };
@@ -221,10 +219,10 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                  </SelectContent>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="rented">Rented</SelectItem>
+                    </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
@@ -348,7 +346,7 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
             <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to manually change the vehicle status from "{vehicle.status}" to "{pendingStatusChange}"? 
-              Normally, vehicle status is automatically managed based on trip assignments.
+              Normally, vehicle status is automatically managed based on rental assignments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

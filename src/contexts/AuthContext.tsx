@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await setDoc(userDocRef, {
       userId: user.uid,
       email: user.email,
-      role: Role.DRIVER,
+      role: Role.COMPANY_ADMIN,
       ...driverData,
       createdAt: new Date().toISOString(),
     });
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await setDoc(userDocRef, {
       userId: user.uid,
       email: user.email,
-      role: Role.CUSTOMER,
+      role: Role.COMPANY_ADMIN,
       ...customerData,
       createdAt: new Date().toISOString(),
     });
@@ -104,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userInfoData: UserInfo = {
           userId: user.uid,
           companyId: null,
-          role: Role.SUPER_ADMIN,
+          role: Role.COMPANY_ADMIN,
           userName: user.displayName || '',
           email: user.email || '',
           name: user.displayName || '',
@@ -128,16 +128,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userInfoData: UserInfo = {
           userId: userData.userId || user.uid,
           companyId: userData.companyId || null,
-          role: userData.role || Role.CUSTOMER,
+          role: userData.role || Role.COMPANY_ADMIN,
           userName: userData.userName || user.displayName || '',
           email: userData.email || user.email || '',
           name: userData.name || user.displayName || '',
-          userType: userData.userType,
-          latitude: userData.latitude,
-          longitude: userData.longitude,
-          dailyWage: userData.dailyWage,
           mobileNumber: userData.mobileNumber,
-          businessName: userData.businessName,
           address: userData.address,
         };
         localStorage.setItem('userInfo', JSON.stringify(userInfoData));
@@ -163,22 +158,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userInfoData: UserInfo = {
             userId: userData.userId || user.uid,
             companyId: companyId,
-            role: userData.role || Role.DRIVER,
+            role: userData.role || Role.COMPANY_ADMIN,
             userName: userData.userName || user.displayName || '',
             email: userData.email || user.email || '',
             name: userData.name || user.displayName || '',
-            userType: userData.userType,
-            latitude: userData.latitude,
-            longitude: userData.longitude,
-            dailyWage: userData.dailyWage,
             mobileNumber: userData.mobileNumber,
-            businessName: userData.businessName,
             address: userData.address,
-            licenseNumber: userData.licenseNumber,
-            vehicleAssigned: userData.vehicleAssigned,
-            employeeId: userData.employeeId,
-            department: userData.department,
-            isActive: userData.isActive,
           };
           localStorage.setItem('userInfo', JSON.stringify(userInfoData));
           setUserInfo(userInfoData);

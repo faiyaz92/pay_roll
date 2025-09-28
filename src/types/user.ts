@@ -1,37 +1,10 @@
-
 export enum Role {
-  SUPER_ADMIN = 'super_admin',
-  COMPANY_ADMIN = 'company_admin',
-  DRIVER = 'driver',
-  MANAGER = 'manager',
-  DISPATCHER = 'dispatcher',
-  FLEET_MANAGER = 'fleet_manager',
-  MAINTENANCE_MANAGER = 'maintenance_manager',
-  ACCOUNTANT = 'accountant',
-  CUSTOMER = 'customer'
-}
-
-export enum UserType {
-  Employee = 'Employee',
-  Driver = 'Driver',
-  Manager = 'Manager',
-  Dispatcher = 'Dispatcher',
-  FleetManager = 'FleetManager',
-  MaintenanceManager = 'MaintenanceManager',
-  Accountant = 'Accountant',
-  Supplier = 'Supplier',
-  Customer = 'Customer',
-  Contractor = 'Contractor'
+  COMPANY_ADMIN = 'company_admin'
+  // Future roles can be added here as needed
 }
 
 export enum TenantCompanyType {
-  TRANSPORTATION = 'Transportation',
-  INVENTORY = 'Inventory',
-  BILLING = 'Billing',
-  PERFORMANCE_TRACKING = 'Performance Tracking',
-  LOGISTICS = 'Logistics',
-  DELIVERY = 'Delivery',
-  RETAIL = 'Retail'
+  CAR_RENTAL = 'Car Rental'
 }
 
 export interface UserInfo {
@@ -41,20 +14,22 @@ export interface UserInfo {
   email: string;
   userName: string;
   role: Role;
-  userType?: UserType;
-  latitude?: number;
-  longitude?: number;
-  dailyWage?: number;
   mobileNumber?: string;
-  businessName?: string;
   address?: string;
+  photoUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  // Transportation specific fields
-  licenseNumber?: string;
-  vehicleAssigned?: string;
-  employeeId?: string;
-  department?: string;
+  // Driver specific fields (for drivers managed by owner)
+  drivingLicense?: {
+    number: string;
+    expiry: string;
+    photoUrl: string;
+  };
+  idCard?: {
+    number: string;
+    photoUrl: string;
+  };
+  assignedTaxis?: string[]; // Array of vehicle IDs
   isActive?: boolean;
 }
 
@@ -72,58 +47,151 @@ export interface TenantCompany {
   createdBy: string;
   createdAt: Date;
   companyType: TenantCompanyType;
-  // Transportation specific fields
+  // Car rental specific fields
   fleetSize?: number;
   operatingLicense?: string;
   insuranceDetails?: string;
 }
 
-// Add interfaces for Cities and Routes
-export interface City {
+// Car Rental Specific Interfaces based on BRD
+export interface LoanDetails {
+  totalLoan: number;
+  outstandingLoan: number;
+  emiPerMonth: number;
+  totalInstallments: number;
+  interestRate: number;
+  downPayment: number;
+  loanAccountNumber: string;
+  emiDueDate: number; // Day of month (1-31)
+  paidInstallments: string[]; // Array of payment dates
+  amortizationSchedule: {
+    month: number;
+    interest: number;
+    principal: number;
+    outstanding: number;
+    dueDate: string;
+    isPaid: boolean;
+    paidAt?: string; // Timestamp when marked paid
+    editableUntil?: string; // 3 days after payment for edit protection
+  }[];
+}
+
+export interface Vehicle {
   id: string;
-  name: string;
-  state: string;
-  country: string;
-  pincode?: string;
-  latitude?: number;
-  longitude?: number;
-  isActive: boolean;
-  createdAt: Date;
+  vehicleName: string;
+  registrationNumber: string; // Changed from licensePlate
+  make: string;
+  model: string;
+  year: number;
+  condition: 'new' | 'used' | 'new_in_operation';
+  initialCost: number;
+  residualValue: number;
+  depreciationRate: number;
+  initialInvestment: number;
+  financingType: 'cash' | 'loan';
+  odometer: number;
+  status: 'available' | 'rented' | 'maintenance'; // Operational status
+  financialStatus: 'cash' | 'loan_active' | 'loan_cleared'; // Financial/loan status
+  assignedDriverId?: string;
+  loanDetails: LoanDetails;
+  previousData?: {
+    expenses: number;
+    emiPaid: number;
+    rentEarnings: number;
+  };
+  expenses: string[]; // Expense IDs
+  payments: string[]; // Payment IDs
+  history: {
+    driverId: string;
+    startDate: Date;
+    endDate: Date | null;
+    milesDriven: number;
+    rentPaid: number;
+  }[];
+  lastMaintenanceKm: number;
+  needsMaintenance: boolean;
+  maintenanceHistory: {
+    date: Date;
+    odometerAtMaintenance: number;
+    description: string;
+    expenseId: string;
+  }[];
+  averageDailyKm: number;
+  createdAt: string;
+  updatedAt: string;
+  companyId: string;
+
+  // Operation dates for historical tracking
+  operationStartDate?: string;
+  firstInstallmentDate?: string;
+  lastPaidInstallmentDate?: string;
+
+  // Current rental information (dynamic)
+  currentRental?: {
+    driverId: string;
+    dailyRent: number;
+    weeklyRent: number;
+    startDate: string;
+    collectionDay: number; // 0-6 (Sunday-Saturday)
+  };
+
+  // Real financial data
+  monthlyEarnings: number; // Actual rent collected this month
+  monthlyExpenses: number; // Actual expenses this month
+  totalEarnings: number;   // Lifetime earnings
+  totalExpenses: number;   // Lifetime expenses
+}
+
+export interface Assignment {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  startDate: Date;
+  dailyRent: number;
+  weeklyRent: number; // Auto-calculated as dailyRent * 7
+  collectionDay: number; // 0-6 (Sunday-Saturday)
+  initialOdometer: number;
+  endDate: Date | null;
+  status: 'active' | 'ended' | 'idle';
   companyId: string;
 }
 
-export interface Route {
+export interface Payment {
   id: string;
-  name: string;
-  fromCity: string;
-  toCity: string;
-  distance: number; // in km
-  estimatedDuration: number; // in minutes
-  farePerKm?: number;
-  baseFare?: number;
-  tollCharges?: number;
-  isActive: boolean;
-  createdAt: Date;
+  assignmentId: string;
+  vehicleId: string;
+  driverId: string;
+  weekStart: Date;
+  amountDue: number;
+  amountPaid: number;
+  paidAt: Date | null;
+  collectionDate: Date | null;
+  nextDueDate: Date;
+  daysLeft: number;
+  status: 'due' | 'paid' | 'overdue';
   companyId: string;
-  waypoints?: string[]; // intermediate cities/stops
 }
 
-export interface TripExpense {
+export interface Expense {
   id: string;
-  tripId: string;
-  type: 'fuel' | 'maintenance' | 'toll' | 'driver_allowance' | 'cleaner_allowance' | 'other';
+  vehicleId: string;
   amount: number;
   description: string;
-  addedBy: string;
-  addedAt: string;
-  receiptUrl?: string;
+  billUrl?: string;
+  submittedBy: string; // Driver ID
+  status: 'pending' | 'approved' | 'rejected';
+  approvedAt: Date | null;
+  adjustmentWeeks?: number;
+  type: 'general' | 'maintenance';
+  verifiedKm?: number;
+  companyId: string;
+  createdAt: Date;
 }
 
 export interface FuelRecord {
   id: string;
   vehicleId: string;
   driverId: string;
-  tripId?: string;
   amount: number;
   quantity: number;
   pricePerLiter: number;

@@ -1,26 +1,20 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useDrivers } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Driver } from '@/hooks/useFirebaseData';
+import { useDrivers, Driver } from '@/hooks/useFirebaseData';
 
 const driverSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, 'Driver name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
-  licenseNumber: z.string().min(5, 'License number is required'),
-  experience: z.string().min(1, 'Experience is required'),
-  status: z.enum(['available', 'on-trip', 'off-duty']),
-  currentLocation: z.string().min(2, 'Current location is required'),
+  licenseNumber: z.string().min(5, 'Driving license number is required'),
+  address: z.string().min(10, 'Full address is required for rental agreement'),
 });
 
 type DriverFormData = z.infer<typeof driverSchema>;
@@ -30,21 +24,18 @@ interface AddDriverFormProps {
 }
 
 const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
-  const { addDriver } = useDrivers();
-  const { createDriverAccount, userInfo } = useAuth();
+  const { userInfo } = useAuth();
   const { toast } = useToast();
+  const { addDriver } = useDrivers();
 
   const form = useForm<DriverFormData>({
     resolver: zodResolver(driverSchema),
     defaultValues: {
       name: '',
       email: '',
-      password: '',
       phone: '',
       licenseNumber: '',
-      experience: '',
-      status: 'available',
-      currentLocation: '',
+      address: '',
     },
   });
 
@@ -59,36 +50,38 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
         return;
       }
 
-      // Create authentication account and user document
-      await createDriverAccount(data.email, data.password, {
-        name: data.name,
-        userName: data.name,
-        mobileNumber: data.phone,
-        licenseNumber: data.licenseNumber,
-        companyId: userInfo.companyId,
-        isActive: true,
-      });
-
-      // Create driver record
+      // Create driver record for fleet rental business
       const driverData: Omit<Driver, 'id'> = {
         name: data.name,
         email: data.email,
         phone: data.phone,
         licenseNumber: data.licenseNumber,
-        experience: data.experience,
-        status: data.status,
-        currentLocation: data.currentLocation,
-        totalTrips: 0,
-        rating: 5.0,
+        address: data.address,
+        rentedVehicles: [], // Initially no vehicles rented
+        totalWeeklyRent: 0, // Will be calculated when vehicles are assigned
         joinDate: new Date().toISOString(),
+        isActive: true,
         companyId: userInfo.companyId,
+        // Identity documents (empty initially, can be added later)
+        drivingLicense: {
+          number: data.licenseNumber,
+          expiry: '',
+          photoUrl: '',
+        },
+        idCard: {
+          number: '',
+          photoUrl: '',
+        },
+        photoUrl: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       await addDriver(driverData);
       
       toast({
         title: 'Success',
-        description: 'Driver added successfully with authentication account',
+        description: 'Driver added successfully. You can now assign vehicles for rent.',
       });
       form.reset();
       onSuccess();
@@ -110,9 +103,9 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>Driver Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter driver name" {...field} />
+                <Input placeholder="Enter driver's full name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -124,23 +117,9 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>Email Address</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="Enter email address" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input type="password" placeholder="Enter password for driver login" {...field} />
+                <Input type="email" placeholder="Enter email for rental communications" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -152,9 +131,9 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone</FormLabel>
+              <FormLabel>Phone Number</FormLabel>
               <FormControl>
-                <Input placeholder="Enter phone number" {...field} />
+                <Input placeholder="Enter contact number" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -166,9 +145,9 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
           name="licenseNumber"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>License Number</FormLabel>
+              <FormLabel>Driving License Number</FormLabel>
               <FormControl>
-                <Input placeholder="Enter license number" {...field} />
+                <Input placeholder="Enter valid driving license number" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -177,57 +156,28 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess }) => {
 
         <FormField
           control={form.control}
-          name="experience"
+          name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Experience</FormLabel>
+              <FormLabel>Full Address</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., 5 years" {...field} />
+                <Input placeholder="Enter complete address for rental agreement" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="on-trip">On Trip</SelectItem>
-                  <SelectItem value="off-duty">Off Duty</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <h4 className="font-medium text-blue-900 mb-2">Next Steps:</h4>
+          <p className="text-sm text-blue-700">
+            After adding the driver, you can assign vehicles from your fleet for weekly rent. 
+            The driver will pay fixed weekly rent regardless of vehicle usage.
+          </p>
+        </div>
 
-        <FormField
-          control={form.control}
-          name="currentLocation"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Current Location</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter current location" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button type="submit" className="w-full">
-          Add Driver with Authentication
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? 'Adding Driver...' : 'Add Driver to Fleet Rental'}
         </Button>
       </form>
     </Form>
