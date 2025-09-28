@@ -1,49 +1,65 @@
 ﻿import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Car, Users, DollarSign, Wrench, TrendingUp, Gauge } from 'lucide-react';
+import { useFirebaseData } from '@/hooks/useFirebaseData';
 
 const DashboardStats: React.FC = () => {
-  const stats = {
-    totalVehicles: 25,
-    rentedVehicles: 18,
-    availableVehicles: 7,
-    driversCount: 20,
-    monthlyRevenue: 450000,
-    maintenanceDue: 3,
-    profitMargin: 72.5,
-    weeklyCollection: 126000,
-    overduePayments: 2
-  };
+  const { vehicles, drivers, assignments, payments, vehiclesWithFinancials } = useFirebaseData();
+
+  // Calculate real stats from database
+  const rentedVehicles = vehicles.filter(v => v.status === 'rented').length;
+  const availableVehicles = vehicles.filter(v => v.status === 'available').length;
+  const activeDrivers = drivers.filter(d => d.isActive).length;
+  
+  // Calculate monthly revenue from actual payments
+  const currentMonth = new Date();
+  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const monthlyPayments = payments.filter(p => 
+    p.status === 'paid' && 
+    new Date(p.paidAt || p.collectionDate || p.createdAt) >= firstDayOfMonth
+  );
+  const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+  // Calculate maintenance due
+  const maintenanceDue = vehicles.filter(v => v.needsMaintenance).length;
 
   const statsData = [
     {
       title: 'Total Vehicles',
-      value: stats.totalVehicles.toString(),
-      change: `${stats.rentedVehicles} rented, ${stats.availableVehicles} available`,
+      value: vehicles.length.toString(),
+      change: `${rentedVehicles} rented, ${availableVehicles} available`,
       icon: Car,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
     },
     {
       title: 'Active Drivers',
-      value: stats.driversCount.toString(),
-      change: `${stats.rentedVehicles} assigned`,
+      value: activeDrivers.toString(),
+      change: `${rentedVehicles} assigned`,
       icon: Users,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Monthly Revenue',
-      value: `${(stats.monthlyRevenue / 1000)}K`,
-      change: `${stats.profitMargin}% profit margin`,
+      value: `₹${(monthlyRevenue / 1000).toFixed(0)}K`,
+      change: `${monthlyPayments.length} payments collected`,
       icon: DollarSign,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
     },
+    {
+      title: 'Maintenance Due',
+      value: maintenanceDue.toString(),
+      change: `${vehicles.length - maintenanceDue} vehicles healthy`,
+      icon: Wrench,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {statsData.map((stat, index) => {
         const IconComponent = stat.icon;
         return (

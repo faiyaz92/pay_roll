@@ -23,7 +23,7 @@ const Assignments: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const { userInfo } = useAuth();
-  const { vehicles, drivers } = useFirebaseData();
+  const { vehicles, drivers, payments } = useFirebaseData();
   const { assignments, loading, addAssignment } = useAssignments();
 
   // Filter assignments based on search and status
@@ -99,28 +99,12 @@ const Assignments: React.FC = () => {
   };
 
   const calculateTotalEarnings = (assignment: Assignment) => {
-    try {
-      const startDate = assignment.startDate && typeof (assignment.startDate as any).toDate === 'function' 
-        ? (assignment.startDate as { toDate(): Date }).toDate() 
-        : (assignment.startDate instanceof Date ? assignment.startDate : new Date(assignment.startDate as string));
-      const endDate = assignment.endDate 
-        ? (assignment.endDate && typeof (assignment.endDate as any).toDate === 'function' 
-            ? (assignment.endDate as { toDate(): Date }).toDate() 
-            : (assignment.endDate instanceof Date ? assignment.endDate : new Date(assignment.endDate as string)))
-        : new Date();
-      
-      // Check if dates are valid
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return 0;
-      }
-      
-      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return Math.floor(diffDays / 7) * assignment.weeklyRent;
-    } catch (error) {
-      console.error('Error calculating total earnings:', error);
-      return 0;
-    }
+    // Use actual payment records instead of estimated calculations
+    const assignmentPayments = payments.filter(payment => 
+      payment.assignmentId === assignment.id && payment.status === 'paid'
+    );
+    
+    return assignmentPayments.reduce((total, payment) => total + payment.amountPaid, 0);
   };
 
   const handleAddSuccess = () => {
@@ -537,7 +521,7 @@ const Assignments: React.FC = () => {
                           <CardContent className="p-4 text-center">
                             <Calendar className="w-6 h-6 mx-auto mb-2 text-gray-500" />
                             <div className="text-lg font-bold text-gray-700">
-                              {Math.floor(calculateTotalEarnings(assignment) / assignment.weeklyRent)}
+                              {payments.filter(p => p.assignmentId === assignment.id && p.status === 'paid').length}
                             </div>
                             <div className="text-xs text-gray-500">Total Weeks</div>
                           </CardContent>

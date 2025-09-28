@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
+import { useFirestorePaths } from '@/hooks/useFirestorePaths';
+import { collection, addDoc } from 'firebase/firestore';
+import { firestore } from '@/config/firebase';
 import { Vehicle, Assignment } from '@/types/user';
 import { 
   Car, 
@@ -38,7 +42,8 @@ const VehicleDetails: React.FC = () => {
   const { vehicleId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { vehicles, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading } = useFirebaseData();
+  const { userInfo } = useAuth();
+  const { vehicles, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments } = useFirebaseData();
   const [prepaymentAmount, setPrepaymentAmount] = useState('');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
@@ -135,24 +140,22 @@ const VehicleDetails: React.FC = () => {
     // Note: Currently using placeholder logic as prepayments structure needs to be defined
     // This section can be updated once prepayment data structure is established
 
-    // Add rent collections from assignments
-    if ((vehicle as any).assignments && (vehicle as any).assignments.length > 0) {
-      (vehicle as any).assignments.forEach((assignment: any) => {
-        if (assignment.rentPayments && assignment.rentPayments.length > 0) {
-          assignment.rentPayments.forEach((rent: any, index: number) => {
-            payments.push({
-              date: rent.date,
-              type: 'rent',
-              amount: rent.amount,
-              description: `Rent from ${assignment.driverName}`,
-              paymentMethod: rent.paymentMethod || 'Cash',
-              status: 'completed',
-              reference: rent.transactionId || `RENT${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`
-            });
-          });
-        }
+    // Add rent collections from actual payments collection (not mock data)
+    const vehicleRentPayments = firebasePayments.filter(payment => 
+      payment.vehicleId === vehicleId && payment.status === 'paid'
+    );
+    
+    vehicleRentPayments.forEach((payment) => {
+      payments.push({
+        date: payment.paidAt || payment.collectionDate || payment.createdAt,
+        type: 'rent',
+        amount: payment.amountPaid,
+        description: `Weekly rent collection - Week starting ${new Date(payment.weekStart).toLocaleDateString()}`,
+        paymentMethod: 'Cash', // Default, can be updated based on actual data
+        status: 'completed',
+        reference: payment.id || `RENT${vehicleId?.slice(-4)}${String(payments.length + 1).padStart(2, '0')}`
       });
-    }
+    });
 
     // Add expenses
     expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved').forEach((expense, index) => {
@@ -556,13 +559,84 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
-  const markRentCollected = (weekIndex: number) => {
-    toast({
-      title: 'Rent Collected',
-      description: `Weekly rent for week ${weekIndex + 1} has been marked as collected.`,
-    });
-    
-    // Here you would update the payment record in Firestore
+  const markRentCollected = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
+    try {
+      if (!assignment || !vehicle.assignedDriverId) {
+        toast({
+          title: 'Error',
+          description: 'No active assignment found for this vehicle.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Get week start and end dates (already calculated and passed)
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+      
+      // Check if this rent payment already exists
+      const existingPayment = firebasePayments.find(payment => {
+        if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart);
+        // More precise matching - check if payment week matches this assignment week
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+      
+      if (existingPayment) {
+        toast({
+          title: 'Already Collected',
+          description: `Rent for week ${weekIndex + 1} has already been recorded on ${new Date(existingPayment.paidAt || existingPayment.createdAt).toLocaleDateString()}.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (!userInfo?.companyId) {
+        toast({
+          title: 'Error',
+          description: 'Company information not found.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Create payment record in Firebase payments collection
+      const paymentData = {
+        assignmentId: assignment.id || '',
+        vehicleId: vehicleId!,
+        driverId: vehicle.assignedDriverId,
+        weekStart: weekStartDate.toISOString().split('T')[0],
+        weekNumber: weekIndex + 1, // Week number within assignment
+        amountDue: assignment.weeklyRent,
+        amountPaid: assignment.weeklyRent,
+        paidAt: new Date().toISOString(),
+        collectionDate: new Date().toISOString(),
+        nextDueDate: new Date(weekEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Next week
+        daysLeft: 7, // Will be recalculated on load
+        status: 'paid' as const,
+        companyId: userInfo.companyId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Add payment record directly to payments collection
+      const paymentsRef = collection(firestore, `tenantCompanies/${userInfo.companyId}/payments`);
+      await addDoc(paymentsRef, paymentData);
+
+      toast({
+        title: 'Rent Collected Successfully',
+        description: `Weekly rent of ₹${assignment.weeklyRent.toLocaleString()} for assignment week ${weekIndex + 1} (${weekStartDate.toLocaleDateString('en-IN')}) has been recorded.`,
+      });
+
+    } catch (error) {
+      console.error('Error recording rent payment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record rent payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Assignment History Tab Component
@@ -1459,77 +1533,215 @@ const VehicleDetails: React.FC = () => {
               </Badge>
             </div>
             
+            {/* Rent Collection Summary */}
+            {vehicle.assignedDriverId && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card className="bg-green-50">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {firebasePayments.filter(p => p.vehicleId === vehicleId && p.status === 'paid').length}
+                    </div>
+                    <div className="text-sm text-green-700">Weeks Collected</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-blue-50">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      ₹{firebasePayments
+                        .filter(p => p.vehicleId === vehicleId && p.status === 'paid')
+                        .reduce((sum, p) => sum + p.amountPaid, 0)
+                        .toLocaleString()}
+                    </div>
+                    <div className="text-sm text-blue-700">Total Collected</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-yellow-50">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-yellow-600">
+                      ₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString() || '0'}
+                    </div>
+                    <div className="text-sm text-yellow-700">Weekly Rate</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-purple-50">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {Math.round(((getCurrentAssignmentDetails()?.weeklyRent || 0) * 52) / 12).toLocaleString()}
+                    </div>
+                    <div className="text-sm text-purple-700">Est. Monthly</div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            
             {vehicle.assignedDriverId ? (
               <div>
-                {/* Rent Collection Grid - Previous 36 weeks + Next 36 weeks */}
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                  {Array.from({ length: 72 }, (_, index) => {
-                    const weekOffset = index - 36; // -36 to +35 (current week is 0)
-                    const weekStart = new Date();
-                    weekStart.setDate(weekStart.getDate() + (weekOffset * 7));
-                    
-                    const isPastWeek = weekOffset < 0;
-                    const isCurrentWeek = weekOffset === 0;
-                    const isFutureWeek = weekOffset > 0;
-                    const isUpcoming = weekOffset > 0 && weekOffset <= 5;
-                    
-                    let bgColor = 'bg-gray-100';
-                    let textColor = 'text-gray-600';
-                    let icon = <Clock className="h-4 w-4" />;
-                    let status = '';
-                    
-                    if (isPastWeek) {
-                      // Mock: assume most past weeks are collected
-                      const isCollected = Math.random() > 0.1;
-                      if (isCollected) {
-                        bgColor = 'bg-green-100';
-                        textColor = 'text-green-700';
-                        icon = <CheckCircle className="h-4 w-4" />;
-                        status = 'Collected';
-                      } else {
-                        bgColor = 'bg-red-100';
-                        textColor = 'text-red-700';
-                        icon = <AlertCircle className="h-4 w-4" />;
-                        status = 'Missed';
-                      }
-                    } else if (isCurrentWeek) {
-                      bgColor = 'bg-yellow-100';
-                      textColor = 'text-yellow-700';
-                      icon = <DollarSign className="h-4 w-4" />;
-                      status = 'Due Now';
-                    } else if (isUpcoming) {
-                      bgColor = 'bg-blue-100';
-                      textColor = 'text-blue-700';
-                      icon = <Calendar className="h-4 w-4" />;
-                      status = `${weekOffset} week${weekOffset > 1 ? 's' : ''}`;
-                    }
-                    
+                {(() => {
+                  const currentAssignment = financialData.currentAssignment;
+                  if (!currentAssignment) {
                     return (
-                      <Card 
-                        key={index} 
-                        className={`${bgColor} cursor-pointer hover:shadow-md transition-shadow`}
-                        onClick={() => (isCurrentWeek || isPastWeek) && markRentCollected(index)}
-                      >
-                        <CardContent className="p-3 text-center">
-                          <div className={`${textColor} mb-1`}>
-                            {icon}
-                          </div>
-                          <div className={`text-sm font-medium ${textColor}`}>
-                            Week {index + 1}
-                          </div>
-                          <div className={`text-xs ${textColor}`}>
-                            {weekStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                          </div>
-                          {status && (
-                            <div className={`text-xs ${textColor} mt-1`}>
-                              {status}
-                            </div>
-                          )}
+                      <Card>
+                        <CardContent className="p-8 text-center">
+                          <p className="text-gray-500 mb-4">No active assignment found for this vehicle</p>
                         </CardContent>
                       </Card>
                     );
-                  })}
-                </div>
+                  }
+
+                  // Calculate assignment dates
+                  const assignmentStartDate = new Date(
+                    typeof currentAssignment.startDate === 'string' 
+                      ? currentAssignment.startDate 
+                      : currentAssignment.startDate?.toDate?.() || currentAssignment.startDate
+                  );
+                  
+                  // Calculate end date based on agreement duration (in months)
+                  const agreementEndDate = new Date(assignmentStartDate);
+                  agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
+
+                  // Calculate total weeks in assignment
+                  const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                  
+                  // Get current date for comparison
+                  const today = new Date();
+                  
+                  return (
+                    <div>
+                      {/* Assignment Info Header */}
+                      <Card className="mb-4 bg-blue-50 border-blue-200">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <h4 className="font-semibold text-blue-900">Assignment Period</h4>
+                              <p className="text-sm text-blue-700">
+                                {assignmentStartDate.toLocaleDateString('en-IN', { 
+                                  day: 'numeric', 
+                                  month: 'long', 
+                                  year: 'numeric' 
+                                })} - {agreementEndDate.toLocaleDateString('en-IN', { 
+                                  day: 'numeric', 
+                                  month: 'long', 
+                                  year: 'numeric' 
+                                })}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-blue-900">{totalWeeks}</div>
+                              <div className="text-sm text-blue-700">Total Weeks</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Rent Collection Grid - Based on Assignment Timeline */}
+                      <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                        {Array.from({ length: Math.min(totalWeeks, 52) }, (_, weekIndex) => {
+                          // Calculate this week's dates based on assignment start date
+                          const weekStartDate = new Date(assignmentStartDate);
+                          weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+                          weekStartDate.setHours(0, 0, 0, 0);
+                          
+                          const weekEndDate = new Date(weekStartDate);
+                          weekEndDate.setDate(weekEndDate.getDate() + 6);
+                          weekEndDate.setHours(23, 59, 59, 999);
+                          
+                          // Determine week status relative to today
+                          const isPastWeek = weekEndDate < today;
+                          const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
+                          const isFutureWeek = weekStartDate > today;
+                          const isUpcoming = isFutureWeek && weekStartDate <= new Date(today.getTime() + (5 * 7 * 24 * 60 * 60 * 1000));
+                          
+                          // Check if rent was actually collected for this week from the database
+                          const weekRentPayment = firebasePayments.find(payment => {
+                            if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+                            const paymentWeekStart = new Date(payment.weekStart);
+                            // More precise matching - check if payment week matches this assignment week
+                            return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+                          });
+                          
+                          let bgColor = 'bg-gray-100';
+                          let textColor = 'text-gray-600';
+                          let icon = <Clock className="h-4 w-4" />;
+                          let status = '';
+                          
+                          if (isPastWeek) {
+                            if (weekRentPayment) {
+                              bgColor = 'bg-green-100';
+                              textColor = 'text-green-700';
+                              icon = <CheckCircle className="h-4 w-4" />;
+                              status = 'Collected';
+                            } else {
+                              bgColor = 'bg-red-100';
+                              textColor = 'text-red-700';
+                              icon = <AlertCircle className="h-4 w-4" />;
+                              status = 'Overdue';
+                            }
+                          } else if (isCurrentWeek) {
+                            if (weekRentPayment) {
+                              bgColor = 'bg-green-100';
+                              textColor = 'text-green-700';
+                              icon = <CheckCircle className="h-4 w-4" />;
+                              status = 'Collected';
+                            } else {
+                              bgColor = 'bg-yellow-100';
+                              textColor = 'text-yellow-700';
+                              icon = <DollarSign className="h-4 w-4" />;
+                              status = 'Due Now';
+                            }
+                          } else if (isUpcoming) {
+                            bgColor = 'bg-blue-100';
+                            textColor = 'text-blue-700';
+                            icon = <Calendar className="h-4 w-4" />;
+                            const daysUntil = Math.ceil((weekStartDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            status = `${daysUntil} days`;
+                          }
+                          
+                          return (
+                            <Card 
+                              key={weekIndex} 
+                              className={`${bgColor} ${!weekRentPayment && (isCurrentWeek || isPastWeek) ? 'cursor-pointer hover:shadow-md' : 'cursor-default'} transition-shadow`}
+                              onClick={() => !weekRentPayment && (isCurrentWeek || isPastWeek) && markRentCollected(weekIndex, currentAssignment, weekStartDate)}
+                            >
+                              <CardContent className="p-3 text-center">
+                                <div className={`${textColor} mb-1`}>
+                                  {icon}
+                                </div>
+                                <div className={`text-sm font-medium ${textColor}`}>
+                                  Week {weekIndex + 1}
+                                </div>
+                                <div className={`text-xs ${textColor}`}>
+                                  {weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                </div>
+                                {status && (
+                                  <div className={`text-xs ${textColor} mt-1`}>
+                                    {status}
+                                  </div>
+                                )}
+                                {weekRentPayment && (
+                                  <div className={`text-xs ${textColor} mt-1 font-semibold`}>
+                                    ₹{weekRentPayment.amountPaid.toLocaleString()}
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+
+                      {totalWeeks > 52 && (
+                        <Card className="mt-4 bg-orange-50 border-orange-200">
+                          <CardContent className="p-4 text-center">
+                            <p className="text-orange-700">
+                              Assignment has {totalWeeks} weeks. Showing first 52 weeks.
+                              <br />
+                              <span className="text-sm">Complete assignment: {agreementEndDate.toLocaleDateString('en-IN')}</span>
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <Card>

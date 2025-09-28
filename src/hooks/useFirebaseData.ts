@@ -700,7 +700,7 @@ const calculateVehicleFinancials = (
   const monthlyRent = currentAssignment ? 
     (currentAssignment.weeklyRent * 52) / 12 : 0;
 
-  // Calculate total earnings from all payments for this vehicle
+  // Calculate total earnings from all rent payments for this vehicle (from payments collection)
   const vehiclePayments = payments.filter(p => p.vehicleId === vehicleId && p.status === 'paid');
   const totalEarnings = vehiclePayments.reduce((sum, p) => sum + p.amountPaid, 0) + 
     (vehicle.previousData?.rentEarnings || 0);
