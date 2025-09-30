@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye } from 'lucide-react';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddDriverForm from '@/components/Forms/AddDriverForm';
-import { useDrivers } from '@/hooks/useFirebaseData';
+import { useDrivers, useFirebaseData } from '@/hooks/useFirebaseData';
 
 const Drivers: React.FC = () => {
   const navigate = useNavigate();
   const { drivers, loading, addDriver, updateDriver, deleteDriver } = useDrivers();
+  const { assignments, vehicles } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editDriver, setEditDriver] = useState(null);
@@ -45,8 +46,8 @@ const Drivers: React.FC = () => {
   // Sort drivers to show actively engaged drivers first
   const sortedDrivers = [...drivers].sort((a, b) => {
     // Priority 1: Active drivers with assignments first
-    const aHasAssignments = a.rentedVehicles && a.rentedVehicles.length > 0;
-    const bHasAssignments = b.rentedVehicles && b.rentedVehicles.length > 0;
+    const aHasAssignments = getDriverAssignments(a.id).length > 0;
+    const bHasAssignments = getDriverAssignments(b.id).length > 0;
     
     if (aHasAssignments && !bHasAssignments) return -1;
     if (!aHasAssignments && bHasAssignments) return 1;
@@ -80,12 +81,22 @@ const Drivers: React.FC = () => {
     debugPaths();
   }, []);
 
+  const getDriverAssignments = (driverId: string) => {
+    return assignments.filter(a => a.driverId === driverId && a.status === 'active');
+  };
+
+  const getDriverWeeklyRent = (driverId: string) => {
+    const driverAssignments = getDriverAssignments(driverId);
+    return driverAssignments.reduce((total, assignment) => total + assignment.weeklyRent, 0);
+  };
+
   const getStatusBadge = (driver: any) => {
     if (!driver.isActive) {
       return <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>;
     }
     
-    if (driver.rentedVehicles && driver.rentedVehicles.length > 0) {
+    const activeAssignments = getDriverAssignments(driver.id);
+    if (activeAssignments.length > 0) {
       return <Badge className="bg-blue-100 text-blue-800">On Assignment</Badge>;
     }
     
@@ -340,10 +351,10 @@ const Drivers: React.FC = () => {
                     </div>
                   </div>
 
-                  {driver.rentedVehicles && driver.rentedVehicles.length > 0 && (
+                  {getDriverAssignments(driver.id).length > 0 && (
                     <div className="flex items-center space-x-2 text-sm">
                       <Truck className="w-4 h-4 text-gray-400" />
-                      <span>Vehicles: {driver.rentedVehicles.length} rented</span>
+                      <span>Vehicles: {getDriverAssignments(driver.id).length} rented</span>
                     </div>
                   )}
 
@@ -373,7 +384,7 @@ const Drivers: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-500">Weekly Rent</p>
-                      <p className="font-bold text-lg">₹{driver.totalWeeklyRent.toLocaleString()}</p>
+                      <p className="font-bold text-lg">₹{getDriverWeeklyRent(driver.id).toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Join Date</p>

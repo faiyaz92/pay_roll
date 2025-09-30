@@ -15,7 +15,7 @@ const DriverDetails: React.FC = () => {
   const { driverId } = useParams<{ driverId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { drivers, assignments, payments } = useFirebaseData();
+  const { drivers, vehicles, assignments, payments } = useFirebaseData();
   
   const [driver, setDriver] = useState<Driver | null>(null);
   const [driverAssignments, setDriverAssignments] = useState<any[]>([]);
@@ -33,6 +33,12 @@ const DriverDetails: React.FC = () => {
     totalEngagementDays: 0,
     currentVehicleCount: 0
   });
+
+  // Helper function to get vehicle name
+  const getVehicleName = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    return vehicle ? `${vehicle.vehicleName || vehicle.make + ' ' + vehicle.model} (${vehicle.registrationNumber})` : vehicleId;
+  };
 
   useEffect(() => {
     if (!driverId || !drivers.length) return;
@@ -395,7 +401,7 @@ const DriverDetails: React.FC = () => {
                       {driverAssignments.map((assignment, index) => (
                         <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                           <div>
-                            <p className="font-medium">{assignment.vehiclePlate || 'Vehicle ID: ' + assignment.vehicleId}</p>
+                            <p className="font-medium">{getVehicleName(assignment.vehicleId)}</p>
                             <p className="text-sm text-gray-500">
                               {new Date(assignment.startDate).toLocaleDateString()} - 
                               {assignment.endDate ? new Date(assignment.endDate).toLocaleDateString() : 'Ongoing'}
@@ -426,20 +432,20 @@ const DriverDetails: React.FC = () => {
                       {driverPayments.slice(0, 10).map((payment, index) => (
                         <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                           <div>
-                            <p className="font-medium">₹{payment.amount?.toLocaleString()}</p>
+                            <p className="font-medium">₹{payment.amountPaid?.toLocaleString()}</p>
                             <p className="text-sm text-gray-500">
-                              {payment.collectedAt ? new Date(payment.collectedAt).toLocaleDateString() : 'Pending'}
+                              {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : 'Pending'}
                             </p>
                           </div>
                           <div className="text-right">
                             <Badge 
-                              variant={payment.status === 'collected' ? 'default' : 'secondary'}
+                              variant={payment.status === 'paid' ? 'default' : 'secondary'}
                             >
                               {payment.status || 'Pending'}
                             </Badge>
-                            {payment.dueDate && payment.collectedAt && (
+                            {payment.nextDueDate && payment.paidAt && (
                               <p className="text-xs text-gray-500">
-                                {new Date(payment.collectedAt) <= new Date(payment.dueDate) ? 'On Time' : 'Late'}
+                                {new Date(payment.paidAt) <= new Date(payment.nextDueDate) ? 'On Time' : 'Late'}
                               </p>
                             )}
                           </div>
