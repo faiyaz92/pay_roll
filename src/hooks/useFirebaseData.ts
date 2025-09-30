@@ -79,7 +79,7 @@ export interface Expense {
   status: 'pending' | 'approved' | 'rejected';
   approvedAt: string | null;
   adjustmentWeeks: number; // Weeks to deduct from rent
-  type: 'general' | 'maintenance';
+  type: 'general' | 'maintenance' | 'insurance' | 'penalties';
   verifiedKm: number; // Owner-entered km from bill
   companyId: string;
   createdAt: string;

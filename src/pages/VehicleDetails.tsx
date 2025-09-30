@@ -35,7 +35,8 @@ import {
   Camera,
   Eye,
   FileText,
-  ImageIcon
+  ImageIcon,
+  Shield
 } from 'lucide-react';
 
 const VehicleDetails: React.FC = () => {
@@ -83,8 +84,9 @@ const VehicleDetails: React.FC = () => {
     // Calculate totals by category
     const fuelExpenses = vehicleExpenses.filter(e => e.description.toLowerCase().includes('fuel')).reduce((sum, e) => sum + e.amount, 0);
     const maintenanceExpenses = vehicleExpenses.filter(e => e.type === 'maintenance').reduce((sum, e) => sum + e.amount, 0);
-    const penaltyExpenses = vehicleExpenses.filter(e => e.description.toLowerCase().includes('penalty')).reduce((sum, e) => sum + e.amount, 0);
-    const otherExpenses = vehicleExpenses.filter(e => e.type === 'general' && !e.description.toLowerCase().includes('penalty') && !e.description.toLowerCase().includes('fuel')).reduce((sum, e) => sum + e.amount, 0);
+    const insuranceExpenses = vehicleExpenses.filter(e => e.type === 'insurance').reduce((sum, e) => sum + e.amount, 0);
+    const penaltyExpenses = vehicleExpenses.filter(e => e.type === 'penalties').reduce((sum, e) => sum + e.amount, 0);
+    const otherExpenses = vehicleExpenses.filter(e => e.type === 'general' && !e.description.toLowerCase().includes('fuel')).reduce((sum, e) => sum + e.amount, 0);
     
     const totalExpenses = vehicleExpenses.reduce((sum, e) => sum + e.amount, 0);
     
@@ -104,6 +106,7 @@ const VehicleDetails: React.FC = () => {
       monthlyAverage,
       fuelExpenses,
       maintenanceExpenses,
+      insuranceExpenses,
       penaltyExpenses,
       otherExpenses,
       recentExpenses: recentExpensesList,
@@ -537,7 +540,7 @@ const VehicleDetails: React.FC = () => {
         status: 'approved' as const,
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
-        type: newExpense.type as ('general' | 'maintenance'),
+        type: newExpense.type as ('general' | 'maintenance' | 'insurance' | 'penalties'),
         verifiedKm: 0,
         companyId: '',
         createdAt: '',
@@ -1850,7 +1853,7 @@ const VehicleDetails: React.FC = () => {
             </div>
 
             {/* Expense Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1902,6 +1905,30 @@ const VehicleDetails: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-green-600" />
+                    Insurance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">This Month</span>
+                      <span className="font-medium">₹{Math.round(expenseData.insuranceExpenses / 12).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total</span>
+                      <span className="font-medium">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-purple-600" />
                     Other Expenses
                   </CardTitle>
@@ -1913,11 +1940,11 @@ const VehicleDetails: React.FC = () => {
                       <span className="font-medium">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Other</span>
+                      <span className="text-sm text-gray-600">General</span>
                       <span className="font-medium">₹{expenseData.otherExpenses.toLocaleString()}</span>
                     </div>
                     <div className="text-xs text-gray-500">
-                      Insurance, permits, etc.
+                      Permits, fines, misc. expenses
                     </div>
                   </div>
                 </CardContent>
@@ -1939,14 +1966,17 @@ const VehicleDetails: React.FC = () => {
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                               expense.description.toLowerCase().includes('fuel') ? 'bg-blue-100' :
                               expense.type === 'maintenance' ? 'bg-orange-100' :
-                              expense.description.toLowerCase().includes('penalty') ? 'bg-red-100' :
+                              expense.type === 'insurance' ? 'bg-green-100' :
+                              expense.type === 'penalties' ? 'bg-red-100' :
                               'bg-purple-100'
                             }`}>
                               {expense.description.toLowerCase().includes('fuel') ? (
                                 <Fuel className="h-4 w-4 text-blue-600" />
                               ) : expense.type === 'maintenance' ? (
                                 <Settings className="h-4 w-4 text-orange-600" />
-                              ) : expense.description.toLowerCase().includes('penalty') ? (
+                              ) : expense.type === 'insurance' ? (
+                                <Shield className="h-4 w-4 text-green-600" />
+                              ) : expense.type === 'penalties' ? (
                                 <AlertCircle className="h-4 w-4 text-red-600" />
                               ) : (
                                 <DollarSign className="h-4 w-4 text-purple-600" />
@@ -2615,8 +2645,9 @@ const VehicleDetails: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="fuel">Fuel</SelectItem>
                   <SelectItem value="maintenance">Maintenance</SelectItem>
-                  <SelectItem value="general">Insurance/Penalties</SelectItem>
-                  <SelectItem value="general">Other</SelectItem>
+                  <SelectItem value="insurance">Insurance</SelectItem>
+                  <SelectItem value="penalties">Penalties</SelectItem>
+                  <SelectItem value="general">General/Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>

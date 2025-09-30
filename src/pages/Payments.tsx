@@ -5,49 +5,32 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { Payment } from '@/types/user';
 
 const Payments: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const { userInfo } = useAuth();
+  const { payments, vehicles, drivers, assignments } = useFirebaseData();
 
-  // Mock data - replace with actual Firestore data
-  const payments: Payment[] = [
-    {
-      id: 'pay_001',
-      assignmentId: 'assign_001',
-      vehicleId: 'vehicle_001',
-      driverId: 'driver_001',
-      weekStart: new Date('2025-09-22'),
-      amountDue: 3500,
-      amountPaid: 3500,
-      paidAt: new Date('2025-09-27'),
-      collectionDate: new Date('2025-09-27'),
-      nextDueDate: new Date('2025-09-29'),
-      daysLeft: 2,
-      status: 'paid',
-      companyId: 'carrental'
-    },
-    {
-      id: 'pay_002',
-      assignmentId: 'assign_002',
-      vehicleId: 'vehicle_002',
-      driverId: 'driver_002',
-      weekStart: new Date('2025-09-22'),
-      amountDue: 4000,
-      amountPaid: 0,
-      paidAt: null,
-      collectionDate: null,
-      nextDueDate: new Date('2025-09-29'),
-      daysLeft: 2,
-      status: 'due',
-      companyId: 'carrental'
-    }
-  ];
+  // Helper functions to get names
+  const getVehicleName = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    return vehicle ? `${vehicle.vehicleName || vehicle.make + ' ' + vehicle.model} (${vehicle.registrationNumber})` : vehicleId;
+  };
+
+  const getDriverName = (driverId: string) => {
+    const driver = drivers.find(d => d.id === driverId);
+    return driver ? driver.name : driverId;
+  };
 
   const filteredPayments = payments.filter((payment) => {
-    const matchesSearch = payment.vehicleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const vehicleName = getVehicleName(payment.vehicleId);
+    const driverName = getDriverName(payment.driverId);
+    const matchesSearch = vehicleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         driverName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         payment.vehicleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          payment.driverId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -192,7 +175,7 @@ const Payments: React.FC = () => {
                       <div className="flex items-center gap-2">
                         {getStatusIcon(payment.status)}
                         <h3 className="font-semibold text-lg">
-                          {payment.vehicleId} - {payment.driverId}
+                          {getVehicleName(payment.vehicleId)} - {getDriverName(payment.driverId)}
                         </h3>
                       </div>
                       <Badge className={getStatusColor(payment.status)}>
@@ -206,24 +189,24 @@ const Payments: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                       <div>
                         <span className="font-medium">Week Start:</span>{' '}
-                        {payment.weekStart.toLocaleDateString()}
+                        {new Date(payment.weekStart).toLocaleDateString()}
                       </div>
                       <div>
-                        <span className="font-medium">Amount Due:</span> ₹{payment.amountDue}
+                        <span className="font-medium">Amount Due:</span> ₹{payment.amountDue.toLocaleString()}
                       </div>
                       <div>
-                        <span className="font-medium">Amount Paid:</span> ₹{payment.amountPaid}
+                        <span className="font-medium">Amount Paid:</span> ₹{payment.amountPaid.toLocaleString()}
                       </div>
                       <div>
                         <span className="font-medium">Next Due:</span>{' '}
-                        {payment.nextDueDate.toLocaleDateString()}
+                        {new Date(payment.nextDueDate).toLocaleDateString()}
                       </div>
                     </div>
 
-                    {payment.collectionDate && (
+                    {payment.paidAt && (
                       <div className="text-sm text-green-600">
-                        <span className="font-medium">Collected on:</span>{' '}
-                        {payment.collectionDate.toLocaleString()}
+                        <span className="font-medium">Paid on:</span>{' '}
+                        {new Date(payment.paidAt).toLocaleDateString()}
                       </div>
                     )}
                   </div>

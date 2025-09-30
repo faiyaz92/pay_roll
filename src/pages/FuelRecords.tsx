@@ -2,57 +2,22 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Fuel, Filter, Calendar } from 'lucide-react';
+import { Plus, Fuel, Filter, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useVehicles } from '@/hooks/useFirebaseData';
+import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 
 const FuelRecords: React.FC = () => {
-  // Mock data for fuel records
-  const fuelRecords = [
-    {
-      id: 'fuel_001',
-      vehicleId: 'vehicle_001', 
-      driverId: 'driver_001',
-      date: '2025-02-05',
-      addedAt: new Date('2025-02-05'),
-      quantity: 50,
-      pricePerLiter: 95.5,
-      amount: 4775,
-      odometer: 32000,
-      fuelStation: 'HP Petrol Pump',
-      fuelType: 'Petrol',
-      location: 'Mumbai Central'
-    },
-    {
-      id: 'fuel_002',
-      vehicleId: 'vehicle_002',
-      driverId: 'driver_002', 
-      date: '2025-02-04',
-      addedAt: new Date('2025-02-04'),
-      quantity: 45,
-      pricePerLiter: 96.2,
-      amount: 4329,
-      odometer: 47000,
-      fuelStation: 'Indian Oil Station',
-      fuelType: 'Petrol',
-      location: 'Bangalore'
-    }
-  ];
-  
-  const vehicles = [
-    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova' },
-    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga' }
-  ];
-  
-  const drivers = [
-    { id: 'driver_001', name: 'Rajesh Kumar' },
-    { id: 'driver_002', name: 'Amit Sharma' }
-  ];
-  
-  const loading = false;
+  const { vehicles, drivers, expenses, loading } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Filter fuel expenses from the expenses collection
+  const fuelRecords = expenses.filter(expense => 
+    expense.description.toLowerCase().includes('fuel') || 
+    expense.description.toLowerCase().includes('petrol') ||
+    expense.description.toLowerCase().includes('diesel')
+  );
 
   const getVehicleName = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -64,21 +29,16 @@ const FuelRecords: React.FC = () => {
     return driver ? driver.name : 'Unknown Driver';
   };
 
+  // Calculate quick stats for decoration
   const totalFuelCost = fuelRecords.reduce((sum, record) => sum + record.amount, 0);
-  const totalFuelQuantity = fuelRecords.reduce((sum, record) => sum + record.quantity, 0);
-  const averagePrice = totalFuelQuantity > 0 ? totalFuelCost / totalFuelQuantity : 0;
-
-  // Group records by month for better analysis
-  const monthlyStats = fuelRecords.reduce((acc, record) => {
-    const month = new Date(record.addedAt).toLocaleString('default', { month: 'long', year: 'numeric' });
-    if (!acc[month]) {
-      acc[month] = { cost: 0, quantity: 0, count: 0 };
-    }
-    acc[month].cost += record.amount;
-    acc[month].quantity += record.quantity;
-    acc[month].count += 1;
-    return acc;
-  }, {} as Record<string, { cost: number; quantity: number; count: number }>);
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const thisMonthRecords = fuelRecords.filter(record => {
+    const recordDate = new Date(record.createdAt);
+    return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+  });
+  const thisMonthCost = thisMonthRecords.reduce((sum, record) => sum + record.amount, 0);
+  const averageCostPerRecord = fuelRecords.length > 0 ? totalFuelCost / fuelRecords.length : 0;
 
   if (loading) {
     return (
@@ -125,21 +85,21 @@ const FuelRecords: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Quantity</CardTitle>
+            <CardTitle className="text-sm font-medium">This Month Cost</CardTitle>
             <Fuel className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalFuelQuantity.toFixed(1)}L</div>
+            <div className="text-2xl font-bold">₹{thisMonthCost.toLocaleString()}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Price</CardTitle>
+            <CardTitle className="text-sm font-medium">Average Cost</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{averagePrice.toFixed(2)}/L</div>
+            <div className="text-2xl font-bold">₹{Math.round(averageCostPerRecord).toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -175,35 +135,33 @@ const FuelRecords: React.FC = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Vehicle</TableHead>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Fuel Type</TableHead>
-                  <TableHead>Quantity (L)</TableHead>
-                  <TableHead>Price/L</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Odometer</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {fuelRecords.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>
-                      {new Date(record.addedAt).toLocaleDateString()}
+                      {new Date(record.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="font-medium">
                       {getVehicleName(record.vehicleId)}
                     </TableCell>
                     <TableCell>
-                      {getDriverName(record.driverId)}
+                      {record.description}
+                    </TableCell>
+                    <TableCell className="font-medium">₹{record.amount.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={record.status === 'approved' ? 'default' : record.status === 'pending' ? 'secondary' : 'destructive'}>
+                        {record.status}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{record.fuelType}</Badge>
+                      {getDriverName(record.submittedBy)}
                     </TableCell>
-                    <TableCell>{record.quantity}L</TableCell>
-                    <TableCell>₹{record.pricePerLiter}</TableCell>
-                    <TableCell className="font-medium">₹{record.amount}</TableCell>
-                    <TableCell>{record.odometer.toLocaleString()} km</TableCell>
-                    <TableCell>{record.location}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -211,45 +169,6 @@ const FuelRecords: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Monthly Analysis */}
-      {Object.keys(monthlyStats).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Fuel Analysis</CardTitle>
-            <CardDescription>
-              Month-wise fuel consumption and cost breakdown
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead>Records</TableHead>
-                  <TableHead>Total Quantity</TableHead>
-                  <TableHead>Total Cost</TableHead>
-                  <TableHead>Average Price/L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(monthlyStats).map(([month, stats]) => {
-                  const typedStats = stats as { cost: number; quantity: number; count: number };
-                  return (
-                    <TableRow key={month}>
-                      <TableCell className="font-medium">{month}</TableCell>
-                      <TableCell>{typedStats.count}</TableCell>
-                      <TableCell>{typedStats.quantity.toFixed(1)}L</TableCell>
-                      <TableCell>₹{typedStats.cost.toLocaleString()}</TableCell>
-                      <TableCell>₹{(typedStats.cost / typedStats.quantity).toFixed(2)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

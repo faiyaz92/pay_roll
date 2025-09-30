@@ -208,7 +208,7 @@ export interface Expense {
   status: 'pending' | 'approved' | 'rejected';
   approvedAt: Date | null;
   adjustmentWeeks?: number;
-  type: 'general' | 'maintenance';
+  type: 'general' | 'maintenance' | 'insurance' | 'penalties';
   verifiedKm?: number;
   companyId: string;
   createdAt: Date;
