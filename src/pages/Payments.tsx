@@ -256,7 +256,11 @@ const Payments: React.FC = () => {
           />
         </div>
         
-        <Select value={transactionTypeFilter} onValueChange={setTransactionTypeFilter}>
+        <Select value={transactionTypeFilter} onValueChange={(value) => {
+          setTransactionTypeFilter(value);
+          setPaymentTypeFilter('all'); // Reset second level
+          setExpenseTypeFilter('all'); // Reset third level
+        }}>
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Transaction Type" />
           </SelectTrigger>
@@ -267,19 +271,37 @@ const Payments: React.FC = () => {
           </SelectContent>
         </Select>
 
-        <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Payment Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="rent">Rent</SelectItem>
-            <SelectItem value="emi">EMI</SelectItem>
-            <SelectItem value="prepayment">Prepayment</SelectItem>
-            <SelectItem value="expenses">Expenses</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Second Level Filter - Only show when transaction type is selected */}
+        {transactionTypeFilter !== 'all' && (
+          <Select value={paymentTypeFilter} onValueChange={(value) => {
+            setPaymentTypeFilter(value);
+            setExpenseTypeFilter('all'); // Reset third level
+          }}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder={transactionTypeFilter === 'paid' ? 'Paid Type' : 'Received Type'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {transactionTypeFilter === 'paid' ? 'All Paid Types' : 'All Received Types'}
+              </SelectItem>
+              {transactionTypeFilter === 'received' && (
+                <>
+                  <SelectItem value="rent">Rent Collection</SelectItem>
+                  <SelectItem value="security">Security Deposit</SelectItem>
+                </>
+              )}
+              {transactionTypeFilter === 'paid' && (
+                <>
+                  <SelectItem value="emi">EMI</SelectItem>
+                  <SelectItem value="prepayment">Prepayment</SelectItem>
+                  <SelectItem value="expenses">Expenses</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        )}
 
+        {/* Third Level Filter - Only show when expenses is selected */}
         {paymentTypeFilter === 'expenses' && (
           <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
             <SelectTrigger className="w-[160px]">
@@ -296,6 +318,42 @@ const Payments: React.FC = () => {
           </Select>
         )}
       </div>
+
+      {/* Active Filters Indicator */}
+      {(transactionTypeFilter !== 'all' || paymentTypeFilter !== 'all' || expenseTypeFilter !== 'all') && (
+        <div className="flex flex-wrap gap-2 items-center text-sm">
+          <span className="text-muted-foreground">Active filters:</span>
+          {transactionTypeFilter !== 'all' && (
+            <Badge variant="secondary">
+              {transactionTypeFilter === 'paid' ? 'Paid Transactions' : 'Received Transactions'}
+            </Badge>
+          )}
+          {paymentTypeFilter !== 'all' && (
+            <Badge variant="secondary">
+              {paymentTypeFilter === 'emi' ? 'EMI' : 
+               paymentTypeFilter === 'prepayment' ? 'Prepayment' : 
+               paymentTypeFilter === 'rent' ? 'Rent' :
+               paymentTypeFilter === 'security' ? 'Security Deposit' : 
+               'Expenses'}
+            </Badge>
+          )}
+          {expenseTypeFilter !== 'all' && (
+            <Badge variant="secondary">
+              {expenseTypeFilter.charAt(0).toUpperCase() + expenseTypeFilter.slice(1)}
+            </Badge>
+          )}
+          <button 
+            onClick={() => {
+              setTransactionTypeFilter('all');
+              setPaymentTypeFilter('all');
+              setExpenseTypeFilter('all');
+            }}
+            className="text-blue-600 hover:text-blue-800 text-xs"
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
 
       {/* Transactions List */}
       <div className="space-y-4">

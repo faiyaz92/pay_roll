@@ -7,13 +7,19 @@ import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddMaintenanceRecordForm from '@/components/Forms/AddMaintenanceRecordForm';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { toast } from '@/hooks/use-toast';
 
 const MaintenanceRecords: React.FC = () => {
   const { vehicles, drivers, expenses, loading } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Filter maintenance expenses from the expenses collection
-  const maintenanceRecords = expenses.filter(expense => expense.type === 'maintenance');
+  // Filter maintenance expenses from the expenses collection using new hierarchical structure
+  const maintenanceRecords = expenses.filter(expense => 
+    expense.expenseType === 'maintenance' || // New hierarchical structure
+    expense.type === 'maintenance' // Backward compatibility
+  );
 
   const getVehicleName = (vehicleId: string) => {
     const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -36,6 +42,55 @@ const MaintenanceRecords: React.FC = () => {
   const thisMonthCost = thisMonthRecords.reduce((sum, record) => sum + record.amount, 0);
   const averageCostPerRecord = maintenanceRecords.length > 0 ? totalMaintenanceCost / maintenanceRecords.length : 0;
   const pendingRecords = maintenanceRecords.filter(record => record.status === 'pending').length;
+
+  // Handle recording maintenance expense transaction
+  const handleExpenseAdded = async (expenseData: any) => {
+    try {
+      // Record the expense in expenses collection (for backward compatibility)
+      await addDoc(collection(db, 'expenses'), {
+        ...expenseData,
+        type: 'maintenance', // Keep for backward compatibility
+        createdAt: new Date(),
+      });
+
+      // Record the transaction in payments collection using hierarchical structure
+      await addDoc(collection(db, 'payments'), {
+        vehicleId: expenseData.vehicleId,
+        driverId: expenseData.driverId,
+        amount: expenseData.amount,
+        description: expenseData.description || `Maintenance payment - ${getVehicleName(expenseData.vehicleId)}`,
+        date: expenseData.date || new Date(),
+        createdAt: new Date(),
+        type: 'paid',
+        paymentType: 'expenses',
+        expenseType: 'maintenance',
+        // Additional maintenance-specific fields
+        maintenanceType: expenseData.maintenanceType,
+        serviceProvider: expenseData.serviceProvider,
+        odometerReading: expenseData.odometerReading,
+        nextDueDate: expenseData.nextDueDate,
+        nextDueOdometer: expenseData.nextDueOdometer,
+        status: expenseData.status,
+        priority: expenseData.priority,
+        receiptNumber: expenseData.receiptNumber,
+        notes: expenseData.notes,
+      });
+
+      toast({
+        title: "Success",
+        description: "Maintenance expense recorded successfully.",
+      });
+
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error recording maintenance expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record maintenance expense. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -64,7 +119,7 @@ const MaintenanceRecords: React.FC = () => {
           isOpen={isModalOpen}
           onOpenChange={setIsModalOpen}
         >
-          <AddMaintenanceRecordForm onSuccess={() => setIsModalOpen(false)} />
+          <AddMaintenanceRecordForm onSuccess={handleExpenseAdded} />
         </AddItemModal>
       </div>
 

@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useFirebaseData } from '@/hooks/useFirebaseData';
 
 const maintenanceRecordSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle is required'),
+  driverId: z.string().optional(), // Optional for maintenance records
   type: z.enum(['routine', 'repair', 'inspection', 'other']),
   description: z.string().min(1, 'Description is required'),
   amount: z.string().min(1, 'Amount is required'),
@@ -23,22 +25,12 @@ const maintenanceRecordSchema = z.object({
 type MaintenanceRecordFormData = z.infer<typeof maintenanceRecordSchema>;
 
 interface AddMaintenanceRecordFormProps {
-  onSuccess: () => void;
+  onSuccess: (data: any) => void; // Changed to pass data to parent
 }
 
 const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess }) => {
-  // Mock functions for now - replace with actual Firestore integration later
-  const addMaintenanceRecord = async (data: any) => {
-    // This would normally save to Firestore
-    console.log('Adding maintenance record:', data);
-  };
-  
-  const maintenanceRecords = []; // Mock empty array
-  const vehicles = [
-    { id: 'vehicle_001', registrationNumber: 'MH12AB1234', make: 'Toyota', model: 'Innova' },
-    { id: 'vehicle_002', registrationNumber: 'KA05XY5678', make: 'Maruti', model: 'Ertiga' }
-  ];
-  
+  // Get real Firebase data instead of mock data
+  const { vehicles, drivers, expenses } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
 
@@ -46,6 +38,7 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
     resolver: zodResolver(maintenanceRecordSchema),
     defaultValues: {
       vehicleId: '',
+      driverId: '',
       type: 'routine',
       description: '',
       amount: '',
@@ -58,9 +51,13 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
   const onSubmit = async (data: MaintenanceRecordFormData) => {
     try {
       // Validate odometer reading against previous records
-      const existingRecords = maintenanceRecords.filter(record => record.vehicleId === data.vehicleId);
+      const existingRecords = expenses.filter(expense => 
+        expense.vehicleId === data.vehicleId && 
+        (expense.expenseType === 'maintenance' || expense.type === 'maintenance') &&
+        expense.odometerReading
+      );
       const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => record.odometer))
+        ? Math.max(...existingRecords.map(record => record.odometerReading || 0))
         : 0;
       
       if (parseInt(data.odometer) <= maxOdometer) {
@@ -74,25 +71,26 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
 
       const maintenanceRecordData = {
         vehicleId: data.vehicleId,
-        type: data.type,
+        driverId: data.driverId || undefined, // Convert empty string to undefined
+        maintenanceType: data.type,
         description: data.description,
         amount: parseFloat(data.amount),
         serviceProvider: data.serviceProvider,
-        odometer: parseInt(data.odometer),
-        ...(data.nextServiceOdometer && { nextServiceOdometer: parseInt(data.nextServiceOdometer) }),
+        odometerReading: parseInt(data.odometer),
+        ...(data.nextServiceOdometer && { nextDueOdometer: parseInt(data.nextServiceOdometer) }),
+        date: new Date(),
         addedBy: userInfo?.userId || '',
-        addedAt: new Date().toISOString(),
         companyId: userInfo?.companyId || '',
+        status: 'approved' // Auto-approve maintenance records
       };
 
-      await addMaintenanceRecord(maintenanceRecordData);
-      toast({
-        title: 'Success',
-        description: 'Maintenance record added successfully',
-      });
+      // Call parent's onSuccess with the maintenance record data
+      await onSuccess(maintenanceRecordData);
+      
+      // Reset form on successful submission
       form.reset();
-      onSuccess();
     } catch (error) {
+      console.error('Error in maintenance form submission:', error);
       toast({
         title: 'Error',
         description: 'Failed to add maintenance record',
@@ -104,30 +102,57 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="vehicleId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Vehicle</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vehicle" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {vehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="vehicleId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vehicle</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select vehicle" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {vehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="driverId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Driver (Optional)</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select driver" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {drivers.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {driver.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField

@@ -4,111 +4,80 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 
-const fuelRecordSchema = z.object({
+const insuranceRecordSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle is required'),
-  driverId: z.string().min(1, 'Driver is required'),
+  driverId: z.string().optional(),
+  category: z.enum(['premium', 'claim', 'renewal', 'registration', 'other']),
+  description: z.string().min(1, 'Description is required'),
   amount: z.string().min(1, 'Amount is required'),
-  quantity: z.string().min(1, 'Quantity is required'),
-  pricePerLiter: z.string().min(1, 'Price per liter is required'),
-  fuelType: z.string().min(1, 'Fuel type is required'),
-  location: z.string().min(1, 'Location is required'),
-  odometer: z.string().min(1, 'Odometer reading is required'),
+  vendor: z.string().min(1, 'Insurance provider is required'),
+  receiptNumber: z.string().optional(),
+  notes: z.string().optional(),
 });
 
-type FuelRecordFormData = z.infer<typeof fuelRecordSchema>;
+type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
 
-interface AddFuelRecordFormProps {
-  onSuccess: (data: any) => void; // Changed to pass data to parent
+interface AddInsuranceRecordFormProps {
+  onSuccess: (data: any) => void;
 }
 
-const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
-  // Get real Firebase data instead of mock data
-  const { vehicles, drivers, expenses } = useFirebaseData();
+const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess }) => {
+  const { vehicles, drivers } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
 
-  const form = useForm<FuelRecordFormData>({
-    resolver: zodResolver(fuelRecordSchema),
+  const form = useForm<InsuranceRecordFormData>({
+    resolver: zodResolver(insuranceRecordSchema),
     defaultValues: {
       vehicleId: '',
       driverId: '',
+      category: 'premium',
+      description: '',
       amount: '',
-      quantity: '',
-      pricePerLiter: '',
-      fuelType: 'Diesel',
-      location: '',
-      odometer: '',
+      vendor: '',
+      receiptNumber: '',
+      notes: '',
     },
   });
 
-  const onSubmit = async (data: FuelRecordFormData) => {
+  const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
-      // Validate odometer reading against previous records
-      const existingRecords = expenses.filter(expense => 
-        expense.vehicleId === data.vehicleId && 
-        (expense.expenseType === 'fuel' || expense.type === 'fuel') &&
-        expense.odometerReading
-      );
-      const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => record.odometerReading || 0))
-        : 0;
-      
-      if (parseInt(data.odometer) <= maxOdometer) {
-        toast({
-          title: "Invalid Odometer Reading",
-          description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const fuelRecordData = {
+      const insuranceRecordData = {
         vehicleId: data.vehicleId,
-        driverId: data.driverId,
+        driverId: data.driverId || undefined, // Convert empty string to undefined
+        category: data.category,
+        description: data.description,
         amount: parseFloat(data.amount),
-        quantity: parseFloat(data.quantity),
-        pricePerLiter: parseFloat(data.pricePerLiter),
-        fuelType: data.fuelType,
-        station: data.location, // Map location to station
-        odometerReading: parseInt(data.odometer),
-        description: `Fuel ${data.fuelType} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`,
+        vendor: data.vendor,
+        receiptNumber: data.receiptNumber,
+        notes: data.notes,
         date: new Date(),
         addedBy: userInfo?.userId || '',
         companyId: userInfo?.companyId || '',
-        status: 'approved' // Auto-approve fuel records
+        status: 'approved' // Auto-approve insurance records
       };
 
-      // Call parent's onSuccess with the fuel record data
-      await onSuccess(fuelRecordData);
+      // Call parent's onSuccess with the insurance record data
+      await onSuccess(insuranceRecordData);
       
       // Reset form on successful submission
       form.reset();
     } catch (error) {
-      console.error('Error in fuel form submission:', error);
+      console.error('Error in insurance form submission:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add fuel record',
+        description: 'Failed to add insurance record',
         variant: 'destructive',
       });
     }
   };
-
-  // Auto-calculate amount when quantity and price change
-  const quantity = form.watch('quantity');
-  const pricePerLiter = form.watch('pricePerLiter');
-  
-  React.useEffect(() => {
-    if (quantity && pricePerLiter) {
-      const calculatedAmount = (parseFloat(quantity) * parseFloat(pricePerLiter)).toFixed(2);
-      form.setValue('amount', calculatedAmount);
-    }
-  }, [quantity, pricePerLiter, form]);
 
   return (
     <Form {...form}>
@@ -144,7 +113,7 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
             name="driverId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Driver</FormLabel>
+                <FormLabel>Driver (Optional)</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
@@ -168,67 +137,24 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="fuelType"
+            name="category"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Fuel Type</FormLabel>
+                <FormLabel>Insurance Type</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select fuel type" />
+                      <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="Diesel">Diesel</SelectItem>
-                    <SelectItem value="Petrol">Petrol</SelectItem>
-                    <SelectItem value="CNG">CNG</SelectItem>
-                    <SelectItem value="Electric">Electric</SelectItem>
+                    <SelectItem value="premium">Premium Payment</SelectItem>
+                    <SelectItem value="claim">Insurance Claim</SelectItem>
+                    <SelectItem value="renewal">Policy Renewal</SelectItem>
+                    <SelectItem value="registration">Registration</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="location"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Location</FormLabel>
-                <FormControl>
-                  <Input placeholder="Fuel station location" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          <FormField
-            control={form.control}
-            name="quantity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Quantity (Liters)</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" placeholder="e.g., 50.5" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="pricePerLiter"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Price per Liter (₹)</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" placeholder="e.g., 85.50" {...field} />
-                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -239,9 +165,9 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
             name="amount"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Total Amount (₹)</FormLabel>
+                <FormLabel>Amount (₹)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="Auto-calculated" {...field} readOnly />
+                  <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -251,12 +177,56 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
 
         <FormField
           control={form.control}
-          name="odometer"
+          name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Odometer Reading (km)</FormLabel>
+              <FormLabel>Description</FormLabel>
               <FormControl>
-                <Input type="number" placeholder="e.g., 75000" {...field} />
+                <Textarea placeholder="Describe the insurance transaction..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="vendor"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Insurance Provider</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="receiptNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Receipt Number (Optional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Receipt/Policy number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes (Optional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Additional notes..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -264,11 +234,11 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
         />
 
         <Button type="submit" className="w-full">
-          Add Fuel Record
+          Add Insurance Record
         </Button>
       </form>
     </Form>
   );
 };
 
-export default AddFuelRecordForm;
+export default AddInsuranceRecordForm;

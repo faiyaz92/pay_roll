@@ -7,16 +7,21 @@ import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { toast } from '@/hooks/use-toast';
 
 const FuelRecords: React.FC = () => {
   const { vehicles, drivers, expenses, loading } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Filter fuel expenses from the expenses collection
+  // Filter fuel expenses from the expenses collection using new hierarchical structure
   const fuelRecords = expenses.filter(expense => 
-    expense.description.toLowerCase().includes('fuel') || 
-    expense.description.toLowerCase().includes('petrol') ||
-    expense.description.toLowerCase().includes('diesel')
+    expense.expenseType === 'fuel' || // New hierarchical structure
+    expense.type === 'fuel' || // Backward compatibility
+    expense.description?.toLowerCase().includes('fuel') || // Fallback for old records
+    expense.description?.toLowerCase().includes('petrol') ||
+    expense.description?.toLowerCase().includes('diesel')
   );
 
   const getVehicleName = (vehicleId: string) => {
@@ -39,6 +44,53 @@ const FuelRecords: React.FC = () => {
   });
   const thisMonthCost = thisMonthRecords.reduce((sum, record) => sum + record.amount, 0);
   const averageCostPerRecord = fuelRecords.length > 0 ? totalFuelCost / fuelRecords.length : 0;
+
+  // Handle recording fuel expense transaction
+  const handleExpenseAdded = async (expenseData: any) => {
+    try {
+      // Record the expense in expenses collection (for backward compatibility)
+      await addDoc(collection(db, 'expenses'), {
+        ...expenseData,
+        type: 'fuel', // Keep for backward compatibility
+        createdAt: new Date(),
+      });
+
+      // Record the transaction in payments collection using hierarchical structure
+      await addDoc(collection(db, 'payments'), {
+        vehicleId: expenseData.vehicleId,
+        driverId: expenseData.driverId,
+        amount: expenseData.amount,
+        description: expenseData.description || `Fuel payment - ${getVehicleName(expenseData.vehicleId)}`,
+        date: expenseData.date || new Date(),
+        createdAt: new Date(),
+        type: 'paid',
+        paymentType: 'expenses',
+        expenseType: 'fuel',
+        // Additional fuel-specific fields
+        fuelType: expenseData.fuelType,
+        quantity: expenseData.quantity,
+        pricePerLiter: expenseData.pricePerLiter,
+        odometerReading: expenseData.odometerReading,
+        station: expenseData.station,
+        receiptNumber: expenseData.receiptNumber,
+        notes: expenseData.notes,
+      });
+
+      toast({
+        title: "Success",
+        description: "Fuel expense recorded successfully.",
+      });
+
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error recording fuel expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record fuel expense. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -67,7 +119,7 @@ const FuelRecords: React.FC = () => {
           isOpen={isModalOpen}
           onOpenChange={setIsModalOpen}
         >
-          <AddFuelRecordForm onSuccess={() => setIsModalOpen(false)} />
+          <AddFuelRecordForm onSuccess={handleExpenseAdded} />
         </AddItemModal>
       </div>
 

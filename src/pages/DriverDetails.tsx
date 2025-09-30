@@ -30,6 +30,7 @@ const DriverDetails: React.FC = () => {
     averagePaymentDelay: 0,
     nextDueDate: '',
     nextDueAmount: 0,
+    nextDueVehicleName: '',
     totalEngagementDays: 0,
     currentVehicleCount: 0
   });
@@ -108,11 +109,18 @@ const DriverDetails: React.FC = () => {
     const duePayments = pmts.filter(p => p.status === 'due' || p.status === 'overdue');
     const totalDue = duePayments.reduce((sum, p) => sum + (p.amountDue || 0), 0);
     
-    // Next due date and amount
+    // Next due date and amount - get earliest due date across all assignments
     const nextDuePayment = duePayments
       .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())[0];
     const nextDueDate = nextDuePayment?.nextDueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const nextDueAmount = nextDuePayment?.amountDue || 0;
+    
+    // Get vehicle name for next due payment
+    let nextDueVehicleName = '';
+    if (nextDuePayment) {
+      const vehicle = vehicles.find(v => v.id === nextDuePayment.vehicleId);
+      nextDueVehicleName = vehicle ? `${vehicle.vehicleName || vehicle.make + ' ' + vehicle.model} (${vehicle.registrationNumber})` : 'Unknown Vehicle';
+    }
 
     setAnalytics({
       creditScore: Math.round(creditScore),
@@ -123,6 +131,7 @@ const DriverDetails: React.FC = () => {
       averagePaymentDelay: Math.round(averagePaymentDelay),
       nextDueDate: nextDueDate,
       nextDueAmount: nextDueAmount,
+      nextDueVehicleName: nextDueVehicleName,
       totalEngagementDays,
       currentVehicleCount
     });
@@ -220,6 +229,9 @@ const DriverDetails: React.FC = () => {
             <div className="text-2xl font-bold text-red-600">₹{analytics.totalDue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               Next: ₹{analytics.nextDueAmount.toLocaleString()} on {new Date(analytics.nextDueDate).toLocaleDateString()}
+              {analytics.nextDueVehicleName && (
+                <><br />Vehicle: {analytics.nextDueVehicleName}</>
+              )}
             </p>
           </CardContent>
         </Card>
