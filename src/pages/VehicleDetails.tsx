@@ -90,7 +90,6 @@ const VehicleDetails: React.FC = () => {
     // For backward compatibility, also check old 'type' field
     const fuelExpenses = vehicleExpenses.filter(e => 
       (e.expenseType === 'fuel') || 
-      (e.type === 'fuel') || 
       e.description.toLowerCase().includes('fuel')
     ).reduce((sum, e) => sum + e.amount, 0);
     

@@ -52,11 +52,11 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
       // Validate odometer reading against previous records
       const existingRecords = expenses.filter(expense => 
         expense.vehicleId === data.vehicleId && 
-        (expense.expenseType === 'fuel' || expense.type === 'fuel') &&
+        (expense.expenseType === 'fuel' || expense.description?.toLowerCase().includes('fuel')) &&
         expense.odometerReading
       );
       const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => record.odometerReading || 0))
+        ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
         : 0;
       
       if (parseInt(data.odometer) <= maxOdometer) {

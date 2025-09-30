@@ -18,7 +18,6 @@ const FuelRecords: React.FC = () => {
   // Filter fuel expenses from the expenses collection using new hierarchical structure
   const fuelRecords = expenses.filter(expense => 
     expense.expenseType === 'fuel' || // New hierarchical structure
-    expense.type === 'fuel' || // Backward compatibility
     expense.description?.toLowerCase().includes('fuel') || // Fallback for old records
     expense.description?.toLowerCase().includes('petrol') ||
     expense.description?.toLowerCase().includes('diesel')

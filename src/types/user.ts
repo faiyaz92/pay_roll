@@ -79,6 +79,11 @@ export interface LoanDetails {
 }
 
 export interface Vehicle {
+
+  insuranceExpiryDate: any;
+  insurancePolicyNumber: string;
+  insuranceProvider: string;
+  insurancePremium: any;
   id: string;
   vehicleName: string;
   registrationNumber: string; // Changed from licensePlate

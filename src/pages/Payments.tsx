@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFirebaseData } from '@/hooks/useFirebaseData';
-import { Payment, Expense } from '@/types/user';
+import { useFirebaseData, Payment, Expense } from '@/hooks/useFirebaseData';
 
 // Normalized transaction interface
 interface Transaction {

@@ -79,11 +79,17 @@ export interface Expense {
   status: 'pending' | 'approved' | 'rejected';
   approvedAt: string | null;
   adjustmentWeeks: number; // Weeks to deduct from rent
-  type: 'general' | 'maintenance' | 'insurance' | 'penalties' | 'emi' | 'prepayment';
+  type: 'general' | 'maintenance' | 'insurance' | 'penalties' | 'emi' | 'prepayment' | 'fuel';
   verifiedKm: number; // Owner-entered km from bill
   companyId: string;
   createdAt: string;
   updatedAt: string;
+  // Hierarchical structure fields
+  paymentType?: 'emi' | 'prepayment' | 'expenses';
+  expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
+  // Additional fields for specific expense types
+  odometerReading?: number;
+  [key: string]: any; // Allow additional fields
 }
 
 export interface Payment {

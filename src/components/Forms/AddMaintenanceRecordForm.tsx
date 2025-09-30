@@ -57,7 +57,7 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
         expense.odometerReading
       );
       const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => record.odometerReading || 0))
+        ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
         : 0;
       
       if (parseInt(data.odometer) <= maxOdometer) {
