@@ -187,14 +187,18 @@ export interface Payment {
   assignmentId: string;
   vehicleId: string;
   driverId: string;
-  weekStart: Date;
+  weekStart: string;
   amountDue: number;
   amountPaid: number;
-  paidAt: Date | null;
-  collectionDate: Date | null;
-  nextDueDate: Date;
+  paidAt: string | null;
+  collectionDate: string | null;
+  nextDueDate: string;
   daysLeft: number;
   status: 'due' | 'paid' | 'overdue';
+  // New hierarchical structure
+  type: 'paid' | 'received';
+  paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
+  expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
   companyId: string;
 }
 
@@ -206,12 +210,15 @@ export interface Expense {
   billUrl?: string;
   submittedBy: string; // Driver ID
   status: 'pending' | 'approved' | 'rejected';
-  approvedAt: Date | null;
+  approvedAt: string | null;
   adjustmentWeeks?: number;
-  type: 'general' | 'maintenance' | 'insurance' | 'penalties';
+  // New hierarchical structure
+  type: 'paid' | 'received';
+  paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
+  expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
   verifiedKm?: number;
   companyId: string;
-  createdAt: Date;
+  createdAt: string;
 }
 
 export interface FuelRecord {

@@ -19,6 +19,7 @@ import { Vehicle, Assignment } from '@/types/user';
 import { 
   Car, 
   CreditCard, 
+  Banknote,
   TrendingUp, 
   TrendingDown,
   Calendar, 
@@ -65,6 +66,10 @@ const VehicleDetails: React.FC = () => {
   });
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [paymentDateFilter, setPaymentDateFilter] = useState('');
+  // New 3-level filtering states
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState('all'); // 'all' | 'paid' | 'received'
+  const [paidSubTypeFilter, setPaidSubTypeFilter] = useState('all'); // 'all' | 'emi' | 'prepayment' | 'expenses'
+  const [expenseSubTypeFilter, setExpenseSubTypeFilter] = useState('all'); // 'all' | 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general'
   const [showEmiForm, setShowEmiForm] = useState(false);
   const [showRentForm, setShowRentForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -81,12 +86,43 @@ const VehicleDetails: React.FC = () => {
     // Filter expenses for this vehicle
     const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
     
-    // Calculate totals by category
-    const fuelExpenses = vehicleExpenses.filter(e => e.description.toLowerCase().includes('fuel')).reduce((sum, e) => sum + e.amount, 0);
-    const maintenanceExpenses = vehicleExpenses.filter(e => e.type === 'maintenance').reduce((sum, e) => sum + e.amount, 0);
-    const insuranceExpenses = vehicleExpenses.filter(e => e.type === 'insurance').reduce((sum, e) => sum + e.amount, 0);
-    const penaltyExpenses = vehicleExpenses.filter(e => e.type === 'penalties').reduce((sum, e) => sum + e.amount, 0);
-    const otherExpenses = vehicleExpenses.filter(e => e.type === 'general' && !e.description.toLowerCase().includes('fuel')).reduce((sum, e) => sum + e.amount, 0);
+    // Calculate totals by category using new hierarchical structure
+    // For backward compatibility, also check old 'type' field
+    const fuelExpenses = vehicleExpenses.filter(e => 
+      (e.expenseType === 'fuel') || 
+      (e.type === 'fuel') || 
+      e.description.toLowerCase().includes('fuel')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const maintenanceExpenses = vehicleExpenses.filter(e => 
+      (e.expenseType === 'maintenance') || 
+      (e.type === 'maintenance')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const insuranceExpenses = vehicleExpenses.filter(e => 
+      (e.expenseType === 'insurance') || 
+      (e.type === 'insurance')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const penaltyExpenses = vehicleExpenses.filter(e => 
+      (e.expenseType === 'penalties') || 
+      (e.type === 'penalties')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const emiPayments = vehicleExpenses.filter(e => 
+      (e.paymentType === 'emi') || 
+      (e.type === 'emi')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const prepayments = vehicleExpenses.filter(e => 
+      (e.paymentType === 'prepayment') || 
+      (e.type === 'prepayment')
+    ).reduce((sum, e) => sum + e.amount, 0);
+    
+    const otherExpenses = vehicleExpenses.filter(e => 
+      (e.expenseType === 'general') || 
+      (e.type === 'general')
+    ).reduce((sum, e) => sum + e.amount, 0);
     
     const totalExpenses = vehicleExpenses.reduce((sum, e) => sum + e.amount, 0);
     
@@ -108,6 +144,8 @@ const VehicleDetails: React.FC = () => {
       maintenanceExpenses,
       insuranceExpenses,
       penaltyExpenses,
+      emiPayments,
+      prepayments,
       otherExpenses,
       recentExpenses: recentExpensesList,
       expenseRatio: financialData?.totalEarnings ? (totalExpenses / financialData.totalEarnings) * 100 : 0
@@ -135,7 +173,8 @@ const VehicleDetails: React.FC = () => {
         if (emi.isPaid) {
           payments.push({
             date: emi.paidAt || emi.dueDate,
-            type: 'emi',
+            type: 'paid',
+            paymentType: 'emi',
             amount: emi.interest + emi.principal,
             description: `EMI Payment - Month ${index + 1}`,
             paymentMethod: 'Bank Transfer',
@@ -158,7 +197,8 @@ const VehicleDetails: React.FC = () => {
     vehicleRentPayments.forEach((payment) => {
       payments.push({
         date: payment.paidAt || payment.collectionDate || payment.createdAt,
-        type: 'rent',
+        type: 'received',
+        paymentType: 'rent',
         amount: payment.amountPaid,
         description: `Weekly rent collection - Week starting ${new Date(payment.weekStart).toLocaleDateString()}`,
         paymentMethod: 'Cash', // Default, can be updated based on actual data
@@ -169,9 +209,23 @@ const VehicleDetails: React.FC = () => {
 
     // Add expenses
     expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved').forEach((expense, index) => {
+      // Determine expense type based on description or type
+      let expenseType = 'general';
+      if (expense.description?.toLowerCase().includes('fuel')) {
+        expenseType = 'fuel';
+      } else if (expense.type === 'maintenance') {
+        expenseType = 'maintenance';
+      } else if (expense.type === 'insurance') {
+        expenseType = 'insurance';
+      } else if (expense.type === 'penalties') {
+        expenseType = 'penalties';
+      }
+
       payments.push({
         date: expense.createdAt,
-        type: expense.type === 'maintenance' ? 'maintenance' : 'expense',
+        type: 'paid',
+        paymentType: 'expenses',
+        expenseType: expenseType,
         amount: expense.amount,
         description: expense.description,
         paymentMethod: 'Bank Transfer',
@@ -189,9 +243,50 @@ const VehicleDetails: React.FC = () => {
 
   // Filter payments based on selected filters
   const filteredPayments = allPayments.filter(payment => {
-    // Filter by type
-    if (paymentFilter !== 'all' && payment.type !== paymentFilter) {
-      return false;
+    // 3-level filtering system using new hierarchical structure
+    
+    // Level 1: Transaction Type (Paid/Received)
+    if (transactionTypeFilter !== 'all') {
+      if (transactionTypeFilter === 'paid' && payment.type !== 'paid') {
+        return false;
+      }
+      if (transactionTypeFilter === 'received' && payment.type !== 'received') {
+        return false;
+      }
+    }
+    
+    // Level 2: Payment Sub-Type
+    if (paidSubTypeFilter !== 'all') {
+      if (payment.paymentType !== paidSubTypeFilter) {
+        return false;
+      }
+    }
+    
+    // Level 3: Expense Sub-Type (only for expenses)
+    if (paidSubTypeFilter === 'expenses' && expenseSubTypeFilter !== 'all') {
+      if (payment.expenseType !== expenseSubTypeFilter) {
+        return false;
+      }
+    }
+
+    // Legacy single-level filter (keep for backward compatibility)
+    if (paymentFilter !== 'all') {
+      // Map legacy filters to new structure
+      if (paymentFilter === 'emi' && !(payment.type === 'paid' && payment.paymentType === 'emi')) {
+        return false;
+      }
+      if (paymentFilter === 'prepayment' && !(payment.type === 'paid' && payment.paymentType === 'prepayment')) {
+        return false;
+      }
+      if (paymentFilter === 'rent' && !(payment.type === 'received' && payment.paymentType === 'rent')) {
+        return false;
+      }
+      if (paymentFilter === 'expense' && !(payment.type === 'paid' && payment.paymentType === 'expenses')) {
+        return false;
+      }
+      if (paymentFilter === 'maintenance' && !(payment.type === 'paid' && payment.paymentType === 'expenses' && payment.expenseType === 'maintenance')) {
+        return false;
+      }
     }
 
     // Filter by date (month/year)
@@ -1853,7 +1948,7 @@ const VehicleDetails: React.FC = () => {
             </div>
 
             {/* Expense Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1929,6 +2024,54 @@ const VehicleDetails: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                    EMI Payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">This Month</span>
+                      <span className="font-medium">₹{Math.round(expenseData.emiPayments / 12).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total</span>
+                      <span className="font-medium">₹{expenseData.emiPayments.toLocaleString()}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Monthly loan payments
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Banknote className="h-5 w-5 text-orange-600" />
+                    Prepayments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">This Month</span>
+                      <span className="font-medium">₹{Math.round(expenseData.prepayments / 12).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total</span>
+                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Early loan payments
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-purple-600" />
                     Other Expenses
                   </CardTitle>
@@ -1968,6 +2111,8 @@ const VehicleDetails: React.FC = () => {
                               expense.type === 'maintenance' ? 'bg-orange-100' :
                               expense.type === 'insurance' ? 'bg-green-100' :
                               expense.type === 'penalties' ? 'bg-red-100' :
+                              expense.type === 'emi' ? 'bg-indigo-100' :
+                              expense.type === 'prepayment' ? 'bg-orange-100' :
                               'bg-purple-100'
                             }`}>
                               {expense.description.toLowerCase().includes('fuel') ? (
@@ -1978,13 +2123,25 @@ const VehicleDetails: React.FC = () => {
                                 <Shield className="h-4 w-4 text-green-600" />
                               ) : expense.type === 'penalties' ? (
                                 <AlertCircle className="h-4 w-4 text-red-600" />
+                              ) : expense.type === 'emi' ? (
+                                <CreditCard className="h-4 w-4 text-indigo-600" />
+                              ) : expense.type === 'prepayment' ? (
+                                <Banknote className="h-4 w-4 text-orange-600" />
                               ) : (
                                 <DollarSign className="h-4 w-4 text-purple-600" />
                               )}
                             </div>
                             <div>
                               <div className="font-medium">{expense.description}</div>
-                              <div className="text-sm text-gray-500">{expense.type === 'maintenance' ? 'Maintenance' : 'General Expense'}</div>
+                              <div className="text-sm text-gray-500">
+                                {expense.type === 'maintenance' ? 'Maintenance' :
+                                 expense.type === 'insurance' ? 'Insurance' :
+                                 expense.type === 'penalties' ? 'Penalties' :
+                                 expense.type === 'emi' ? 'EMI Payment' :
+                                 expense.type === 'prepayment' ? 'Prepayment' :
+                                 expense.description.toLowerCase().includes('fuel') ? 'Fuel' :
+                                 'General Expense'}
+                              </div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -2067,18 +2224,72 @@ const VehicleDetails: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Track all payments and receipts for this vehicle</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {/* Level 1: Transaction Type Filter */}
                 <select 
-                  className="px-3 py-2 border rounded-md text-sm"
-                  value={paymentFilter}
-                  onChange={(e) => setPaymentFilter(e.target.value)}
+                  className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
+                  value={transactionTypeFilter}
+                  onChange={(e) => {
+                    setTransactionTypeFilter(e.target.value);
+                    setPaidSubTypeFilter('all'); // Reset sub-filters
+                    setExpenseSubTypeFilter('all');
+                    setPaymentFilter('all'); // Reset legacy filter
+                  }}
                 >
                   <option value="all">All Transactions</option>
-                  <option value="emi">EMI Payments</option>
-                  <option value="prepayment">Prepayments</option>
-                  <option value="rent">Rent Received</option>
-                  <option value="expense">Expenses</option>
-                  <option value="maintenance">Maintenance</option>
+                  <option value="paid">Paid</option>
+                  <option value="received">Received</option>
                 </select>
+
+                {/* Level 2: Paid Sub-Type Filter (only show when "Paid" is selected) */}
+                {transactionTypeFilter === 'paid' && (
+                  <select 
+                    className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
+                    value={paidSubTypeFilter}
+                    onChange={(e) => {
+                      setPaidSubTypeFilter(e.target.value);
+                      setExpenseSubTypeFilter('all'); // Reset expense sub-filter
+                    }}
+                  >
+                    <option value="all">All Paid Types</option>
+                    <option value="emi">EMI</option>
+                    <option value="prepayment">Prepayment</option>
+                    <option value="expenses">Expenses</option>
+                  </select>
+                )}
+
+                {/* Level 3: Expense Sub-Type Filter (only show when "Expenses" is selected) */}
+                {paidSubTypeFilter === 'expenses' && (
+                  <select 
+                    className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
+                    value={expenseSubTypeFilter}
+                    onChange={(e) => setExpenseSubTypeFilter(e.target.value)}
+                  >
+                    <option value="all">All Expenses</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="insurance">Insurance</option>
+                    <option value="fuel">Fuel</option>
+                    <option value="penalties">Penalties</option>
+                    <option value="general">General</option>
+                  </select>
+                )}
+
+                {/* Legacy Filter (hidden when using new system) */}
+                {transactionTypeFilter === 'all' && (
+                  <select 
+                    className="px-3 py-2 border rounded-md text-sm"
+                    value={paymentFilter}
+                    onChange={(e) => setPaymentFilter(e.target.value)}
+                  >
+                    <option value="all">All Transactions</option>
+                    <option value="emi">EMI Payments</option>
+                    <option value="prepayment">Prepayments</option>
+                    <option value="rent">Rent Received</option>
+                    <option value="expense">Expenses</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                )}
+
+                {/* Date Filter */}
                 <input
                   type="month"
                   className="px-3 py-2 border rounded-md text-sm"
@@ -2087,6 +2298,46 @@ const VehicleDetails: React.FC = () => {
                 />
               </div>
             </div>
+
+            {/* Active Filters Indicator */}
+            {(transactionTypeFilter !== 'all' || paidSubTypeFilter !== 'all' || expenseSubTypeFilter !== 'all' || paymentDateFilter) && (
+              <div className="flex flex-wrap gap-2 items-center text-sm">
+                <span className="text-muted-foreground">Active filters:</span>
+                {transactionTypeFilter !== 'all' && (
+                  <Badge variant="secondary">
+                    {transactionTypeFilter === 'paid' ? 'Paid Transactions' : 'Received Transactions'}
+                  </Badge>
+                )}
+                {paidSubTypeFilter !== 'all' && (
+                  <Badge variant="secondary">
+                    {paidSubTypeFilter === 'emi' ? 'EMI' : 
+                     paidSubTypeFilter === 'prepayment' ? 'Prepayment' : 'Expenses'}
+                  </Badge>
+                )}
+                {expenseSubTypeFilter !== 'all' && (
+                  <Badge variant="secondary">
+                    {expenseSubTypeFilter.charAt(0).toUpperCase() + expenseSubTypeFilter.slice(1)}
+                  </Badge>
+                )}
+                {paymentDateFilter && (
+                  <Badge variant="secondary">
+                    {new Date(paymentDateFilter).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                  </Badge>
+                )}
+                <button 
+                  onClick={() => {
+                    setTransactionTypeFilter('all');
+                    setPaidSubTypeFilter('all');
+                    setExpenseSubTypeFilter('all');
+                    setPaymentDateFilter('');
+                    setPaymentFilter('all');
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-xs"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
 
             {/* Payment Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2097,7 +2348,7 @@ const VehicleDetails: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Paid Out</p>
                       <p className="text-xl font-bold text-red-500">
-                        ₹{(filteredPayments.filter(p => ['emi', 'prepayment', 'expense', 'maintenance'].includes(p.type))
+                        ₹{(filteredPayments.filter(p => p.type === 'paid')
                           .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
                       </p>
                     </div>
@@ -2111,7 +2362,7 @@ const VehicleDetails: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Received</p>
                       <p className="text-xl font-bold text-green-500">
-                        ₹{(filteredPayments.filter(p => p.type === 'rent')
+                        ₹{(filteredPayments.filter(p => p.type === 'received')
                           .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
                       </p>
                     </div>
@@ -2125,7 +2376,7 @@ const VehicleDetails: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">EMI Payments</p>
                       <p className="text-xl font-bold">
-                        ₹{(filteredPayments.filter(p => p.type === 'emi')
+                        ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'emi')
                           .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
                       </p>
                     </div>
@@ -2139,7 +2390,7 @@ const VehicleDetails: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Prepayments</p>
                       <p className="text-xl font-bold text-purple-500">
-                        ₹{(filteredPayments.filter(p => p.type === 'prepayment')
+                        ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'prepayment')
                           .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
                       </p>
                     </div>
@@ -2183,22 +2434,44 @@ const VehicleDetails: React.FC = () => {
                             <td className="p-2">
                               <Badge 
                                 variant={
-                                  payment.type === 'rent' ? 'default' :
-                                  payment.type === 'emi' ? 'secondary' :
-                                  payment.type === 'prepayment' ? 'outline' :
+                                  payment.type === 'received' ? 'default' :
+                                  payment.paymentType === 'emi' ? 'secondary' :
+                                  payment.paymentType === 'prepayment' ? 'outline' :
+                                  payment.expenseType === 'insurance' ? 'secondary' :
+                                  payment.expenseType === 'penalties' ? 'destructive' :
+                                  payment.expenseType === 'fuel' ? 'secondary' :
                                   'destructive'
                                 }
+                                className={
+                                  payment.type === 'received' ? 'bg-green-100 text-green-800' :
+                                  payment.paymentType === 'emi' ? 'bg-indigo-100 text-indigo-800' :
+                                  payment.paymentType === 'prepayment' ? 'bg-orange-100 text-orange-800' :
+                                  payment.expenseType === 'insurance' ? 'bg-blue-100 text-blue-800' :
+                                  payment.expenseType === 'penalties' ? 'bg-red-100 text-red-800' :
+                                  payment.expenseType === 'fuel' ? 'bg-blue-100 text-blue-800' :
+                                  payment.expenseType === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-purple-100 text-purple-800'
+                                }
                               >
-                                {payment.type.toUpperCase()}
+                                {payment.type === 'received' && payment.paymentType === 'rent' ? 'RENT' :
+                                 payment.type === 'received' && payment.paymentType === 'security' ? 'SECURITY' :
+                                 payment.paymentType === 'emi' ? 'EMI' :
+                                 payment.paymentType === 'prepayment' ? 'PREPAYMENT' :
+                                 payment.expenseType === 'insurance' ? 'INSURANCE' :
+                                 payment.expenseType === 'penalties' ? 'PENALTY' :
+                                 payment.expenseType === 'maintenance' ? 'MAINTENANCE' :
+                                 payment.expenseType === 'fuel' ? 'FUEL' :
+                                 payment.expenseType === 'general' ? 'GENERAL' :
+                                 'EXPENSE'}
                               </Badge>
                             </td>
                             <td className="p-2 text-sm">
                               {payment.description || `${payment.type} payment`}
                             </td>
                             <td className={`p-2 text-right font-medium ${
-                              payment.type === 'rent' ? 'text-green-600' : 'text-red-600'
+                              payment.type === 'received' ? 'text-green-600' : 'text-red-600'
                             }`}>
-                              {payment.type === 'rent' ? '+' : '-'}₹{payment.amount.toLocaleString()}
+                              {payment.type === 'received' ? '+' : '-'}₹{payment.amount.toLocaleString()}
                             </td>
                             <td className="p-2 text-sm">
                               {payment.paymentMethod || 'Bank Transfer'}
@@ -2637,17 +2910,19 @@ const VehicleDetails: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="expenseType">Expense Type</Label>
+              <Label htmlFor="expenseType">Transaction Type</Label>
               <Select value={newExpense.type} onValueChange={(value) => setNewExpense(prev => ({ ...prev, type: value }))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select expense type" />
+                  <SelectValue placeholder="Select transaction type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="fuel">Fuel</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                  <SelectItem value="penalties">Penalties</SelectItem>
-                  <SelectItem value="general">General/Other</SelectItem>
+                  <SelectItem value="emi">EMI Payment</SelectItem>
+                  <SelectItem value="prepayment">Prepayment</SelectItem>
+                  <SelectItem value="fuel">Fuel Expense</SelectItem>
+                  <SelectItem value="maintenance">Maintenance Expense</SelectItem>
+                  <SelectItem value="insurance">Insurance Expense</SelectItem>
+                  <SelectItem value="penalties">Penalties Expense</SelectItem>
+                  <SelectItem value="general">General Expense</SelectItem>
                 </SelectContent>
               </Select>
             </div>
