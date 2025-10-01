@@ -254,11 +254,13 @@ const VehicleDetails: React.FC = () => {
       let expenseType = 'general';
       if (expense.description?.toLowerCase().includes('fuel')) {
         expenseType = 'fuel';
-      } else if (expense.type === 'maintenance') {
+      } else if (expense.expenseType === 'fuel' || expense.type === 'fuel') {
+        expenseType = 'fuel';
+      } else if (expense.expenseType === 'maintenance' || expense.type === 'maintenance') {
         expenseType = 'maintenance';
-      } else if (expense.type === 'insurance') {
+      } else if (expense.expenseType === 'insurance' || expense.type === 'insurance') {
         expenseType = 'insurance';
-      } else if (expense.type === 'penalties') {
+      } else if (expense.expenseType === 'penalties' || expense.type === 'penalties') {
         expenseType = 'penalties';
       }
 
@@ -676,7 +678,7 @@ const VehicleDetails: React.FC = () => {
         status: 'approved' as const,
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
-        expenseType: selectedExpenseType === 'fuel' ? 'fuel' : 'general',
+        expenseType: selectedExpenseType,
         type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel'),
         verifiedKm: 0,
         companyId: '',
@@ -690,12 +692,13 @@ const VehicleDetails: React.FC = () => {
         description: `${selectedExpenseType} expense of ₹${amount.toLocaleString()} has been recorded.`,
       });
 
-      // Reset form and close dialog
+      // Reset form and close dialog AFTER successful save
       setNewExpense({
         amount: '',
         description: '',
         type: 'fuel'
       });
+      setSelectedExpenseType('fuel');
       setShowExpenseForm(false);
 
     } catch (error) {
@@ -720,6 +723,8 @@ const VehicleDetails: React.FC = () => {
           : "Fuel expense recorded successfully.",
       });
 
+      // Reset form state and close dialog AFTER successful save
+      setSelectedExpenseType('fuel');
       setShowExpenseForm(false);
     } catch (error) {
       console.error('Error recording fuel expense:', error);
@@ -2977,7 +2982,17 @@ const VehicleDetails: React.FC = () => {
       </Dialog>
 
       {/* Add Expense Dialog */}
-      <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
+      <Dialog open={addExpenseDialogOpen} onOpenChange={(open) => {
+        setAddExpenseDialogOpen(open);
+        if (open) {
+          setSelectedExpenseType('fuel');
+          setNewExpense({
+            amount: '',
+            description: '',
+            type: 'fuel'
+          });
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Expense</DialogTitle>
@@ -2985,7 +3000,7 @@ const VehicleDetails: React.FC = () => {
           <div className="space-y-4">
             <div>
               <Label htmlFor="expenseType">Transaction Type</Label>
-              <Select value={newExpense.type} onValueChange={(value) => setNewExpense(prev => ({ ...prev, type: value }))}>
+              <Select value={selectedExpenseType} onValueChange={(value) => setSelectedExpenseType(value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select transaction type" />
                 </SelectTrigger>
@@ -3167,8 +3182,8 @@ const VehicleDetails: React.FC = () => {
       {/* Expense Modal */}
       <Dialog open={showExpenseForm} onOpenChange={(open) => {
         setShowExpenseForm(open);
-        if (!open) {
-          // Reset form state when dialog closes
+        if (open) {
+          // Reset form state when dialog opens
           setSelectedExpenseType('fuel');
           setNewExpense({
             amount: '',
@@ -3176,83 +3191,85 @@ const VehicleDetails: React.FC = () => {
             type: 'fuel'
           });
         }
+        // Remove state reset when dialog closes - let handleAddExpense handle it after successful save
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Expense</DialogTitle>
           </DialogHeader>
-          {selectedExpenseType === 'fuel' ? (
-            <AddFuelRecordForm onSuccess={handleFuelRecordAdded} />
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="expense-date">Expense Date</Label>
-                <Input
-                  id="expense-date"
-                  type="date"
-                  defaultValue={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expense-amount">Amount</Label>
-                <Input
-                  id="expense-amount"
-                  type="number"
-                  placeholder="Enter expense amount"
-                  value={newExpense.amount}
-                  onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expense-type">Expense Type</Label>
-                <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select expense type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fuel">Fuel</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="insurance">Insurance</SelectItem>
-                    <SelectItem value="registration">Registration</SelectItem>
-                    <SelectItem value="penalty">Penalty/Fine</SelectItem>
-                    <SelectItem value="general">General</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expense-description">Description</Label>
-                <Input
-                  id="expense-description"
-                  placeholder="Enter expense description"
-                  value={newExpense.description}
-                  onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expense-method">Payment Method</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
-                    <SelectItem value="credit_card">Credit Card</SelectItem>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddExpense}>
-                  Record Expense
-                </Button>
-              </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="expense-type">Expense Type</Label>
+              <select
+                id="expense-type"
+                value={selectedExpenseType}
+                onChange={(e) => setSelectedExpenseType(e.target.value as typeof selectedExpenseType)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="fuel">Fuel</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="insurance">Insurance</option>
+                <option value="penalties">Penalty/Fine</option>
+                <option value="general">General</option>
+              </select>
             </div>
-          )}
+            {selectedExpenseType === 'fuel' ? (
+              <AddFuelRecordForm onSuccess={handleFuelRecordAdded} />
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="expense-date">Expense Date</Label>
+                  <Input
+                    id="expense-date"
+                    type="date"
+                    defaultValue={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expense-amount">Amount</Label>
+                  <Input
+                    id="expense-amount"
+                    type="number"
+                    placeholder="Enter expense amount"
+                    value={newExpense.amount}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expense-description">Description</Label>
+                  <Input
+                    id="expense-description"
+                    placeholder="Enter expense description"
+                    value={newExpense.description}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expense-method">Payment Method</Label>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select payment method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="upi">UPI</SelectItem>
+                      <SelectItem value="credit_card">Credit Card</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddExpense}>
+                    Record Expense
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
