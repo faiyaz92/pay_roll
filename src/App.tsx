@@ -20,6 +20,7 @@ import FuelRecords from "@/pages/FuelRecords";
 import MaintenanceRecords from "@/pages/MaintenanceRecords";
 import FuelPrices from "@/pages/FuelPrices";
 import NotFound from "@/pages/NotFound";
+import Reports from "@/pages/Reports";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -51,7 +52,7 @@ const App = () => (
               <Route path="fuel-records" element={<FuelRecords/>} />
               <Route path="fuel-prices" element={<FuelPrices/>} />
               <Route path="expenses" element={<div className="p-6"><h1 className="text-3xl font-bold">Expense Management</h1><p className="text-gray-600 mt-2">Track and manage car rental expenses</p></div>} />
-              <Route path="reports" element={<div className="p-6"><h1 className="text-3xl font-bold">Reports & Analytics</h1><p className="text-gray-600 mt-2">Generate detailed car rental reports and analytics</p></div>} />
+              <Route path="reports" element={<Reports />} />
               <Route path="bookings" element={<div className="p-6"><h1 className="text-3xl font-bold">Booking Management</h1><p className="text-gray-600 mt-2">Manage customer car rental bookings</p></div>} />
               <Route path="notifications" element={<div className="p-6"><h1 className="text-3xl font-bold">Notifications</h1><p className="text-gray-600 mt-2">View and manage system notifications</p></div>} />
               <Route path="settings" element={<div className="p-6"><h1 className="text-3xl font-bold">Settings</h1><p className="text-gray-600 mt-2">Configure system settings and preferences</p></div>} />

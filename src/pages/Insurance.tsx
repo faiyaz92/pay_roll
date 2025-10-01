@@ -227,7 +227,7 @@ const Insurance: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">Add vehicles to track their insurance status.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {vehicles.map((vehicle) => {
                 const expiryDate = vehicle.insuranceExpiryDate ? new Date(vehicle.insuranceExpiryDate) : null;
                 const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -380,7 +380,8 @@ const Insurance: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">Start tracking insurance expenses by adding your first record.</p>
             </div>
           ) : (
-            <Table>
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -447,6 +448,7 @@ const Insurance: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

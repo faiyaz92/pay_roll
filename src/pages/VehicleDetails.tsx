@@ -76,7 +76,8 @@ import {
   FileText,
   ImageIcon,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 
@@ -1024,6 +1025,219 @@ const VehicleDetails: React.FC = () => {
     );
   };
 
+  // Export Functions
+  const exportToExcel = async () => {
+    try {
+      // Dynamic import to avoid bundle size issues
+      const XLSX = await import('xlsx');
+
+      const workbook = XLSX.utils.book_new();
+
+      // Vehicle Overview Sheet
+      const overviewData = [
+        ['Vehicle Details'],
+        ['Vehicle Name', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`],
+        ['Registration Number', vehicle.registrationNumber],
+        ['Make', vehicle.make],
+        ['Model', vehicle.model],
+        ['Year', vehicle.year],
+        ['Status', vehicle.status],
+        ['Financial Status', vehicle.financialStatus || 'cash'],
+        ['Odometer Reading', vehicle.odometer || 'N/A'],
+        [''],
+        ['Current Assignment'],
+        ['Assigned Driver', vehicle.assignedDriverId ? getDriverName(vehicle.assignedDriverId) : 'Not Assigned'],
+        ['Current Status', financialData.isCurrentlyRented ? 'Rented' : 'Available'],
+        ['Monthly Rent', financialData.isCurrentlyRented ? `₹${financialData.monthlyRent.toLocaleString()}` : 'N/A'],
+        [''],
+        ['Financial Summary'],
+        ['Total Earnings', `₹${financialData.totalEarnings.toLocaleString()}`],
+        ['Total Expenses', `₹${expenseData.totalExpenses.toLocaleString()}`],
+        ['Net Profit', `₹${(financialData.totalEarnings - expenseData.totalExpenses).toLocaleString()}`],
+        ['Current ROI', `${financialData.currentROI.toFixed(2)}%`],
+        ['Outstanding Loan', vehicle.financingType === 'loan' ? `₹${financialData.outstandingLoan.toLocaleString()}` : 'N/A']
+      ];
+
+      const overviewSheet = XLSX.utils.aoa_to_sheet(overviewData);
+      XLSX.utils.book_append_sheet(workbook, overviewSheet, 'Overview');
+
+      // Financials Sheet
+      const financialsData = [
+        ['Financial Performance'],
+        ['Metric', 'Amount'],
+        ['Total Earnings', financialData.totalEarnings],
+        ['Total Expenses', expenseData.totalExpenses],
+        ['Net Profit', financialData.totalEarnings - expenseData.totalExpenses],
+        ['Monthly Profit', calculateMonthlyProfit()],
+        ['Current ROI', financialData.currentROI],
+        ['Outstanding Loan', vehicle.financingType === 'loan' ? financialData.outstandingLoan : 0],
+        ['Total Investment', getTotalInvestment()],
+        [''],
+        ['Expense Breakdown'],
+        ['Category', 'Amount', 'Percentage'],
+        ['Fuel', expenseData.fuelExpenses, expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['Maintenance', expenseData.maintenanceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['Insurance', expenseData.insuranceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['Penalties', expenseData.penaltyExpenses, expenseData.totalExpenses > 0 ? ((expenseData.penaltyExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['EMI Payments', expenseData.emiPayments, expenseData.totalExpenses > 0 ? ((expenseData.emiPayments / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['Prepayments', expenseData.prepayments, expenseData.totalExpenses > 0 ? ((expenseData.prepayments / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
+        ['Other', expenseData.otherExpenses, expenseData.totalExpenses > 0 ? ((expenseData.otherExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']
+      ];
+
+      const financialsSheet = XLSX.utils.aoa_to_sheet(financialsData);
+      XLSX.utils.book_append_sheet(workbook, financialsSheet, 'Financials');
+
+      // EMI Tracking Sheet
+      const emiData = [
+        ['EMI Tracking Details'],
+        ['Loan Amount', vehicle.loanDetails?.totalLoan ? `₹${vehicle.loanDetails.totalLoan.toLocaleString()}` : 'N/A'],
+        ['Interest Rate', vehicle.loanDetails?.interestRate ? `${vehicle.loanDetails.interestRate}%` : 'N/A'],
+        ['EMI Amount', vehicle.loanDetails?.emiPerMonth ? `₹${vehicle.loanDetails.emiPerMonth.toLocaleString()}` : 'N/A'],
+        ['Outstanding Loan', `₹${financialData.outstandingLoan.toLocaleString()}`],
+        [''],
+        ['EMI Schedule'],
+        ['Month', 'Due Date', 'Interest', 'Principal', 'Outstanding', 'Status', 'Paid Date']
+      ];
+
+      if (vehicle.loanDetails?.amortizationSchedule) {
+        vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
+          emiData.push([
+            (index + 1).toString(),
+            emi.dueDate,
+            emi.interest.toString(),
+            emi.principal.toString(),
+            emi.outstanding.toString(),
+            emi.isPaid ? 'Paid' : 'Pending',
+            emi.paidAt || 'N/A'
+          ]);
+        });
+      }
+
+      const emiSheet = XLSX.utils.aoa_to_sheet(emiData);
+      XLSX.utils.book_append_sheet(workbook, emiSheet, 'EMI Tracking');
+
+      // Payment History Sheet
+      const paymentHistoryData = [
+        ['Payment History'],
+        ['Date', 'Type', 'Payment Type', 'Expense Type', 'Amount', 'Description', 'Status']
+      ];
+
+      allPayments.forEach(payment => {
+        paymentHistoryData.push([
+          payment.date,
+          payment.type,
+          payment.paymentType,
+          payment.expenseType || 'N/A',
+          payment.amount,
+          payment.description,
+          payment.status
+        ]);
+      });
+
+      const paymentHistorySheet = XLSX.utils.aoa_to_sheet(paymentHistoryData);
+      XLSX.utils.book_append_sheet(workbook, paymentHistorySheet, 'Payment History');
+
+      // Expenses Sheet
+      const expensesData = [
+        ['Expense Details'],
+        ['Date', 'Type', 'Category', 'Amount', 'Description', 'Status']
+      ];
+
+      expenseData.recentExpenses.forEach(expense => {
+        expensesData.push([
+          expense.createdAt,
+          expense.expenseType || expense.type,
+          expense.expenseType || expense.type,
+          expense.amount.toString(),
+          expense.description,
+          expense.status
+        ]);
+      });
+
+      const expensesSheet = XLSX.utils.aoa_to_sheet(expensesData);
+      XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Expenses');
+
+      // Assignments Sheet
+      const { assignments } = useAssignments();
+      const vehicleAssignments = assignments.filter(a => a.vehicleId === vehicleId);
+
+      const assignmentsData = [
+        ['Assignment History'],
+        ['Start Date', 'End Date', 'Driver', 'Weekly Rent', 'Daily Rent', 'Status', 'Total Weeks']
+      ];
+
+      vehicleAssignments.forEach(assignment => {
+        const startDate = new Date(assignment.startDate);
+        const endDate = assignment.endDate ? new Date(assignment.endDate) : new Date();
+        const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        
+        assignmentsData.push([
+          assignment.startDate,
+          assignment.endDate || 'Ongoing',
+          getDriverName(assignment.driverId),
+          assignment.weeklyRent.toString(),
+          assignment.dailyRent.toString(),
+          assignment.status,
+          totalWeeks.toString()
+        ]);
+      });
+
+      const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
+      XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments');
+
+      // Analytics Sheet
+      const analyticsData = [
+        ['Analytics Summary'],
+        ['Metric', 'Value'],
+        ['Total Distance Travelled', `${vehicle.odometer?.toLocaleString() || 'N/A'} km`],
+        ['Average Monthly Expenses', `₹${expenseData.monthlyAverage.toFixed(0)}`],
+        ['Expense to Earnings Ratio', `${expenseData.expenseRatio.toFixed(2)}%`],
+        ['Total Assignments', vehicleAssignments.length.toString()],
+        ['Completed Assignments', vehicleAssignments.filter(a => a.status === 'ended').length.toString()],
+        ['Active Assignments', vehicleAssignments.filter(a => a.status === 'active').length.toString()],
+        ['Average Assignment Duration', vehicleAssignments.length > 0 ? `${(vehicleAssignments.reduce((sum, a) => {
+          const startDate = new Date(a.startDate);
+          const endDate = a.endDate ? new Date(a.endDate) : new Date();
+          const weeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+          return sum + weeks;
+        }, 0) / vehicleAssignments.length).toFixed(1)} weeks` : 'N/A'],
+        [''],
+        ['Performance Metrics'],
+        ['Utilization Rate', vehicleAssignments.length > 0 ? `${((vehicleAssignments.filter(a => a.status === 'ended').length / vehicleAssignments.length) * 100).toFixed(1)}%` : '0%'],
+        ['Revenue per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(financialData.totalEarnings / vehicle.odometer).toFixed(2)}` : 'N/A'],
+        ['Expense per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(expenseData.totalExpenses / vehicle.odometer).toFixed(2)}` : 'N/A']
+      ];
+
+      const analyticsSheet = XLSX.utils.aoa_to_sheet(analyticsData);
+      XLSX.utils.book_append_sheet(workbook, analyticsSheet, 'Analytics');
+
+      // Generate and download file
+      const fileName = `${vehicle.registrationNumber}_Vehicle_Details_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+
+      toast({
+        title: "Excel Export Successful",
+        description: `Vehicle details exported to ${fileName}`,
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportToPDF = () => {
+    // PDF export functionality would require jsPDF library
+    toast({
+      title: "PDF Export",
+      description: "PDF export functionality coming soon",
+    });
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -1052,6 +1266,14 @@ const VehicleDetails: React.FC = () => {
         </div>
         
         <div className="flex gap-2">
+          <Button variant="outline" onClick={exportToExcel}>
+            <Download className="h-4 w-4 mr-2" />
+            Export Excel
+          </Button>
+          <Button variant="outline" onClick={exportToPDF}>
+            <FileText className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
           <Button variant="outline" onClick={() => navigate('/vehicles')}>
             Back to Fleet
           </Button>
@@ -2507,7 +2729,7 @@ const VehicleDetails: React.FC = () => {
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-h-[500px] overflow-y-auto">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>

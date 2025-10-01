@@ -194,7 +194,8 @@ const FuelRecords: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">Start tracking fuel consumption by adding your first record.</p>
             </div>
           ) : (
-            <Table>
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -264,6 +265,7 @@ const FuelRecords: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

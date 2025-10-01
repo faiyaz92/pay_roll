@@ -376,7 +376,7 @@ const Payments: React.FC = () => {
       )}
 
       {/* Transactions List */}
-      <div className="space-y-4">
+      <div className="max-h-[600px] overflow-y-auto space-y-4">
         {filteredTransactions.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
