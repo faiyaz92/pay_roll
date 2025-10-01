@@ -12,7 +12,7 @@ import { db } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 
 const Insurance: React.FC = () => {
-  const { vehicles, drivers, expenses, loading } = useFirebaseData();
+  const { vehicles, drivers, expenses, loading, updateVehicle } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Filter insurance expenses from the expenses collection using new hierarchical structure
@@ -73,17 +73,33 @@ const Insurance: React.FC = () => {
         createdAt: new Date(),
         type: 'paid',
         paymentType: 'expenses',
-        expenseType: 'insurance',
+        expenseType: 'insurance', // Use hierarchical structure
         // Additional insurance-specific fields
-        category: expenseData.category,
+        insuranceType: expenseData.insuranceType,
+        policyNumber: expenseData.policyNumber,
         vendor: expenseData.vendor,
         receiptNumber: expenseData.receiptNumber,
         notes: expenseData.notes,
+        startDate: expenseData.startDate,
+        endDate: expenseData.endDate,
       });
+
+      // Update vehicle's insurance status with new insurance details
+      const vehicleId = expenseData.vehicleId;
+      const vehicle = vehicles.find(v => v.id === vehicleId);
+      
+      if (vehicle && updateVehicle) {
+        await updateVehicle(vehicleId, {
+          insurancePolicyNumber: expenseData.policyNumber,
+          insuranceProvider: expenseData.vendor,
+          insuranceExpiryDate: expenseData.endDate,
+          insurancePremium: expenseData.amount,
+        });
+      }
 
       toast({
         title: "Success",
-        description: "Insurance expense recorded successfully.",
+        description: `Insurance expense recorded successfully. Vehicle insurance status updated with policy ${expenseData.policyNumber}.`,
       });
 
       setIsModalOpen(false);

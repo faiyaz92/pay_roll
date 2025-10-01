@@ -14,10 +14,13 @@ import { useFirebaseData } from '@/hooks/useFirebaseData';
 const insuranceRecordSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle is required'),
   driverId: z.string().optional(),
-  category: z.enum(['premium', 'claim', 'renewal', 'registration', 'other']),
+  insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive']),
+  policyNumber: z.string().min(1, 'Policy number is required'),
   description: z.string().min(1, 'Description is required'),
   amount: z.string().min(1, 'Amount is required'),
   vendor: z.string().min(1, 'Insurance provider is required'),
+  startDate: z.string().min(1, 'Insurance start date is required'),
+  endDate: z.string().min(1, 'Insurance end date is required'),
   receiptNumber: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -38,10 +41,13 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     defaultValues: {
       vehicleId: '',
       driverId: '',
-      category: 'premium',
+      insuranceType: 'third_party',
+      policyNumber: '',
       description: '',
       amount: '',
       vendor: '',
+      startDate: '',
+      endDate: '',
       receiptNumber: '',
       notes: '',
     },
@@ -49,13 +55,29 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
+      // Validate date range
+      const startDate = new Date(data.startDate);
+      const endDate = new Date(data.endDate);
+      
+      if (endDate <= startDate) {
+        toast({
+          title: 'Invalid Date Range',
+          description: 'Insurance end date must be after start date.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const insuranceRecordData = {
         vehicleId: data.vehicleId,
         driverId: data.driverId || undefined, // Convert empty string to undefined
-        category: data.category,
+        insuranceType: data.insuranceType,
+        policyNumber: data.policyNumber,
         description: data.description,
         amount: parseFloat(data.amount),
         vendor: data.vendor,
+        startDate: data.startDate,
+        endDate: data.endDate,
         receiptNumber: data.receiptNumber,
         notes: data.notes,
         date: new Date(),
@@ -137,22 +159,20 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="category"
+            name="insuranceType"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Insurance Type</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder="Select insurance type" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="premium">Premium Payment</SelectItem>
-                    <SelectItem value="claim">Insurance Claim</SelectItem>
-                    <SelectItem value="renewal">Policy Renewal</SelectItem>
-                    <SelectItem value="registration">Registration</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="third_party">Third Party</SelectItem>
+                    <SelectItem value="zero_dept">Zero Dept</SelectItem>
+                    <SelectItem value="comprehensive">Comprehensive</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -162,12 +182,72 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
           <FormField
             control={form.control}
+            name="policyNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Policy Number</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., POL12345678" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="startDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Insurance Start Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="endDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Insurance End Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
             name="amount"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Amount (₹)</FormLabel>
+                <FormLabel>Premium Amount (₹)</FormLabel>
                 <FormControl>
                   <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="vendor"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Insurance Provider</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -192,26 +272,12 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="vendor"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Insurance Provider</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
             name="receiptNumber"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Receipt Number (Optional)</FormLabel>
                 <FormControl>
-                  <Input placeholder="Receipt/Policy number" {...field} />
+                  <Input placeholder="Receipt/Transaction number" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -234,7 +300,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         />
 
         <Button type="submit" className="w-full">
-          Add Insurance Record
+          Add Insurance Expense
         </Button>
       </form>
     </Form>
