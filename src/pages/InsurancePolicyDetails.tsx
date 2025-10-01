@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Shield, Calendar, DollarSign, FileText, Eye, Download, Car, User, Building, AlertTriangle } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, Shield, Calendar, DollarSign, FileText, Eye, Download, Car, User, Building, AlertTriangle, ImageIcon } from 'lucide-react';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
 
@@ -302,39 +303,127 @@ const InsurancePolicyDetails: React.FC = () => {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="space-y-4">
-          {latestInsuranceRecord?.insuranceDocuments && Object.keys(latestInsuranceRecord.insuranceDocuments).length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(latestInsuranceRecord.insuranceDocuments).map(([type, url]) => (
-                <Card key={type} className="relative">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-500" />
-                        <span className="text-sm font-medium">{getDocumentTypeName(type)}</span>
+          {(vehicle.insuranceDocuments && Object.keys(vehicle.insuranceDocuments).length > 0) ||
+           (latestInsuranceRecord?.insuranceDocuments && Object.keys(latestInsuranceRecord.insuranceDocuments).length > 0) ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Insurance Documents */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Insurance Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Show documents from vehicle record first */}
+                    {vehicle.insuranceDocuments && Object.entries(vehicle.insuranceDocuments).map(([type, url]) => (
+                      <div key={`vehicle-${type}`} className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                          {getDocumentTypeName(type)}
+                          <Badge variant="outline" className="text-xs">Vehicle Record</Badge>
+                        </Label>
+                        <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
+                          <div className="relative w-full h-full">
+                            {url && typeof url === 'string' && (url.includes('.pdf') || url.includes('.PDF')) ? (
+                              <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                <FileText className="w-8 h-8 mb-2 text-red-500" />
+                                <span className="text-xs text-center">PDF Document</span>
+                              </div>
+                            ) : (
+                              <img
+                                src={url as string}
+                                alt={getDocumentTypeName(type)}
+                                className="w-full h-full object-cover rounded-md"
+                              />
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="absolute top-2 right-2 p-1 h-8 w-8"
+                              onClick={() => handleDocumentPreview(url as string, getDocumentTypeName(type))}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
+                    ))}
 
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDocumentPreview(url as string, getDocumentTypeName(type))}
-                          className="flex-1"
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          Preview
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(url as string, '_blank')}
-                        >
-                          <Download className="w-3 h-3" />
-                        </Button>
-                      </div>
+                    {/* Show documents from latest insurance record if not already shown */}
+                    {latestInsuranceRecord?.insuranceDocuments && Object.entries(latestInsuranceRecord.insuranceDocuments).map(([type, url]) => {
+                      // Skip if this document type is already shown from vehicle record
+                      if (vehicle.insuranceDocuments && vehicle.insuranceDocuments[type]) {
+                        return null;
+                      }
+                      return (
+                        <div key={`expense-${type}`} className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            {getDocumentTypeName(type)}
+                            <Badge variant="secondary" className="text-xs">Expense Record</Badge>
+                          </Label>
+                          <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
+                            <div className="relative w-full h-full">
+                              {url && typeof url === 'string' && (url.includes('.pdf') || url.includes('.PDF')) ? (
+                                <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                  <FileText className="w-8 h-8 mb-2 text-red-500" />
+                                  <span className="text-xs text-center">PDF Document</span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={url as string}
+                                  alt={getDocumentTypeName(type)}
+                                  className="w-full h-full object-cover rounded-md"
+                                />
+                              )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="absolute top-2 right-2 p-1 h-8 w-8"
+                                onClick={() => handleDocumentPreview(url as string, getDocumentTypeName(type))}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Vehicle Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Car className="w-5 h-5" />
+                    Vehicle Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <Label className="text-gray-500">Registration Number</Label>
+                      <p className="font-medium">{vehicle.registrationNumber}</p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <div>
+                      <Label className="text-gray-500">Make & Model</Label>
+                      <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-500">Year</Label>
+                      <p className="font-medium">{vehicle.year}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-500">Odometer</Label>
+                      <p className="font-medium">{vehicle.odometer?.toLocaleString() || 0} km</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <Card>

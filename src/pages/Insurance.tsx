@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit, Eye, FileText } from 'lucide-react';
+import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit, Eye, FileText, Car } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
@@ -77,12 +77,30 @@ const Insurance: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold">Insurance Management</h1>
-          <p className="text-muted-foreground mt-2">Manage vehicle insurance policies, renewals, and claims</p>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Shield className="h-8 w-8" />
+            Insurance Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Track vehicle insurance policies and renewals
+          </p>
+          <div className="flex gap-2 mt-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              {vehicles.length} Vehicles
+            </Badge>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              ₹{totalInsuranceCost.toLocaleString()} Total Cost
+            </Badge>
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              {expiringInsurance} Expiring Soon
+            </Badge>
+          </div>
         </div>
+        
         <div className="flex gap-2">
           <AddItemModal
             title={editingRecord ? "Edit Insurance Dates" : "Add Insurance Record"}
@@ -136,7 +154,7 @@ const Insurance: React.FC = () => {
       </div>
 
       {/* Insurance Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Insurance Cost</CardTitle>
@@ -144,6 +162,9 @@ const Insurance: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{totalInsuranceCost.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              All time insurance expenses
+            </p>
           </CardContent>
         </Card>
 
@@ -154,6 +175,9 @@ const Insurance: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{thisMonthCost.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            </p>
           </CardContent>
         </Card>
 
@@ -164,6 +188,9 @@ const Insurance: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{Math.round(averageCostPerRecord).toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Per insurance record
+            </p>
           </CardContent>
         </Card>
 
@@ -174,7 +201,9 @@ const Insurance: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-600">{expiringInsurance}</div>
-            <p className="text-xs text-muted-foreground">Next 30 days</p>
+            <p className="text-xs text-muted-foreground">
+              Next 30 days
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -182,7 +211,10 @@ const Insurance: React.FC = () => {
       {/* Vehicle Insurance Status Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Vehicle Insurance Status</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Vehicle Insurance Status
+          </CardTitle>
           <CardDescription>
             Current insurance status and renewal dates for all vehicles
           </CardDescription>
@@ -195,68 +227,89 @@ const Insurance: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">Add vehicles to track their insurance status.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Policy Number</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Premium</TableHead>
-                  <TableHead>Expiry Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Days Left</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicles.map((vehicle) => {
-                  const expiryDate = vehicle.insuranceExpiryDate ? new Date(vehicle.insuranceExpiryDate) : null;
-                  const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                  const isExpired = daysLeft !== null && daysLeft < 0;
-                  const isExpiring = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0;
-                  
-                  return (
-                    <TableRow key={vehicle.id}>
-                      <TableCell className="font-medium">
-                        {vehicle.registrationNumber} ({vehicle.make} {vehicle.model})
-                      </TableCell>
-                      <TableCell>
-                        {vehicle.insurancePolicyNumber || 'Not Set'}
-                      </TableCell>
-                      <TableCell>
-                        {vehicle.insuranceProvider || 'Not Set'}
-                      </TableCell>
-                      <TableCell>
-                        {vehicle.insurancePremium ? `₹${vehicle.insurancePremium.toLocaleString()}` : 'Not Set'}
-                      </TableCell>
-                      <TableCell>
-                        {expiryDate ? expiryDate.toLocaleDateString() : 'Not Set'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={
-                            isExpired ? 'destructive' : 
-                            isExpiring ? 'secondary' : 
-                            'default'
-                          }
-                        >
-                          {isExpired ? 'Expired' : isExpiring ? 'Expiring Soon' : 'Active'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {daysLeft !== null ? (
-                          <span className={
+            <div className="space-y-4">
+              {vehicles.map((vehicle) => {
+                const expiryDate = vehicle.insuranceExpiryDate ? new Date(vehicle.insuranceExpiryDate) : null;
+                const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                const isExpired = daysLeft !== null && daysLeft < 0;
+                const isExpiring = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0;
+                
+                return (
+                  <Card key={vehicle.id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <Car className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-lg">
+                            {vehicle.registrationNumber}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {vehicle.make} {vehicle.model} ({vehicle.year})
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Policy Number</div>
+                          <div className="font-medium">
+                            {vehicle.insurancePolicyNumber || 'Not Set'}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Provider</div>
+                          <div className="font-medium">
+                            {vehicle.insuranceProvider || 'Not Set'}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Premium</div>
+                          <div className="font-medium">
+                            {vehicle.insurancePremium ? `₹${vehicle.insurancePremium.toLocaleString()}` : 'Not Set'}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Expiry Date</div>
+                          <div className="font-medium">
+                            {expiryDate ? expiryDate.toLocaleDateString() : 'Not Set'}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Status</div>
+                          <div className="font-medium">
+                            <Badge 
+                              variant={
+                                isExpired ? 'destructive' : 
+                                isExpiring ? 'secondary' : 
+                                'default'
+                              }
+                            >
+                              {isExpired ? 'Expired' : isExpiring ? 'Expiring Soon' : 'Active'}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Days Left</div>
+                          <div className={`font-medium ${
                             isExpired ? 'text-red-600' : 
                             isExpiring ? 'text-amber-600' : 
                             'text-green-600'
-                          }>
-                            {isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`}
-                          </span>
-                        ) : (
-                          'Not Set'
-                        )}
-                      </TableCell>
-                      <TableCell>
+                          }`}>
+                            {daysLeft !== null ? (
+                              isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`
+                            ) : (
+                              'Not Set'
+                            )}
+                          </div>
+                        </div>
+                        
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
@@ -264,22 +317,33 @@ const Insurance: React.FC = () => {
                             onClick={() => handleViewPolicyDetails(vehicle)}
                           >
                             <Eye className="h-4 w-4 mr-2" />
-                            View Details
+                            Details
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
+                              // Find the latest insurance record for this vehicle to get start date
+                              const vehicleInsuranceRecords = expenses.filter(expense =>
+                                expense.vehicleId === vehicle.id &&
+                                (expense.expenseType === 'insurance' || expense.type === 'insurance')
+                              );
+                              const latestRecord = vehicleInsuranceRecords.sort(
+                                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                              )[0];
+
                               // Create a mock insurance record for editing
                               const mockRecord = {
                                 id: `vehicle-${vehicle.id}`,
                                 vehicleId: vehicle.id,
                                 insuranceDetails: {
                                   policyNumber: vehicle.insurancePolicyNumber || '',
+                                  startDate: vehicle.insuranceStartDate || latestRecord?.insuranceDetails?.startDate || '',
                                   endDate: vehicle.insuranceExpiryDate || '',
                                 },
                                 vendor: vehicle.insuranceProvider || '',
-                                notes: '',
+                                notes: latestRecord?.notes || '',
+                                insuranceDocuments: vehicle.insuranceDocuments || latestRecord?.insuranceDocuments || {},
                               };
                               setEditingRecord(mockRecord);
                               setIsModalOpen(true);
@@ -287,15 +351,15 @@ const Insurance: React.FC = () => {
                             disabled={!vehicle.insuranceExpiryDate}
                           >
                             <Edit className="h-4 w-4 mr-2" />
-                            Edit Dates
+                            Edit
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

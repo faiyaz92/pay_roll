@@ -59,15 +59,15 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   });
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
 
-  // Define schema inside component to access isCorrection prop
+  // Define schema inside component to access isCorrection prop and editingRecord
   const insuranceRecordSchema = z.object({
-    vehicleId: z.string().min(1, 'Vehicle is required'),
+    vehicleId: editingRecord ? z.string().optional() : z.string().min(1, 'Vehicle is required'),
     driverId: z.string().optional(),
-    insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
-    policyNumber: z.string().min(1, 'Policy number is required'),
-    description: z.string().min(1, 'Description is required'),
-    amount: z.string().min(1, 'Amount is required'),
-    vendor: z.string().min(1, 'Insurance provider is required'),
+    insuranceType: editingRecord ? z.string().optional() : z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
+    policyNumber: editingRecord ? z.string().optional() : z.string().min(1, 'Policy number is required'),
+    description: editingRecord ? z.string().optional() : z.string().min(1, 'Description is required'),
+    amount: editingRecord ? z.string().optional() : z.string().min(1, 'Amount is required'),
+    vendor: editingRecord ? z.string().optional() : z.string().min(1, 'Insurance provider is required'),
     startDate: z.string().min(1, 'Insurance start date is required'),
     endDate: z.string().min(1, 'Insurance end date is required'),
     receiptNumber: z.string().optional(),
@@ -86,7 +86,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   });
 
   type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
-  const { vehicles, drivers, addExpense, updateExpense } = useFirebaseData();
+  const { vehicles, drivers, addExpense, updateExpense, updateVehicle } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
 
@@ -130,6 +130,17 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   // Populate form when editing
   useEffect(() => {
     if (editingRecord) {
+      // Helper function to format date for HTML input
+      const formatDateForInput = (dateString: string | undefined) => {
+        if (!dateString) return '';
+        try {
+          const date = new Date(dateString);
+          return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        } catch {
+          return '';
+        }
+      };
+
       form.reset({
         vehicleId: editingRecord.vehicleId || '',
         driverId: editingRecord.driverId || '',
@@ -138,14 +149,50 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         description: editingRecord.description || '',
         amount: editingRecord.amount?.toString() || '',
         vendor: editingRecord.vendor || '',
-        startDate: editingRecord.insuranceDetails?.startDate || editingRecord.startDate || '',
-        endDate: editingRecord.insuranceDetails?.endDate || editingRecord.endDate || '',
+        startDate: formatDateForInput(editingRecord.insuranceDetails?.startDate || editingRecord.startDate),
+        endDate: formatDateForInput(editingRecord.insuranceDetails?.endDate || editingRecord.endDate),
         receiptNumber: editingRecord.receiptNumber || '',
         notes: editingRecord.notes || '',
         originalTransactionRef: '',
       });
+
+      // Populate existing documents if available
+      if (editingRecord.insuranceDocuments) {
+        const existingDocs = { ...insuranceDocuments };
+        Object.entries(editingRecord.insuranceDocuments).forEach(([key, url]) => {
+          if (key === 'policyCopy' && url) {
+            existingDocs.policyCopy = {
+              url: url as string,
+              name: 'Insurance Policy Copy',
+              size: 0, // We don't have size info for existing docs
+              uploadedAt: new Date().toISOString()
+            };
+          } else if (key === 'rcCopy' && url) {
+            existingDocs.rcCopy = {
+              url: url as string,
+              name: 'RC Copy (Registration Certificate)',
+              size: 0,
+              uploadedAt: new Date().toISOString()
+            };
+          } else if (key === 'previousYearPolicy' && url) {
+            existingDocs.previousYearPolicy = {
+              url: url as string,
+              name: 'Previous Year Policy',
+              size: 0,
+              uploadedAt: new Date().toISOString()
+            };
+          }
+        });
+        setInsuranceDocuments(existingDocs);
+      }
     } else {
       form.reset();
+      setInsuranceDocuments({
+        policyCopy: null,
+        rcCopy: null,
+        previousYearPolicy: null,
+        additional: [],
+      });
     }
   }, [editingRecord, form]);
 
@@ -167,18 +214,21 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
       }
 
       if (editingRecord) {
-        // Handle editing vehicle insurance dates
-        // await updateVehicleInsuranceStatus(editingRecord.vehicleId, {
-        //   policyNumber: editingRecord.insuranceDetails?.policyNumber || editingRecord.policyNumber || '',
-        //   insuranceType: editingRecord.insuranceDetails?.insuranceType || editingRecord.insuranceType || 'third_party',
-        //   startDate: data.startDate,
-        //   endDate: data.endDate,
-        //   status: 'active',
-        // });
+        // Handle editing insurance dates and documents - only update vehicle record
+        await updateVehicle(editingRecord.vehicleId, {
+          insuranceExpiryDate: data.endDate,
+          insuranceStartDate: data.startDate,
+          insurancePolicyNumber: data.policyNumber,
+          insuranceProvider: data.vendor,
+          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? {
+            ...editingRecord.insuranceDocuments,
+            ...uploadedDocuments
+          } : editingRecord.insuranceDocuments,
+        });
 
         toast({
           title: 'Success',
-          description: 'Insurance dates updated successfully',
+          description: 'Insurance dates and documents updated successfully',
         });
       } else {
         // Handle new record creation
@@ -217,7 +267,15 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
         await addExpense(expenseData);
 
-      
+        // Also update the vehicle record with insurance details
+        await updateVehicle(data.vehicleId, {
+          insuranceExpiryDate: data.endDate,
+          insuranceStartDate: data.startDate,
+          insurancePolicyNumber: data.policyNumber,
+          insuranceProvider: data.vendor,
+          insurancePremium: parseFloat(data.amount),
+          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
+        });
 
         toast({
           title: 'Success',
@@ -450,15 +508,13 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         />
 
         {/* Insurance Documents Upload Section */}
-        {!editingRecord && (
-          <div className="border-t pt-6">
-            <InsuranceDocumentUploader
-              documents={insuranceDocuments}
-              onDocumentsChange={setInsuranceDocuments}
-              isUploading={isUploadingDocuments}
-            />
-          </div>
-        )}
+        <div className="border-t pt-6">
+          <InsuranceDocumentUploader
+            documents={insuranceDocuments}
+            onDocumentsChange={setInsuranceDocuments}
+            isUploading={isUploadingDocuments}
+          />
+        </div>
 
         {/* Correction Section - Only show when isCorrection is true */}
         {isCorrection && (
