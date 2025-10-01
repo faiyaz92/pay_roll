@@ -25,10 +25,17 @@ const insuranceRecordSchema = z.object({
   endDate: z.string().min(1, 'Insurance end date is required'),
   receiptNumber: z.string().optional(),
   notes: z.string().optional(),
-  // Correction fields
-  isCorrection: z.boolean().optional(),
+  // Correction fields - required when isCorrection is true
   originalTransactionRef: z.string().optional(),
-  correctionType: z.enum(['add', 'subtract']).optional(),
+}).superRefine((data, ctx) => {
+  // If this is a correction form, originalTransactionRef is required
+  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Original transaction ID is required for corrections',
+      path: ['originalTransactionRef'],
+    });
+  }
 });
 
 type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
@@ -36,9 +43,10 @@ type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
 interface AddInsuranceRecordFormProps {
   onSuccess?: (data: any) => void;
   editingRecord?: any;
+  isCorrection?: boolean;
 }
 
-const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord }) => {
+const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord, isCorrection = false }) => {
   const { vehicles, drivers } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
@@ -50,16 +58,14 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
       driverId: '',
       insuranceType: 'third_party',
       policyNumber: '',
-      description: '',
+      description: isCorrection ? 'Insurance correction' : '',
       amount: '',
       vendor: '',
       startDate: '',
       endDate: '',
       receiptNumber: '',
       notes: '',
-      isCorrection: false,
       originalTransactionRef: '',
-      correctionType: 'add',
     },
   });
 
@@ -78,9 +84,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         endDate: editingRecord.insuranceDetails?.endDate || editingRecord.endDate || '',
         receiptNumber: editingRecord.receiptNumber || '',
         notes: editingRecord.notes || '',
-        isCorrection: false,
         originalTransactionRef: '',
-        correctionType: 'add',
       });
     } else {
       form.reset();
@@ -109,8 +113,10 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         // Handle new record creation
         const expenseData: Omit<Expense, 'id'> = {
           vehicleId: data.vehicleId,
-          amount: parseFloat(data.amount),
-          description: data.description,
+          amount: isCorrection ? parseFloat(data.amount) : parseFloat(data.amount), // Allow negative amounts for corrections
+          description: isCorrection 
+            ? `Insurance correction - Ref: ${data.originalTransactionRef} - ${data.description}`
+            : data.description,
           billUrl: '',
           submittedBy: data.driverId || 'owner',
           status: 'approved' as const,
@@ -133,9 +139,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             startDate: data.startDate,
             endDate: data.endDate,
           },
-          isCorrection: data.isCorrection,
+          isCorrection: isCorrection,
           originalTransactionRef: data.originalTransactionRef,
-          correctionType: data.correctionType,
         };
 
         await addExpense(expenseData);
@@ -363,72 +368,27 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           )}
         />
 
-        {/* Correction Section - Only show when not editing */}
-        {!editingRecord && (
+        {/* Correction Section - Only show when isCorrection is true */}
+        {isCorrection && (
           <div className="space-y-4 border-t pt-4">
             <FormField
               control={form.control}
-              name="isCorrection"
+              name="originalTransactionRef"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                <FormItem>
+                  <FormLabel>Original Transaction ID</FormLabel>
                   <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
+                    <Input placeholder="Paste the original transaction ID to correct" {...field} />
                   </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>This is a correction entry</FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Check this if you're correcting a previous insurance transaction
-                    </p>
-                  </div>
+                  <FormMessage />
                 </FormItem>
               )}
             />
-
-            {form.watch('isCorrection') && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="originalTransactionRef"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Original Transaction ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Paste the original transaction ID" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="correctionType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Correction Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select correction type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="add">Add to original amount</SelectItem>
-                          <SelectItem value="subtract">Subtract from original amount</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
           </div>
-        )}        <Button type="submit" className="w-full">
-          {editingRecord ? 'Update Insurance Dates' : 'Add Insurance Expense'}
+        )}
+
+        <Button type="submit" className="w-full">
+          {editingRecord ? 'Update Insurance Dates' : isCorrection ? 'Record Correction' : 'Add Insurance Expense'}
         </Button>
       </form>
     </Form>

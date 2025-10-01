@@ -20,19 +20,27 @@ const fuelRecordSchema = z.object({
   fuelType: z.string().min(1, 'Fuel type is required'),
   location: z.string().min(1, 'Location is required'),
   odometer: z.string().min(1, 'Odometer reading is required'),
-  // Correction fields
-  isCorrection: z.boolean().optional(),
+  // Correction fields - required when isCorrection is true
   originalTransactionRef: z.string().optional(),
-  correctionType: z.enum(['add', 'subtract']).optional(),
+}).superRefine((data, ctx) => {
+  // If this is a correction form, originalTransactionRef is required
+  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Original transaction ID is required for corrections',
+      path: ['originalTransactionRef'],
+    });
+  }
 });
 
 type FuelRecordFormData = z.infer<typeof fuelRecordSchema>;
 
 interface AddFuelRecordFormProps {
   onSuccess: (data: any) => void; // Changed to pass data to parent
+  isCorrection?: boolean;
 }
 
-const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
+const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess, isCorrection = false }) => {
   // Get real Firebase data instead of mock data
   const { vehicles, drivers, expenses } = useFirebaseData();
   const { userInfo } = useAuth();
@@ -49,40 +57,39 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
       fuelType: 'Diesel',
       location: '',
       odometer: '',
-      isCorrection: false,
       originalTransactionRef: '',
-      correctionType: 'add',
     },
   });
 
   const onSubmit = async (data: FuelRecordFormData) => {
     try {
-      // Validate odometer reading against previous records
-      const existingRecords = expenses.filter(expense => 
-        expense.vehicleId === data.vehicleId && 
-        (expense.expenseType === 'fuel' || expense.description?.toLowerCase().includes('fuel')) &&
-        expense.odometerReading
-      );
-      const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
-        : 0;
-      
-      if (parseInt(data.odometer) <= maxOdometer) {
-        toast({
-          title: "Invalid Odometer Reading",
-          description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
-          variant: "destructive",
-        });
-        return;
+      // Skip odometer validation for corrections
+      if (!isCorrection) {
+        // Validate odometer reading against previous records
+        const existingRecords = expenses.filter(expense => 
+          expense.vehicleId === data.vehicleId && 
+          (expense.expenseType === 'fuel' || expense.description?.toLowerCase().includes('fuel')) &&
+          expense.odometerReading
+        );
+        const maxOdometer = existingRecords.length > 0 
+          ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
+          : 0;
+        
+        if (parseInt(data.odometer) <= maxOdometer) {
+          toast({
+            title: "Invalid Odometer Reading",
+            description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       const fuelRecordData = {
         vehicleId: data.vehicleId,
-        amount: data.isCorrection && data.correctionType === 'subtract' 
-          ? -parseFloat(data.amount) // Negative amount for subtractions
-          : parseFloat(data.amount), // Positive amount for additions/corrections
-        description: data.isCorrection 
-          ? `Fuel ${data.correctionType} correction - Ref: ${data.originalTransactionRef} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`
+        amount: parseFloat(data.amount), // Allow any amount for corrections (positive or negative)
+        description: isCorrection 
+          ? `Fuel correction - Ref: ${data.originalTransactionRef} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`
           : `Fuel ${data.fuelType} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`,
         billUrl: '',
         submittedBy: data.driverId, // Use driver as submitter
@@ -101,9 +108,8 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
         odometerReading: parseInt(data.odometer),
         station: data.location,
         // Correction fields
-        isCorrection: data.isCorrection || false,
+        isCorrection: isCorrection,
         originalTransactionRef: data.originalTransactionRef || null,
-        correctionType: data.correctionType || null,
       };
 
       // Call parent's onSuccess with the fuel record data
@@ -285,74 +291,27 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
           )}
         />
 
-        {/* Correction Entry Section */}
-        <div className="space-y-4 border-t pt-4">
-          <FormField
-            control={form.control}
-            name="isCorrection"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel className="text-sm font-medium">
-                    This is a correction entry
-                  </FormLabel>
-                  <p className="text-xs text-muted-foreground">
-                    Check this if you're correcting a previous fuel entry (add/subtract amount)
-                  </p>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          {form.watch('isCorrection') && (
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="originalTransactionRef"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Original Transaction Reference</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Receipt # or Transaction ID" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="correctionType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Correction Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select correction type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="add">Add Amount (Increase total)</SelectItem>
-                        <SelectItem value="subtract">Subtract Amount (Decrease total)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
-        </div>
+        {/* Correction Section - Only show when isCorrection is true */}
+        {isCorrection && (
+          <div className="space-y-4 border-t pt-4">
+            <FormField
+              control={form.control}
+              name="originalTransactionRef"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Original Transaction ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Paste the original transaction ID to correct" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         <Button type="submit" className="w-full">
-          {form.watch('isCorrection') ? 'Add Fuel Correction' : 'Add Fuel Record'}
+          {isCorrection ? 'Record Correction' : 'Add Fuel Record'}
         </Button>
       </form>
     </Form>

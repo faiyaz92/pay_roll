@@ -21,19 +21,27 @@ const maintenanceRecordSchema = z.object({
   serviceProvider: z.string().min(1, 'Service provider is required'),
   odometer: z.string().min(1, 'Odometer reading is required'),
   nextServiceOdometer: z.string().optional(),
-  // Correction fields
-  isCorrection: z.boolean().optional(),
+  // Correction fields - required when isCorrection is true
   originalTransactionRef: z.string().optional(),
-  correctionType: z.enum(['add', 'subtract']).optional(),
+}).superRefine((data, ctx) => {
+  // If this is a correction form, originalTransactionRef is required
+  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Original transaction ID is required for corrections',
+      path: ['originalTransactionRef'],
+    });
+  }
 });
 
 type MaintenanceRecordFormData = z.infer<typeof maintenanceRecordSchema>;
 
 interface AddMaintenanceRecordFormProps {
   onSuccess: (data: any) => void; // Changed to pass data to parent
+  isCorrection?: boolean;
 }
 
-const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess }) => {
+const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess, isCorrection = false }) => {
   // Get real Firebase data instead of mock data
   const { vehicles, drivers, expenses } = useFirebaseData();
   const { userInfo } = useAuth();
@@ -50,40 +58,39 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
       serviceProvider: '',
       odometer: '',
       nextServiceOdometer: '',
-      isCorrection: false,
       originalTransactionRef: '',
-      correctionType: 'add',
     },
   });
 
   const onSubmit = async (data: MaintenanceRecordFormData) => {
     try {
-      // Validate odometer reading against previous records
-      const existingRecords = expenses.filter(expense => 
-        expense.vehicleId === data.vehicleId && 
-        (expense.expenseType === 'maintenance' || expense.type === 'maintenance') &&
-        expense.odometerReading
-      );
-      const maxOdometer = existingRecords.length > 0 
-        ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
-        : 0;
-      
-      if (parseInt(data.odometer) <= maxOdometer) {
-        toast({
-          title: "Invalid Odometer Reading",
-          description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
-          variant: "destructive",
-        });
-        return;
+      // Skip odometer validation for corrections
+      if (!isCorrection) {
+        // Validate odometer reading against previous records
+        const existingRecords = expenses.filter(expense => 
+          expense.vehicleId === data.vehicleId && 
+          (expense.expenseType === 'maintenance' || expense.type === 'maintenance') &&
+          expense.odometerReading
+        );
+        const maxOdometer = existingRecords.length > 0 
+          ? Math.max(...existingRecords.map(record => typeof record.odometerReading === 'number' ? record.odometerReading : 0))
+          : 0;
+        
+        if (parseInt(data.odometer) <= maxOdometer) {
+          toast({
+            title: "Invalid Odometer Reading",
+            description: `Odometer reading must be greater than previous reading (${maxOdometer} km)`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       const maintenanceRecordData = {
         vehicleId: data.vehicleId,
-        amount: data.isCorrection && data.correctionType === 'subtract' 
-          ? -parseFloat(data.amount) // Negative amount for subtractions
-          : parseFloat(data.amount), // Positive amount for additions/corrections
-        description: data.isCorrection 
-          ? `Maintenance ${data.correctionType} correction - ${data.type} - Ref: ${data.originalTransactionRef} - ${data.serviceProvider}`
+        amount: parseFloat(data.amount), // Allow any amount for corrections (positive or negative)
+        description: isCorrection 
+          ? `Maintenance correction - ${data.type} - Ref: ${data.originalTransactionRef} - ${data.serviceProvider}`
           : `Maintenance ${data.type} - ${data.serviceProvider}`,
         billUrl: '',
         submittedBy: data.driverId || 'owner', // Use driver as submitter or default to owner
@@ -101,9 +108,8 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
         odometerReading: parseInt(data.odometer),
         ...(data.nextServiceOdometer && { nextDueOdometer: parseInt(data.nextServiceOdometer) }),
         // Correction fields
-        isCorrection: data.isCorrection || false,
+        isCorrection: isCorrection,
         originalTransactionRef: data.originalTransactionRef || null,
-        correctionType: data.correctionType || null,
       };
 
       // Call parent's onSuccess with the maintenance record data
@@ -274,79 +280,27 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
           />
         </div>
 
-        {/* Correction Entry Section */}
-        <div className="space-y-4 border-t pt-4">
-          <FormField
-            control={form.control}
-            name="isCorrection"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>
-                    This is a correction entry
-                  </FormLabel>
-                  <p className="text-sm text-muted-foreground">
-                    Check this if you're correcting a previous maintenance record
-                  </p>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          {form.watch('isCorrection') && (
-            <div className="space-y-4 border border-yellow-200 bg-yellow-50 p-4 rounded-md">
-              <FormField
-                control={form.control}
-                name="originalTransactionRef"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Original Transaction ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Paste the original transaction ID here" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="correctionType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Correction Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select correction type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="add">Add Amount (+)</SelectItem>
-                        <SelectItem value="subtract">Subtract Amount (-)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="text-sm text-yellow-700 bg-yellow-100 p-3 rounded">
-                <strong>Note:</strong> This will create a new correction entry, not modify the original record. 
-                The correction amount will be {form.watch('correctionType') === 'subtract' ? 'subtracted from' : 'added to'} the vehicle's expense total.
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Correction Section - Only show when isCorrection is true */}
+        {isCorrection && (
+          <div className="space-y-4 border-t pt-4">
+            <FormField
+              control={form.control}
+              name="originalTransactionRef"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Original Transaction ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Paste the original transaction ID to correct" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         <Button type="submit" className="w-full">
-          {form.watch('isCorrection') ? 'Add Maintenance Correction' : 'Add Maintenance Record'}
+          {isCorrection ? 'Record Correction' : 'Add Maintenance Record'}
         </Button>
       </form>
     </Form>

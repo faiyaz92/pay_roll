@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Fuel, Filter, Calendar, TrendingUp, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, Fuel, Filter, Calendar, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
@@ -12,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 const FuelRecords: React.FC = () => {
   const { vehicles, drivers, expenses, loading, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
 
   // Filter fuel expenses from the expenses collection using new hierarchical structure
   const fuelRecords = expenses.filter(expense => 
@@ -86,14 +88,51 @@ const FuelRecords: React.FC = () => {
           <h1 className="text-3xl font-bold">Fuel Records</h1>
           <p className="text-muted-foreground mt-2">Track fuel consumption and costs for better fleet management</p>
         </div>
-        <AddItemModal
-          title="Add Fuel Record"
-          buttonText="Add Fuel Record"
-          isOpen={isModalOpen}
-          onOpenChange={setIsModalOpen}
-        >
-          <AddFuelRecordForm onSuccess={handleExpenseAdded} />
-        </AddItemModal>
+        <div className="flex gap-2">
+          <AddItemModal
+            title="Add Fuel Record"
+            buttonText="Add Fuel Record"
+            isOpen={isModalOpen}
+            onOpenChange={setIsModalOpen}
+          >
+            <AddFuelRecordForm onSuccess={handleExpenseAdded} />
+          </AddItemModal>
+          
+          <Dialog open={isCorrectionModalOpen} onOpenChange={setIsCorrectionModalOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Correction
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Fuel Correction
+                </DialogTitle>
+                <DialogDescription className="text-left">
+                  <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                    <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Important Notes:</p>
+                    <ul className="text-sm text-orange-700 space-y-1">
+                      <li>• Corrections create new entries, not modify existing ones</li>
+                      <li>• Use positive amounts to add to previous transactions</li>
+                      <li>• Use negative amounts to subtract from previous transactions</li>
+                      <li>• Always reference the original transaction ID</li>
+                    </ul>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Enter the transaction ID you want to correct and the adjustment amount.
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+              <AddFuelRecordForm 
+                onSuccess={() => setIsCorrectionModalOpen(false)} 
+                isCorrection={true} 
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Statistics Cards */}

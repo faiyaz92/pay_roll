@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
@@ -14,6 +15,7 @@ import { toast } from '@/hooks/use-toast';
 const Insurance: React.FC = () => {
   const { vehicles, drivers, expenses, loading, updateVehicle, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
 
   // Filter insurance expenses from the expenses collection using new hierarchical structure
@@ -75,19 +77,56 @@ const Insurance: React.FC = () => {
           <h1 className="text-3xl font-bold">Insurance Management</h1>
           <p className="text-muted-foreground mt-2">Manage vehicle insurance policies, renewals, and claims</p>
         </div>
-        <AddItemModal
-          title={editingRecord ? "Edit Insurance Dates" : "Add Insurance Record"}
-          buttonText="Add Insurance"
-          isOpen={isModalOpen}
-          onOpenChange={(open) => {
-            setIsModalOpen(open);
-            if (!open) {
-              setEditingRecord(null);
-            }
-          }}
-        >
-          <AddInsuranceRecordForm editingRecord={editingRecord} />
-        </AddItemModal>
+        <div className="flex gap-2">
+          <AddItemModal
+            title={editingRecord ? "Edit Insurance Dates" : "Add Insurance Record"}
+            buttonText="Add Insurance"
+            isOpen={isModalOpen}
+            onOpenChange={(open) => {
+              setIsModalOpen(open);
+              if (!open) {
+                setEditingRecord(null);
+              }
+            }}
+          >
+            <AddInsuranceRecordForm editingRecord={editingRecord} />
+          </AddItemModal>
+          
+          <Dialog open={isCorrectionModalOpen} onOpenChange={setIsCorrectionModalOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Correction
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Insurance Correction
+                </DialogTitle>
+                <DialogDescription className="text-left">
+                  <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                    <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Important Notes:</p>
+                    <ul className="text-sm text-orange-700 space-y-1">
+                      <li>• Corrections create new entries, not modify existing ones</li>
+                      <li>• Use positive amounts to add to previous transactions</li>
+                      <li>• Use negative amounts to subtract from previous transactions</li>
+                      <li>• Always reference the original transaction ID</li>
+                    </ul>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Enter the transaction ID you want to correct and the adjustment amount.
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+              <AddInsuranceRecordForm 
+                isCorrection={true} 
+                onSuccess={() => setIsCorrectionModalOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Insurance Statistics Cards */}
