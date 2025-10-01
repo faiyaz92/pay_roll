@@ -1,20 +1,22 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
+import { Expense } from '@/hooks/useFirebaseData';
 
 const insuranceRecordSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle is required'),
   driverId: z.string().optional(),
-  insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive']),
+  insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
   policyNumber: z.string().min(1, 'Policy number is required'),
   description: z.string().min(1, 'Description is required'),
   amount: z.string().min(1, 'Amount is required'),
@@ -23,15 +25,20 @@ const insuranceRecordSchema = z.object({
   endDate: z.string().min(1, 'Insurance end date is required'),
   receiptNumber: z.string().optional(),
   notes: z.string().optional(),
+  // Correction fields
+  isCorrection: z.boolean().optional(),
+  originalTransactionRef: z.string().optional(),
+  correctionType: z.enum(['add', 'subtract']).optional(),
 });
 
 type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
 
 interface AddInsuranceRecordFormProps {
-  onSuccess: (data: any) => void;
+  onSuccess?: (data: any) => void;
+  editingRecord?: any;
 }
 
-const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess }) => {
+const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord }) => {
   const { vehicles, drivers } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
@@ -50,52 +57,108 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
       endDate: '',
       receiptNumber: '',
       notes: '',
+      isCorrection: false,
+      originalTransactionRef: '',
+      correctionType: 'add',
     },
   });
 
+  // Populate form when editing
+  useEffect(() => {
+    if (editingRecord) {
+      form.reset({
+        vehicleId: editingRecord.vehicleId || '',
+        driverId: editingRecord.driverId || '',
+        insuranceType: editingRecord.insuranceDetails?.insuranceType || editingRecord.insuranceType || 'third_party',
+        policyNumber: editingRecord.insuranceDetails?.policyNumber || editingRecord.policyNumber || '',
+        description: editingRecord.description || '',
+        amount: editingRecord.amount?.toString() || '',
+        vendor: editingRecord.vendor || '',
+        startDate: editingRecord.insuranceDetails?.startDate || editingRecord.startDate || '',
+        endDate: editingRecord.insuranceDetails?.endDate || editingRecord.endDate || '',
+        receiptNumber: editingRecord.receiptNumber || '',
+        notes: editingRecord.notes || '',
+        isCorrection: false,
+        originalTransactionRef: '',
+        correctionType: 'add',
+      });
+    } else {
+      form.reset();
+    }
+  }, [editingRecord, form]);
+
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
-      // Validate date range
-      const startDate = new Date(data.startDate);
-      const endDate = new Date(data.endDate);
-      
-      if (endDate <= startDate) {
+      const { addExpense, updateExpense } = useFirebaseData();
+
+      if (editingRecord) {
+        // Handle editing vehicle insurance dates
+        // await updateVehicleInsuranceStatus(editingRecord.vehicleId, {
+        //   policyNumber: editingRecord.insuranceDetails?.policyNumber || editingRecord.policyNumber || '',
+        //   insuranceType: editingRecord.insuranceDetails?.insuranceType || editingRecord.insuranceType || 'third_party',
+        //   startDate: data.startDate,
+        //   endDate: data.endDate,
+        //   status: 'active',
+        // });
+
         toast({
-          title: 'Invalid Date Range',
-          description: 'Insurance end date must be after start date.',
-          variant: 'destructive',
+          title: 'Success',
+          description: 'Insurance dates updated successfully',
         });
-        return;
+      } else {
+        // Handle new record creation
+        const expenseData: Omit<Expense, 'id'> = {
+          vehicleId: data.vehicleId,
+          amount: parseFloat(data.amount),
+          description: data.description,
+          billUrl: '',
+          submittedBy: data.driverId || 'owner',
+          status: 'approved' as const,
+          approvedAt: new Date().toISOString(),
+          adjustmentWeeks: 0,
+          type: 'insurance',
+          verifiedKm: 0,
+          companyId: '',
+          createdAt: '',
+          updatedAt: '',
+          paymentType: 'expenses',
+          expenseType: 'insurance',
+          // Additional insurance-specific fields
+          vendor: data.vendor,
+          receiptNumber: data.receiptNumber,
+          notes: data.notes,
+          insuranceDetails: {
+            insuranceType: data.insuranceType,
+            policyNumber: data.policyNumber,
+            startDate: data.startDate,
+            endDate: data.endDate,
+          },
+          isCorrection: data.isCorrection,
+          originalTransactionRef: data.originalTransactionRef,
+          correctionType: data.correctionType,
+        };
+
+        await addExpense(expenseData);
+
+      
+
+        toast({
+          title: 'Success',
+          description: data.isCorrection
+            ? 'Insurance correction recorded successfully'
+            : data.insuranceType === 'topup'
+            ? 'Insurance topup recorded successfully'
+            : 'Insurance record added successfully',
+        });
       }
 
-      const insuranceRecordData = {
-        vehicleId: data.vehicleId,
-        driverId: data.driverId || undefined, // Convert empty string to undefined
-        insuranceType: data.insuranceType,
-        policyNumber: data.policyNumber,
-        description: data.description,
-        amount: parseFloat(data.amount),
-        vendor: data.vendor,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        receiptNumber: data.receiptNumber,
-        notes: data.notes,
-        date: new Date(),
-        addedBy: userInfo?.userId || '',
-        companyId: userInfo?.companyId || '',
-        status: 'approved' // Auto-approve insurance records
-      };
-
-      // Call parent's onSuccess with the insurance record data
-      await onSuccess(insuranceRecordData);
-      
       // Reset form on successful submission
       form.reset();
     } catch (error) {
       console.error('Error in insurance form submission:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add insurance record',
+        description: 'Failed to process insurance record',
         variant: 'destructive',
       });
     }
@@ -111,7 +174,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Vehicle</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vehicle" />
@@ -136,7 +199,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Driver (Optional)</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select driver" />
@@ -163,7 +226,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Insurance Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select insurance type" />
@@ -173,6 +236,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
                     <SelectItem value="third_party">Third Party</SelectItem>
                     <SelectItem value="zero_dept">Zero Dept</SelectItem>
                     <SelectItem value="comprehensive">Comprehensive</SelectItem>
+                    <SelectItem value="topup">Topup</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -187,7 +251,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Policy Number</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., POL12345678" {...field} />
+                  <Input placeholder="e.g., POL12345678" {...field} disabled={!!editingRecord} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -233,7 +297,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Premium Amount (₹)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} />
+                  <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} disabled={!!editingRecord} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -247,7 +311,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Insurance Provider</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
+                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} disabled={!!editingRecord} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -262,7 +326,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe the insurance transaction..." {...field} />
+                <Textarea placeholder="Describe the insurance transaction..." {...field} disabled={!!editingRecord} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -277,7 +341,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Receipt Number (Optional)</FormLabel>
                 <FormControl>
-                  <Input placeholder="Receipt/Transaction number" {...field} />
+                  <Input placeholder="Receipt/Transaction number" {...field} disabled={!!editingRecord} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -299,8 +363,72 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           )}
         />
 
-        <Button type="submit" className="w-full">
-          Add Insurance Expense
+        {/* Correction Section - Only show when not editing */}
+        {!editingRecord && (
+          <div className="space-y-4 border-t pt-4">
+            <FormField
+              control={form.control}
+              name="isCorrection"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>This is a correction entry</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Check this if you're correcting a previous insurance transaction
+                    </p>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {form.watch('isCorrection') && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="originalTransactionRef"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Original Transaction ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Paste the original transaction ID" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="correctionType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correction Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select correction type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="add">Add to original amount</SelectItem>
+                          <SelectItem value="subtract">Subtract from original amount</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        )}        <Button type="submit" className="w-full">
+          {editingRecord ? 'Update Insurance Dates' : 'Add Insurance Expense'}
         </Button>
       </form>
     </Form>

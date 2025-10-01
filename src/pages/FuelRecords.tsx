@@ -7,12 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 
 const FuelRecords: React.FC = () => {
-  const { vehicles, drivers, expenses, loading } = useFirebaseData();
+  const { vehicles, drivers, expenses, loading, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Filter fuel expenses from the expenses collection using new hierarchical structure
@@ -33,7 +31,7 @@ const FuelRecords: React.FC = () => {
     return driver ? driver.name : 'Unknown Driver';
   };
 
-  // Calculate quick stats for decoration
+  // Calculate quick stats for decoration (corrections are already included in the amounts)
   const totalFuelCost = fuelRecords.reduce((sum, record) => sum + record.amount, 0);
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -44,40 +42,16 @@ const FuelRecords: React.FC = () => {
   const thisMonthCost = thisMonthRecords.reduce((sum, record) => sum + record.amount, 0);
   const averageCostPerRecord = fuelRecords.length > 0 ? totalFuelCost / fuelRecords.length : 0;
 
-  // Handle recording fuel expense transaction
-  const handleExpenseAdded = async (expenseData: any) => {
+  // Handle recording fuel expense using the standard expense recording pattern
+  const handleExpenseAdded = async (fuelRecordData: any) => {
     try {
-      // Record the expense in expenses collection (for backward compatibility)
-      await addDoc(collection(db, 'expenses'), {
-        ...expenseData,
-        type: 'fuel', // Keep for backward compatibility
-        createdAt: new Date(),
-      });
-
-      // Record the transaction in payments collection using hierarchical structure
-      await addDoc(collection(db, 'payments'), {
-        vehicleId: expenseData.vehicleId,
-        driverId: expenseData.driverId,
-        amount: expenseData.amount,
-        description: expenseData.description || `Fuel payment - ${getVehicleName(expenseData.vehicleId)}`,
-        date: expenseData.date || new Date(),
-        createdAt: new Date(),
-        type: 'paid',
-        paymentType: 'expenses',
-        expenseType: 'fuel',
-        // Additional fuel-specific fields
-        fuelType: expenseData.fuelType,
-        quantity: expenseData.quantity,
-        pricePerLiter: expenseData.pricePerLiter,
-        odometerReading: expenseData.odometerReading,
-        station: expenseData.station,
-        receiptNumber: expenseData.receiptNumber,
-        notes: expenseData.notes,
-      });
+      await addExpense(fuelRecordData);
 
       toast({
         title: "Success",
-        description: "Fuel expense recorded successfully.",
+        description: fuelRecordData.isCorrection 
+          ? "Fuel expense correction recorded successfully." 
+          : "Fuel expense recorded successfully.",
       });
 
       setIsModalOpen(false);
@@ -185,6 +159,7 @@ const FuelRecords: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Transaction ID</TableHead>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
@@ -194,21 +169,54 @@ const FuelRecords: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {fuelRecords.map((record) => (
-                  <TableRow key={record.id}>
+                  <TableRow key={record.id} className={record.isCorrection ? 'bg-yellow-50 border-yellow-200' : ''}>
                     <TableCell>
                       {new Date(record.createdAt).toLocaleDateString()}
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 font-medium mt-1">
+                          {record.correctionType === 'add' ? '↗️ Correction (+)' : '↘️ Correction (-)'}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span 
+                        className="font-mono text-xs bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          navigator.clipboard.writeText(record.id);
+                          toast({
+                            title: "Copied",
+                            description: "Transaction ID copied to clipboard",
+                          });
+                        }}
+                        title="Click to copy Transaction ID"
+                      >
+                        {record.id.slice(0, 8)}...
+                      </span>
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 mt-1">Correction</div>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">
                       {getVehicleName(record.vehicleId)}
                     </TableCell>
                     <TableCell>
                       {record.description}
+                      {record.isCorrection && record.originalTransactionRef && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Ref: {record.originalTransactionRef}
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="font-medium">₹{record.amount.toLocaleString()}</TableCell>
+                    <TableCell className={`font-medium ${record.isCorrection && record.amount < 0 ? 'text-red-600' : record.isCorrection && record.amount > 0 ? 'text-green-600' : ''}`}>
+                      {record.amount < 0 ? '-' : ''}₹{Math.abs(record.amount).toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={record.status === 'approved' ? 'default' : record.status === 'pending' ? 'secondary' : 'destructive'}>
                         {record.status}
                       </Badge>
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 mt-1">Correction</div>
+                      )}
                     </TableCell>
                     <TableCell>
                       {getDriverName(record.submittedBy)}

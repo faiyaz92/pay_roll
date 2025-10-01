@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock } from 'lucide-react';
+import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
@@ -12,8 +12,9 @@ import { db } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 
 const Insurance: React.FC = () => {
-  const { vehicles, drivers, expenses, loading, updateVehicle } = useFirebaseData();
+  const { vehicles, drivers, expenses, loading, updateVehicle, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
 
   // Filter insurance expenses from the expenses collection using new hierarchical structure
   const insuranceRecords = expenses.filter(expense => 
@@ -53,66 +54,6 @@ const Insurance: React.FC = () => {
     return false;
   }).length;
 
-  // Handle recording insurance expense transaction
-  const handleExpenseAdded = async (expenseData: any) => {
-    try {
-      // Record the expense in expenses collection (for backward compatibility)
-      await addDoc(collection(db, 'expenses'), {
-        ...expenseData,
-        type: 'insurance', // Keep for backward compatibility
-        createdAt: new Date(),
-      });
-
-      // Record the transaction in payments collection using hierarchical structure
-      await addDoc(collection(db, 'payments'), {
-        vehicleId: expenseData.vehicleId,
-        driverId: expenseData.driverId,
-        amount: expenseData.amount,
-        description: expenseData.description || `Insurance payment - ${getVehicleName(expenseData.vehicleId)}`,
-        date: expenseData.date || new Date(),
-        createdAt: new Date(),
-        type: 'paid',
-        paymentType: 'expenses',
-        expenseType: 'insurance', // Use hierarchical structure
-        // Additional insurance-specific fields
-        insuranceType: expenseData.insuranceType,
-        policyNumber: expenseData.policyNumber,
-        vendor: expenseData.vendor,
-        receiptNumber: expenseData.receiptNumber,
-        notes: expenseData.notes,
-        startDate: expenseData.startDate,
-        endDate: expenseData.endDate,
-      });
-
-      // Update vehicle's insurance status with new insurance details
-      const vehicleId = expenseData.vehicleId;
-      const vehicle = vehicles.find(v => v.id === vehicleId);
-      
-      if (vehicle && updateVehicle) {
-        await updateVehicle(vehicleId, {
-          insurancePolicyNumber: expenseData.policyNumber,
-          insuranceProvider: expenseData.vendor,
-          insuranceExpiryDate: expenseData.endDate,
-          insurancePremium: expenseData.amount,
-        });
-      }
-
-      toast({
-        title: "Success",
-        description: `Insurance expense recorded successfully. Vehicle insurance status updated with policy ${expenseData.policyNumber}.`,
-      });
-
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error('Error recording insurance expense:', error);
-      toast({
-        title: "Error",
-        description: "Failed to record insurance expense. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -135,12 +76,17 @@ const Insurance: React.FC = () => {
           <p className="text-muted-foreground mt-2">Manage vehicle insurance policies, renewals, and claims</p>
         </div>
         <AddItemModal
-          title="Add Insurance Record"
+          title={editingRecord ? "Edit Insurance Dates" : "Add Insurance Record"}
           buttonText="Add Insurance"
           isOpen={isModalOpen}
-          onOpenChange={setIsModalOpen}
+          onOpenChange={(open) => {
+            setIsModalOpen(open);
+            if (!open) {
+              setEditingRecord(null);
+            }
+          }}
         >
-          <AddInsuranceRecordForm onSuccess={handleExpenseAdded} />
+          <AddInsuranceRecordForm editingRecord={editingRecord} />
         </AddItemModal>
       </div>
 
@@ -214,6 +160,7 @@ const Insurance: React.FC = () => {
                   <TableHead>Expiry Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Days Left</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -264,6 +211,33 @@ const Insurance: React.FC = () => {
                           'Not Set'
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Create a mock insurance record for editing
+                            const mockRecord = {
+                              id: `vehicle-${vehicle.id}`,
+                              vehicleId: vehicle.id,
+                              insuranceDetails: {
+                                insuranceType: vehicle.insuranceType || 'third_party',
+                                policyNumber: vehicle.insurancePolicyNumber || '',
+                                startDate: vehicle.insuranceStartDate || '',
+                                endDate: vehicle.insuranceExpiryDate || '',
+                              },
+                              vendor: vehicle.insuranceProvider || '',
+                              notes: '',
+                            };
+                            setEditingRecord(mockRecord);
+                            setIsModalOpen(true);
+                          }}
+                          disabled={!vehicle.insuranceExpiryDate}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Dates
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -293,6 +267,7 @@ const Insurance: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Transaction ID</TableHead>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
@@ -302,17 +277,47 @@ const Insurance: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {insuranceRecords.map((record) => (
-                  <TableRow key={record.id}>
+                  <TableRow key={record.id} className={record.isCorrection ? 'bg-yellow-50 border-yellow-200' : ''}>
                     <TableCell>
                       {new Date(record.createdAt).toLocaleDateString()}
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 font-medium mt-1">
+                          {record.correctionType === 'add' ? '↗️ Correction (+)' : '↘️ Correction (-)'}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span 
+                        className="font-mono text-xs bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          navigator.clipboard.writeText(record.id);
+                          toast({
+                            title: "Copied",
+                            description: "Transaction ID copied to clipboard",
+                          });
+                        }}
+                        title="Click to copy Transaction ID"
+                      >
+                        {record.id.slice(0, 8)}...
+                      </span>
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 mt-1">Correction</div>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">
                       {getVehicleName(record.vehicleId)}
                     </TableCell>
                     <TableCell>
                       {record.description}
+                      {record.isCorrection && record.originalTransactionRef && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Ref: {record.originalTransactionRef}
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="font-medium">₹{record.amount.toLocaleString()}</TableCell>
+                    <TableCell className={`font-medium ${record.isCorrection && record.amount < 0 ? 'text-red-600' : record.isCorrection && record.amount > 0 ? 'text-green-600' : ''}`}>
+                      {record.amount < 0 ? '-' : ''}₹{Math.abs(record.amount).toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={record.status === 'approved' ? 'default' : record.status === 'pending' ? 'secondary' : 'destructive'}>
                         {record.status}

@@ -7,12 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddMaintenanceRecordForm from '@/components/Forms/AddMaintenanceRecordForm';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 
 const MaintenanceRecords: React.FC = () => {
-  const { vehicles, drivers, expenses, loading } = useFirebaseData();
+  const { vehicles, drivers, expenses, loading, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Filter maintenance expenses from the expenses collection using new hierarchical structure
@@ -43,42 +41,16 @@ const MaintenanceRecords: React.FC = () => {
   const averageCostPerRecord = maintenanceRecords.length > 0 ? totalMaintenanceCost / maintenanceRecords.length : 0;
   const pendingRecords = maintenanceRecords.filter(record => record.status === 'pending').length;
 
-  // Handle recording maintenance expense transaction
-  const handleExpenseAdded = async (expenseData: any) => {
+  // Handle recording maintenance expense using the standard expense recording pattern
+  const handleExpenseAdded = async (maintenanceRecordData: any) => {
     try {
-      // Record the expense in expenses collection (for backward compatibility)
-      await addDoc(collection(db, 'expenses'), {
-        ...expenseData,
-        type: 'maintenance', // Keep for backward compatibility
-        createdAt: new Date(),
-      });
-
-      // Record the transaction in payments collection using hierarchical structure
-      await addDoc(collection(db, 'payments'), {
-        vehicleId: expenseData.vehicleId,
-        driverId: expenseData.driverId,
-        amount: expenseData.amount,
-        description: expenseData.description || `Maintenance payment - ${getVehicleName(expenseData.vehicleId)}`,
-        date: expenseData.date || new Date(),
-        createdAt: new Date(),
-        type: 'paid',
-        paymentType: 'expenses',
-        expenseType: 'maintenance',
-        // Additional maintenance-specific fields
-        maintenanceType: expenseData.maintenanceType,
-        serviceProvider: expenseData.serviceProvider,
-        odometerReading: expenseData.odometerReading,
-        nextDueDate: expenseData.nextDueDate,
-        nextDueOdometer: expenseData.nextDueOdometer,
-        status: expenseData.status,
-        priority: expenseData.priority,
-        receiptNumber: expenseData.receiptNumber,
-        notes: expenseData.notes,
-      });
+      await addExpense(maintenanceRecordData);
 
       toast({
         title: "Success",
-        description: "Maintenance expense recorded successfully.",
+        description: maintenanceRecordData.isCorrection 
+          ? "Maintenance expense correction recorded successfully." 
+          : "Maintenance expense recorded successfully.",
       });
 
       setIsModalOpen(false);
@@ -186,6 +158,7 @@ const MaintenanceRecords: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Transaction ID</TableHead>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
@@ -195,17 +168,47 @@ const MaintenanceRecords: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {maintenanceRecords.map((record) => (
-                  <TableRow key={record.id}>
+                  <TableRow key={record.id} className={record.isCorrection ? 'bg-yellow-50 border-yellow-200' : ''}>
                     <TableCell>
                       {new Date(record.createdAt).toLocaleDateString()}
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 font-medium mt-1">
+                          {record.correctionType === 'add' ? '↗️ Correction (+)' : '↘️ Correction (-)'}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span 
+                        className="font-mono text-xs bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          navigator.clipboard.writeText(record.id);
+                          toast({
+                            title: "Copied",
+                            description: "Transaction ID copied to clipboard",
+                          });
+                        }}
+                        title="Click to copy Transaction ID"
+                      >
+                        {record.id.slice(0, 8)}...
+                      </span>
+                      {record.isCorrection && (
+                        <div className="text-xs text-yellow-600 mt-1">Correction</div>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">
                       {getVehicleName(record.vehicleId)}
                     </TableCell>
                     <TableCell>
                       {record.description}
+                      {record.isCorrection && record.originalTransactionRef && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Ref: {record.originalTransactionRef}
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="font-medium">₹{record.amount.toLocaleString()}</TableCell>
+                    <TableCell className={`font-medium ${record.isCorrection && record.amount < 0 ? 'text-red-600' : record.isCorrection && record.amount > 0 ? 'text-green-600' : ''}`}>
+                      {record.amount < 0 ? '-' : ''}₹{Math.abs(record.amount).toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={record.status === 'approved' ? 'default' : record.status === 'pending' ? 'secondary' : 'destructive'}>
                         {record.status}

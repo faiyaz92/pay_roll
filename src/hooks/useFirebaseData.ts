@@ -502,14 +502,15 @@ export const useExpenses = () => {
       ...expenseData, 
       updatedAt: new Date().toISOString() 
     });
-    const deleteVehicle = async (vehicleId: string) => {
-      if (!userInfo?.companyId) throw new Error('No company ID');
-      const vehicleRef = doc(firestore, paths.getVehiclesPath(), vehicleId);
-      return await deleteDoc(vehicleRef);
-    };
   };
 
-  return { expenses, loading, addExpense, updateExpense };
+  const deleteExpense = async (expenseId: string) => {
+    if (!userInfo?.companyId) throw new Error('No company ID');
+    const expenseRef = doc(firestore, paths.getExpensesPath(), expenseId);
+    return await deleteDoc(expenseRef);
+  };
+
+  return { expenses, loading, addExpense, updateExpense, deleteExpense };
 };
 
 // Dashboard statistics for Fleet Rental Business
@@ -820,7 +821,7 @@ export const useFirebaseData = () => {
   const { vehicles, loading: vehiclesLoading, addVehicle, updateVehicle, deleteVehicle } = useVehicles();
   const { assignments, loading: assignmentsLoading, addAssignment } = useAssignments();
   const { payments, loading: paymentsLoading, markPaymentCollected } = usePayments();
-  const { expenses, loading: expensesLoading, addExpense } = useExpenses();
+  const { expenses, loading: expensesLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
 
   const loading = driversLoading || vehiclesLoading || assignmentsLoading || paymentsLoading || expensesLoading;
 
@@ -860,6 +861,8 @@ export const useFirebaseData = () => {
     updateVehicle,
     addAssignment,
     addExpense,
+    updateExpense,
+    deleteExpense,
     markPaymentCollected,
     deleteVehicle,
   };

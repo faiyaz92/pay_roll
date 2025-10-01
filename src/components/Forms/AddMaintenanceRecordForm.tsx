@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,10 @@ const maintenanceRecordSchema = z.object({
   serviceProvider: z.string().min(1, 'Service provider is required'),
   odometer: z.string().min(1, 'Odometer reading is required'),
   nextServiceOdometer: z.string().optional(),
+  // Correction fields
+  isCorrection: z.boolean().optional(),
+  originalTransactionRef: z.string().optional(),
+  correctionType: z.enum(['add', 'subtract']).optional(),
 });
 
 type MaintenanceRecordFormData = z.infer<typeof maintenanceRecordSchema>;
@@ -45,6 +50,9 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
       serviceProvider: '',
       odometer: '',
       nextServiceOdometer: '',
+      isCorrection: false,
+      originalTransactionRef: '',
+      correctionType: 'add',
     },
   });
 
@@ -71,17 +79,31 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
 
       const maintenanceRecordData = {
         vehicleId: data.vehicleId,
-        driverId: data.driverId || undefined, // Convert empty string to undefined
+        amount: data.isCorrection && data.correctionType === 'subtract' 
+          ? -parseFloat(data.amount) // Negative amount for subtractions
+          : parseFloat(data.amount), // Positive amount for additions/corrections
+        description: data.isCorrection 
+          ? `Maintenance ${data.correctionType} correction - ${data.type} - Ref: ${data.originalTransactionRef} - ${data.serviceProvider}`
+          : `Maintenance ${data.type} - ${data.serviceProvider}`,
+        billUrl: '',
+        submittedBy: data.driverId || 'owner', // Use driver as submitter or default to owner
+        status: 'approved' as const,
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'maintenance',
+        verifiedKm: parseInt(data.odometer) || 0,
+        companyId: '',
+        createdAt: '',
+        updatedAt: '',
+        // Additional maintenance-specific fields
         maintenanceType: data.type,
-        description: data.description,
-        amount: parseFloat(data.amount),
         serviceProvider: data.serviceProvider,
         odometerReading: parseInt(data.odometer),
         ...(data.nextServiceOdometer && { nextDueOdometer: parseInt(data.nextServiceOdometer) }),
-        date: new Date(),
-        addedBy: userInfo?.userId || '',
-        companyId: userInfo?.companyId || '',
-        status: 'approved' // Auto-approve maintenance records
+        // Correction fields
+        isCorrection: data.isCorrection || false,
+        originalTransactionRef: data.originalTransactionRef || null,
+        correctionType: data.correctionType || null,
       };
 
       // Call parent's onSuccess with the maintenance record data
@@ -252,8 +274,79 @@ const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onS
           />
         </div>
 
+        {/* Correction Entry Section */}
+        <div className="space-y-4 border-t pt-4">
+          <FormField
+            control={form.control}
+            name="isCorrection"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>
+                    This is a correction entry
+                  </FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Check this if you're correcting a previous maintenance record
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          {form.watch('isCorrection') && (
+            <div className="space-y-4 border border-yellow-200 bg-yellow-50 p-4 rounded-md">
+              <FormField
+                control={form.control}
+                name="originalTransactionRef"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Original Transaction ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Paste the original transaction ID here" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="correctionType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correction Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select correction type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="add">Add Amount (+)</SelectItem>
+                        <SelectItem value="subtract">Subtract Amount (-)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="text-sm text-yellow-700 bg-yellow-100 p-3 rounded">
+                <strong>Note:</strong> This will create a new correction entry, not modify the original record. 
+                The correction amount will be {form.watch('correctionType') === 'subtract' ? 'subtracted from' : 'added to'} the vehicle's expense total.
+              </div>
+            </div>
+          )}
+        </div>
+
         <Button type="submit" className="w-full">
-          Add Maintenance Record
+          {form.watch('isCorrection') ? 'Add Maintenance Correction' : 'Add Maintenance Record'}
         </Button>
       </form>
     </Form>

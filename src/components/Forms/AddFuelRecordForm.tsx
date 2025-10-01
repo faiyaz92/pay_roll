@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,10 @@ const fuelRecordSchema = z.object({
   fuelType: z.string().min(1, 'Fuel type is required'),
   location: z.string().min(1, 'Location is required'),
   odometer: z.string().min(1, 'Odometer reading is required'),
+  // Correction fields
+  isCorrection: z.boolean().optional(),
+  originalTransactionRef: z.string().optional(),
+  correctionType: z.enum(['add', 'subtract']).optional(),
 });
 
 type FuelRecordFormData = z.infer<typeof fuelRecordSchema>;
@@ -44,6 +49,9 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
       fuelType: 'Diesel',
       location: '',
       odometer: '',
+      isCorrection: false,
+      originalTransactionRef: '',
+      correctionType: 'add',
     },
   });
 
@@ -70,18 +78,32 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
 
       const fuelRecordData = {
         vehicleId: data.vehicleId,
-        driverId: data.driverId,
-        amount: parseFloat(data.amount),
+        amount: data.isCorrection && data.correctionType === 'subtract' 
+          ? -parseFloat(data.amount) // Negative amount for subtractions
+          : parseFloat(data.amount), // Positive amount for additions/corrections
+        description: data.isCorrection 
+          ? `Fuel ${data.correctionType} correction - Ref: ${data.originalTransactionRef} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`
+          : `Fuel ${data.fuelType} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`,
+        billUrl: '',
+        submittedBy: data.driverId, // Use driver as submitter
+        status: 'approved' as const,
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'fuel',
+        verifiedKm: parseInt(data.odometer) || 0,
+        companyId: '',
+        createdAt: '',
+        updatedAt: '',
+        // Additional fuel-specific fields
+        fuelType: data.fuelType,
         quantity: parseFloat(data.quantity),
         pricePerLiter: parseFloat(data.pricePerLiter),
-        fuelType: data.fuelType,
-        station: data.location, // Map location to station
         odometerReading: parseInt(data.odometer),
-        description: `Fuel ${data.fuelType} - ${data.quantity}L @ ₹${data.pricePerLiter}/L`,
-        date: new Date(),
-        addedBy: userInfo?.userId || '',
-        companyId: userInfo?.companyId || '',
-        status: 'approved' // Auto-approve fuel records
+        station: data.location,
+        // Correction fields
+        isCorrection: data.isCorrection || false,
+        originalTransactionRef: data.originalTransactionRef || null,
+        correctionType: data.correctionType || null,
       };
 
       // Call parent's onSuccess with the fuel record data
@@ -263,8 +285,74 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess }) => {
           )}
         />
 
+        {/* Correction Entry Section */}
+        <div className="space-y-4 border-t pt-4">
+          <FormField
+            control={form.control}
+            name="isCorrection"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-medium">
+                    This is a correction entry
+                  </FormLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Check this if you're correcting a previous fuel entry (add/subtract amount)
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          {form.watch('isCorrection') && (
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="originalTransactionRef"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Original Transaction Reference</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Receipt # or Transaction ID" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="correctionType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correction Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select correction type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="add">Add Amount (Increase total)</SelectItem>
+                        <SelectItem value="subtract">Subtract Amount (Decrease total)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+        </div>
+
         <Button type="submit" className="w-full">
-          Add Fuel Record
+          {form.watch('isCorrection') ? 'Add Fuel Correction' : 'Add Fuel Record'}
         </Button>
       </form>
     </Form>
