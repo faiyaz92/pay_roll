@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { Expense } from '@/hooks/useFirebaseData';
+import InsuranceDocumentUploader from './InsuranceDocumentUploader';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 interface InsuranceRecordData {
   vehicleId: string;
@@ -49,6 +51,14 @@ interface AddInsuranceRecordFormProps {
 }
 
 const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord, isCorrection = false }) => {
+  const [insuranceDocuments, setInsuranceDocuments] = useState({
+    policyCopy: null as any,
+    rcCopy: null as any,
+    previousYearPolicy: null as any,
+    additional: [] as any[],
+  });
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+
   // Define schema inside component to access isCorrection prop
   const insuranceRecordSchema = z.object({
     vehicleId: z.string().min(1, 'Vehicle is required'),
@@ -98,6 +108,25 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     },
   });
 
+  // Upload insurance documents to Cloudinary
+  const uploadInsuranceDocuments = async () => {
+    const uploadedDocuments: Record<string, string> = {};
+
+    for (const [type, doc] of Object.entries(insuranceDocuments)) {
+      if (doc && doc.file) {
+        try {
+          const cloudinaryUrl = await uploadToCloudinary(doc.file);
+          uploadedDocuments[type] = cloudinaryUrl;
+        } catch (error) {
+          console.error(`Failed to upload ${type} document:`, error);
+          throw new Error(`Failed to upload ${type} document`);
+        }
+      }
+    }
+
+    return uploadedDocuments;
+  };
+
   // Populate form when editing
   useEffect(() => {
     if (editingRecord) {
@@ -122,6 +151,20 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
+      setIsUploadingDocuments(true);
+
+      // Upload insurance documents first
+      let uploadedDocuments = {};
+      try {
+        uploadedDocuments = await uploadInsuranceDocuments();
+      } catch (error) {
+        toast({
+          title: 'Document Upload Failed',
+          description: error.message || 'Failed to upload insurance documents. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       if (editingRecord) {
         // Handle editing vehicle insurance dates
@@ -167,6 +210,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             startDate: data.startDate,
             endDate: data.endDate,
           },
+          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
           isCorrection: isCorrection,
           originalTransactionRef: data.originalTransactionRef,
         };
@@ -187,6 +231,13 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
       // Reset form on successful submission
       form.reset();
+      setInsuranceDocuments({
+        policyCopy: null,
+        rcCopy: null,
+        previousYearPolicy: null,
+        additional: [],
+      });
+      setIsUploadingDocuments(false);
     } catch (error) {
       console.error('Error in insurance form submission:', error);
       toast({
@@ -194,6 +245,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         description: 'Failed to process insurance record',
         variant: 'destructive',
       });
+    } finally {
+      setIsUploadingDocuments(false);
     }
   };
 
@@ -396,6 +449,17 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           )}
         />
 
+        {/* Insurance Documents Upload Section */}
+        {!editingRecord && (
+          <div className="border-t pt-6">
+            <InsuranceDocumentUploader
+              documents={insuranceDocuments}
+              onDocumentsChange={setInsuranceDocuments}
+              isUploading={isUploadingDocuments}
+            />
+          </div>
+        )}
+
         {/* Correction Section - Only show when isCorrection is true */}
         {isCorrection && (
           <div className="space-y-4 border-t pt-4">
@@ -415,8 +479,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           </div>
         )}
 
-        <Button type="submit" className="w-full">
-          {editingRecord ? 'Update Insurance Dates' : isCorrection ? 'Record Correction' : 'Add Insurance Expense'}
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || isUploadingDocuments}>
+          {isUploadingDocuments ? 'Uploading Documents...' : form.formState.isSubmitting ? (editingRecord ? 'Updating Insurance Dates...' : 'Adding Insurance Record...') : (editingRecord ? 'Update Insurance Dates' : isCorrection ? 'Record Correction' : 'Add Insurance Record')}
         </Button>
       </form>
     </Form>

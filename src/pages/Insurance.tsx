@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit } from 'lucide-react';
+import { Plus, Shield, AlertTriangle, Calendar, TrendingUp, DollarSign, Clock, Edit, Eye, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
@@ -14,6 +15,7 @@ import { toast } from '@/hooks/use-toast';
 
 const Insurance: React.FC = () => {
   const { vehicles, drivers, expenses, loading, updateVehicle, addExpense } = useFirebaseData();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
@@ -32,6 +34,10 @@ const Insurance: React.FC = () => {
   const getDriverName = (driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
     return driver ? driver.name : 'Unknown Driver';
+  };
+
+  const handleViewPolicyDetails = (vehicle: any) => {
+    navigate(`/insurance/${vehicle.id}`);
   };
 
   // Calculate insurance stats
@@ -251,29 +257,39 @@ const Insurance: React.FC = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Create a mock insurance record for editing
-                            const mockRecord = {
-                              id: `vehicle-${vehicle.id}`,
-                              vehicleId: vehicle.id,
-                              insuranceDetails: {
-                                policyNumber: vehicle.insurancePolicyNumber || '',
-                                endDate: vehicle.insuranceExpiryDate || '',
-                              },
-                              vendor: vehicle.insuranceProvider || '',
-                              notes: '',
-                            };
-                            setEditingRecord(mockRecord);
-                            setIsModalOpen(true);
-                          }}
-                          disabled={!vehicle.insuranceExpiryDate}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Dates
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewPolicyDetails(vehicle)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Create a mock insurance record for editing
+                              const mockRecord = {
+                                id: `vehicle-${vehicle.id}`,
+                                vehicleId: vehicle.id,
+                                insuranceDetails: {
+                                  policyNumber: vehicle.insurancePolicyNumber || '',
+                                  endDate: vehicle.insuranceExpiryDate || '',
+                                },
+                                vendor: vehicle.insuranceProvider || '',
+                                notes: '',
+                              };
+                              setEditingRecord(mockRecord);
+                              setIsModalOpen(true);
+                            }}
+                            disabled={!vehicle.insuranceExpiryDate}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Dates
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -370,6 +386,7 @@ const Insurance: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 };

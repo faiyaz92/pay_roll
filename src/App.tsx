@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import Layout from "@/components/Layout/Layout";
 import VehicleDetails from "@/pages/VehicleDetails";
+import InsurancePolicyDetails from "@/pages/InsurancePolicyDetails";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Vehicles from "@/pages/Vehicles";
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="drivers/:driverId" element={<DriverDetails />} />
               <Route path="assignments" element={<Assignments />} />
               <Route path="insurance" element={<Insurance />} />
+              <Route path="insurance/:vehicleId" element={<InsurancePolicyDetails />} />
               <Route path="payments" element={<Payments />} />
               <Route path="maintenance-records" element={<MaintenanceRecords/>} />
               <Route path="fuel-records" element={<FuelRecords/>} />
