@@ -221,9 +221,7 @@ const Insurance: React.FC = () => {
                               id: `vehicle-${vehicle.id}`,
                               vehicleId: vehicle.id,
                               insuranceDetails: {
-                                insuranceType: vehicle.insuranceType || 'third_party',
                                 policyNumber: vehicle.insurancePolicyNumber || '',
-                                startDate: vehicle.insuranceStartDate || '',
                                 endDate: vehicle.insuranceExpiryDate || '',
                               },
                               vendor: vehicle.insuranceProvider || '',
