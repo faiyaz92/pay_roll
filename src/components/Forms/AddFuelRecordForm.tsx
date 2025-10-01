@@ -11,36 +11,59 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 
-const fuelRecordSchema = z.object({
-  vehicleId: z.string().min(1, 'Vehicle is required'),
-  driverId: z.string().min(1, 'Driver is required'),
-  amount: z.string().min(1, 'Amount is required'),
-  quantity: z.string().min(1, 'Quantity is required'),
-  pricePerLiter: z.string().min(1, 'Price per liter is required'),
-  fuelType: z.string().min(1, 'Fuel type is required'),
-  location: z.string().min(1, 'Location is required'),
-  odometer: z.string().min(1, 'Odometer reading is required'),
-  // Correction fields - required when isCorrection is true
-  originalTransactionRef: z.string().optional(),
-}).superRefine((data, ctx) => {
-  // If this is a correction form, originalTransactionRef is required
-  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Original transaction ID is required for corrections',
-      path: ['originalTransactionRef'],
-    });
-  }
-});
-
-type FuelRecordFormData = z.infer<typeof fuelRecordSchema>;
+interface FuelRecordData {
+  vehicleId: string;
+  amount: number;
+  description: string;
+  billUrl: string;
+  submittedBy: string;
+  status: 'approved';
+  approvedAt: string;
+  adjustmentWeeks: number;
+  type: string;
+  verifiedKm: number;
+  companyId: string;
+  createdAt: string;
+  updatedAt: string;
+  fuelType: string;
+  quantity: number;
+  pricePerLiter: number;
+  odometerReading: number;
+  station: string;
+  isCorrection: boolean;
+  originalTransactionRef: string | null;
+}
 
 interface AddFuelRecordFormProps {
-  onSuccess: (data: any) => void; // Changed to pass data to parent
+  onSuccess: (data: FuelRecordData) => void;
   isCorrection?: boolean;
 }
 
 const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess, isCorrection = false }) => {
+  // Define schema inside component to access isCorrection prop
+  const fuelRecordSchema = z.object({
+    vehicleId: z.string().min(1, 'Vehicle is required'),
+    driverId: z.string().min(1, 'Driver is required'),
+    amount: z.string().min(1, 'Amount is required'),
+    quantity: z.string().min(1, 'Quantity is required'),
+    pricePerLiter: z.string().min(1, 'Price per liter is required'),
+    fuelType: z.string().min(1, 'Fuel type is required'),
+    location: z.string().min(1, 'Location is required'),
+    odometer: z.string().min(1, 'Odometer reading is required'),
+    // Correction fields - required when isCorrection is true
+    originalTransactionRef: z.string().optional(),
+  }).superRefine((data, ctx) => {
+    // If this is a correction form, originalTransactionRef is required
+    if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Original transaction ID is required for corrections',
+        path: ['originalTransactionRef'],
+      });
+    }
+  });
+
+  type FuelRecordFormData = z.infer<typeof fuelRecordSchema>;
   // Get real Firebase data instead of mock data
   const { vehicles, drivers, expenses } = useFirebaseData();
   const { userInfo } = useAuth();

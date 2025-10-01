@@ -13,41 +13,70 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { Expense } from '@/hooks/useFirebaseData';
 
-const insuranceRecordSchema = z.object({
-  vehicleId: z.string().min(1, 'Vehicle is required'),
-  driverId: z.string().optional(),
-  insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
-  policyNumber: z.string().min(1, 'Policy number is required'),
-  description: z.string().min(1, 'Description is required'),
-  amount: z.string().min(1, 'Amount is required'),
-  vendor: z.string().min(1, 'Insurance provider is required'),
-  startDate: z.string().min(1, 'Insurance start date is required'),
-  endDate: z.string().min(1, 'Insurance end date is required'),
-  receiptNumber: z.string().optional(),
-  notes: z.string().optional(),
-  // Correction fields - required when isCorrection is true
-  originalTransactionRef: z.string().optional(),
-}).superRefine((data, ctx) => {
-  // If this is a correction form, originalTransactionRef is required
-  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Original transaction ID is required for corrections',
-      path: ['originalTransactionRef'],
-    });
-  }
-});
-
-type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
+interface InsuranceRecordData {
+  vehicleId: string;
+  amount: number;
+  description: string;
+  billUrl: string;
+  submittedBy: string;
+  status: 'approved';
+  approvedAt: string;
+  adjustmentWeeks: number;
+  type: string;
+  verifiedKm: number;
+  companyId: string;
+  createdAt: string;
+  updatedAt: string;
+  paymentType: string;
+  expenseType: string;
+  vendor: string;
+  receiptNumber?: string;
+  notes?: string;
+  insuranceDetails: {
+    insuranceType: 'third_party' | 'zero_dept' | 'comprehensive' | 'topup';
+    policyNumber: string;
+    startDate: string;
+    endDate: string;
+  };
+  isCorrection: boolean;
+  originalTransactionRef?: string;
+}
 
 interface AddInsuranceRecordFormProps {
-  onSuccess?: (data: any) => void;
-  editingRecord?: any;
+  onSuccess?: (data: InsuranceRecordData) => void;
+  editingRecord?: Expense;
   isCorrection?: boolean;
 }
 
 const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord, isCorrection = false }) => {
-  const { vehicles, drivers } = useFirebaseData();
+  // Define schema inside component to access isCorrection prop
+  const insuranceRecordSchema = z.object({
+    vehicleId: z.string().min(1, 'Vehicle is required'),
+    driverId: z.string().optional(),
+    insuranceType: z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
+    policyNumber: z.string().min(1, 'Policy number is required'),
+    description: z.string().min(1, 'Description is required'),
+    amount: z.string().min(1, 'Amount is required'),
+    vendor: z.string().min(1, 'Insurance provider is required'),
+    startDate: z.string().min(1, 'Insurance start date is required'),
+    endDate: z.string().min(1, 'Insurance end date is required'),
+    receiptNumber: z.string().optional(),
+    notes: z.string().optional(),
+    // Correction fields - required when isCorrection is true
+    originalTransactionRef: z.string().optional(),
+  }).superRefine((data, ctx) => {
+    // If this is a correction form, originalTransactionRef is required
+    if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Original transaction ID is required for corrections',
+        path: ['originalTransactionRef'],
+      });
+    }
+  });
+
+  type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
+  const { vehicles, drivers, addExpense, updateExpense } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
 
@@ -93,7 +122,6 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
-      const { addExpense, updateExpense } = useFirebaseData();
 
       if (editingRecord) {
         // Handle editing vehicle insurance dates
@@ -149,7 +177,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
         toast({
           title: 'Success',
-          description: data.isCorrection
+          description: isCorrection
             ? 'Insurance correction recorded successfully'
             : data.insuranceType === 'topup'
             ? 'Insurance topup recorded successfully'

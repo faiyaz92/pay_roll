@@ -12,36 +12,58 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 
-const maintenanceRecordSchema = z.object({
-  vehicleId: z.string().min(1, 'Vehicle is required'),
-  driverId: z.string().optional(), // Optional for maintenance records
-  type: z.enum(['routine', 'repair', 'inspection', 'other']),
-  description: z.string().min(1, 'Description is required'),
-  amount: z.string().min(1, 'Amount is required'),
-  serviceProvider: z.string().min(1, 'Service provider is required'),
-  odometer: z.string().min(1, 'Odometer reading is required'),
-  nextServiceOdometer: z.string().optional(),
-  // Correction fields - required when isCorrection is true
-  originalTransactionRef: z.string().optional(),
-}).superRefine((data, ctx) => {
-  // If this is a correction form, originalTransactionRef is required
-  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Original transaction ID is required for corrections',
-      path: ['originalTransactionRef'],
-    });
-  }
-});
-
-type MaintenanceRecordFormData = z.infer<typeof maintenanceRecordSchema>;
+interface MaintenanceRecordData {
+  vehicleId: string;
+  amount: number;
+  description: string;
+  billUrl: string;
+  submittedBy: string;
+  status: 'approved';
+  approvedAt: string;
+  adjustmentWeeks: number;
+  type: string;
+  verifiedKm: number;
+  companyId: string;
+  createdAt: string;
+  updatedAt: string;
+  maintenanceType: string;
+  serviceProvider: string;
+  odometerReading: number;
+  nextDueOdometer?: number;
+  isCorrection: boolean;
+  originalTransactionRef: string | null;
+}
 
 interface AddMaintenanceRecordFormProps {
-  onSuccess: (data: any) => void; // Changed to pass data to parent
+  onSuccess: (data: MaintenanceRecordData) => void;
   isCorrection?: boolean;
 }
 
 const AddMaintenanceRecordForm: React.FC<AddMaintenanceRecordFormProps> = ({ onSuccess, isCorrection = false }) => {
+  // Define schema inside component to access isCorrection prop
+  const maintenanceRecordSchema = z.object({
+    vehicleId: z.string().min(1, 'Vehicle is required'),
+    driverId: z.string().optional(), // Optional for maintenance records
+    type: z.enum(['routine', 'repair', 'inspection', 'other']),
+    description: z.string().min(1, 'Description is required'),
+    amount: z.string().min(1, 'Amount is required'),
+    serviceProvider: z.string().min(1, 'Service provider is required'),
+    odometer: z.string().min(1, 'Odometer reading is required'),
+    nextServiceOdometer: z.string().optional(),
+    // Correction fields - required when isCorrection is true
+    originalTransactionRef: z.string().optional(),
+  }).superRefine((data, ctx) => {
+    // If this is a correction form, originalTransactionRef is required
+    if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Original transaction ID is required for corrections',
+        path: ['originalTransactionRef'],
+      });
+    }
+  });
+
+  type MaintenanceRecordFormData = z.infer<typeof maintenanceRecordSchema>;
   // Get real Firebase data instead of mock data
   const { vehicles, drivers, expenses } = useFirebaseData();
   const { userInfo } = useAuth();

@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
@@ -16,6 +16,44 @@ import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 import { collection, addDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { Vehicle, Assignment } from '@/types/user';
+
+// Define EMI schedule item type
+type EMIScheduleItem = {
+  month: number;
+  interest: number;
+  principal: number;
+  outstanding: number;
+  dueDate: string;
+  isPaid: boolean;
+  paidAt?: string;
+  editableUntil?: string;
+  prepaid?: boolean; // For prepayment tracking
+};
+
+// Define fuel record data type
+type FuelRecordData = {
+  vehicleId: string;
+  amount: number;
+  description: string;
+  billUrl: string;
+  submittedBy: string;
+  status: 'approved';
+  approvedAt: string;
+  adjustmentWeeks: number;
+  expenseType: 'fuel';
+  type: 'fuel';
+  verifiedKm: number;
+  companyId: string;
+  createdAt: string;
+  updatedAt: string;
+  fuelType: string;
+  quantity: number;
+  pricePerLiter: number;
+  odometerReading: number;
+  station: string;
+  isCorrection?: boolean;
+  originalTransactionRef?: string | null;
+};
 import { 
   Car, 
   CreditCard, 
@@ -37,8 +75,10 @@ import {
   Eye,
   FileText,
   ImageIcon,
-  Shield
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
+import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 
 const VehicleDetails: React.FC = () => {
   const { vehicleId } = useParams();
@@ -50,7 +90,7 @@ const VehicleDetails: React.FC = () => {
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
   const [penaltyAmount, setPenaltyAmount] = useState('');
-  const [selectedEMI, setSelectedEMI] = useState<{monthIndex: number, scheduleItem: any} | null>(null);
+  const [selectedEMI, setSelectedEMI] = useState<{monthIndex: number, scheduleItem: EMIScheduleItem} | null>(null);
   const [prepaymentResults, setPrepaymentResults] = useState<{
     amount: number;
     newOutstanding: number;
@@ -73,7 +113,8 @@ const VehicleDetails: React.FC = () => {
   const [showEmiForm, setShowEmiForm] = useState(false);
   const [showRentForm, setShowRentForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
+  const [showExpenseCorrectionForm, setShowExpenseCorrectionForm] = useState(false);
+  const [selectedExpenseType, setSelectedExpenseType] = useState('fuel');
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -439,7 +480,7 @@ const VehicleDetails: React.FC = () => {
           if (remainingPrepayment >= principalAmount) {
             updatedSchedule[i].isPaid = true;
             updatedSchedule[i].paidAt = new Date().toISOString().split('T')[0];
-            (updatedSchedule[i] as any).prepaid = true;
+            (updatedSchedule[i] as EMIScheduleItem).prepaid = true;
             remainingPrepayment -= principalAmount;
           } else {
             // Partial payment for this EMI
@@ -495,7 +536,7 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
-  const markEMIPaid = async (monthIndex: number, scheduleItem: any) => {
+  const markEMIPaid = async (monthIndex: number, scheduleItem: EMIScheduleItem) => {
     const currentDate = new Date();
     const dueDate = new Date(scheduleItem.dueDate);
     const daysPastDue = Math.ceil((currentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -535,7 +576,7 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
-  const processEMIPayment = async (monthIndex: number, scheduleItem: any, penalty: number = 0) => {
+  const processEMIPayment = async (monthIndex: number, scheduleItem: EMIScheduleItem, penalty: number = 0) => {
     try {
       // Update the amortization schedule
       const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
@@ -634,16 +675,18 @@ const VehicleDetails: React.FC = () => {
         status: 'approved' as const,
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
-        type: newExpense.type as ('general' | 'maintenance' | 'insurance' | 'penalties'),
+        expenseType: selectedExpenseType === 'fuel' ? 'fuel' : 'general',
+        type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel'),
         verifiedKm: 0,
         companyId: '',
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        paymentType: 'expenses'
       });
 
       toast({
         title: 'Expense Added',
-        description: `${newExpense.type} expense of ₹${amount.toLocaleString()} has been recorded.`,
+        description: `${selectedExpenseType} expense of ₹${amount.toLocaleString()} has been recorded.`,
       });
 
       // Reset form and close dialog
@@ -652,7 +695,7 @@ const VehicleDetails: React.FC = () => {
         description: '',
         type: 'fuel'
       });
-      setAddExpenseDialogOpen(false);
+      setShowExpenseForm(false);
 
     } catch (error) {
       console.error('Error adding expense:', error);
@@ -660,6 +703,29 @@ const VehicleDetails: React.FC = () => {
         title: 'Error',
         description: 'Failed to add expense. Please try again.',
         variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle fuel record addition (similar to FuelRecords page)
+  const handleFuelRecordAdded = async (fuelRecordData: FuelRecordData) => {
+    try {
+      await addExpense(fuelRecordData);
+
+      toast({
+        title: "Success",
+        description: fuelRecordData.isCorrection 
+          ? "Fuel expense correction recorded successfully." 
+          : "Fuel expense recorded successfully.",
+      });
+
+      setShowExpenseForm(false);
+    } catch (error) {
+      console.error('Error recording fuel expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record fuel expense. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -2527,6 +2593,14 @@ const VehicleDetails: React.FC = () => {
                 <TrendingDown className="h-4 w-4" />
                 Add Expense
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowExpenseCorrectionForm(true)}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Correction
+              </Button>
             </div>
           </div>
         </TabsContent>
@@ -3090,81 +3164,130 @@ const VehicleDetails: React.FC = () => {
       </Dialog>
 
       {/* Expense Modal */}
-      <Dialog open={showExpenseForm} onOpenChange={setShowExpenseForm}>
-        <DialogContent className="max-w-md">
+      <Dialog open={showExpenseForm} onOpenChange={(open) => {
+        setShowExpenseForm(open);
+        if (!open) {
+          // Reset form state when dialog closes
+          setSelectedExpenseType('fuel');
+          setNewExpense({
+            amount: '',
+            description: '',
+            type: 'fuel'
+          });
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Expense</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="expense-date">Expense Date</Label>
-              <Input
-                id="expense-date"
-                type="date"
-                defaultValue={new Date().toISOString().split('T')[0]}
-              />
+          {selectedExpenseType === 'fuel' ? (
+            <AddFuelRecordForm onSuccess={handleFuelRecordAdded} />
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="expense-date">Expense Date</Label>
+                <Input
+                  id="expense-date"
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-amount">Amount</Label>
+                <Input
+                  id="expense-amount"
+                  type="number"
+                  placeholder="Enter expense amount"
+                  value={newExpense.amount}
+                  onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-type">Expense Type</Label>
+                <Select value={selectedExpenseType} onValueChange={setSelectedExpenseType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select expense type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fuel">Fuel</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                    <SelectItem value="insurance">Insurance</SelectItem>
+                    <SelectItem value="registration">Registration</SelectItem>
+                    <SelectItem value="penalty">Penalty/Fine</SelectItem>
+                    <SelectItem value="general">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-description">Description</Label>
+                <Input
+                  id="expense-description"
+                  placeholder="Enter expense description"
+                  value={newExpense.description}
+                  onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-method">Payment Method</Label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddExpense}>
+                  Record Expense
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-amount">Amount</Label>
-              <Input
-                id="expense-amount"
-                type="number"
-                placeholder="Enter expense amount"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-type">Expense Type</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select expense type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fuel">Fuel</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                  <SelectItem value="registration">Registration</SelectItem>
-                  <SelectItem value="penalty">Penalty/Fine</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-description">Description</Label>
-              <Input
-                id="expense-description"
-                placeholder="Enter expense description"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-method">Payment Method</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="credit_card">Credit Card</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => {
-                toast({
-                  title: "Expense Recorded",
-                  description: "Expense has been successfully recorded.",
-                });
-                setShowExpenseForm(false);
-              }}>
-                Record Expense
-              </Button>
-            </div>
-          </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense Correction Modal */}
+      <Dialog open={showExpenseCorrectionForm} onOpenChange={(open) => {
+        setShowExpenseCorrectionForm(open);
+        if (!open) {
+          // Reset form state when dialog closes
+          setSelectedExpenseType('fuel');
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertTriangle className="h-5 w-5" />
+              Expense Correction
+            </DialogTitle>
+            <DialogDescription className="text-left">
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Important Notes:</p>
+                <ul className="text-sm text-orange-700 space-y-1">
+                  <li>• Corrections create new entries, not modify existing ones</li>
+                  <li>• Use positive amounts to add to previous transactions</li>
+                  <li>• Use negative amounts to subtract from previous transactions</li>
+                  <li>• Always reference the original transaction ID</li>
+                </ul>
+              </div>
+              <p className="text-sm text-gray-600">
+                Enter the transaction ID you want to correct and the adjustment amount.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <AddFuelRecordForm 
+            onSuccess={() => setShowExpenseCorrectionForm(false)} 
+            isCorrection={true} 
+          />
         </DialogContent>
       </Dialog>
     </div>
