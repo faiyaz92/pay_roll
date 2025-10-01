@@ -20,7 +20,7 @@ interface Transaction {
   description: string;
   date: string;
   status: 'completed' | 'pending' | 'overdue';
-  originalData: Payment | Expense;
+  originalData: Payment | Expense | any; // Allow EMI data as well
 }
 
 const Payments: React.FC = () => {
@@ -63,16 +63,37 @@ const Payments: React.FC = () => {
       });
     });
 
+    // Add EMI payments from amortization schedules
+    vehicles.forEach(vehicle => {
+      if (vehicle.loanDetails?.amortizationSchedule) {
+        vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
+          if (emi.isPaid) {
+            transactions.push({
+              id: `emi-${vehicle.id}-${index}`,
+              type: 'paid',
+              paymentType: 'emi',
+              vehicleId: vehicle.id,
+              amount: emi.interest + emi.principal,
+              description: `EMI Payment - Month ${index + 1}`,
+              date: emi.paidAt || emi.dueDate,
+              status: 'completed',
+              originalData: { ...emi, vehicleId: vehicle.id }
+            });
+          }
+        });
+      }
+    });
+
     // Add expenses (paid)
     expenses.forEach(expense => {
       let paymentType: 'emi' | 'prepayment' | 'expenses' = 'expenses';
       let expenseType: 'maintenance' | 'fuel' | 'insurance' | 'penalties' | 'general' | undefined;
 
       // Map EMI and prepayment to specific payment types
-      if (expense.type === 'emi') {
+      if (expense.paymentType === 'emi') {
         paymentType = 'emi';
         expenseType = undefined;
-      } else if (expense.type === 'prepayment') {
+      } else if (expense.paymentType === 'prepayment') {
         paymentType = 'prepayment';
         expenseType = undefined;
       } else if (expense.description.toLowerCase().includes('fuel')) {

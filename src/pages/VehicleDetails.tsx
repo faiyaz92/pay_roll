@@ -196,6 +196,13 @@ const VehicleDetails: React.FC = () => {
   // Get real expense data for this vehicle
   const expenseData = getVehicleExpenseData();
 
+  // Helper function to calculate total investment (initial investment + prepayments only)
+  const getTotalInvestment = () => {
+    const initialInvestment = vehicle?.initialInvestment || vehicle?.initialCost || 0;
+    const totalPrepayments = expenseData.prepayments;
+    return initialInvestment + totalPrepayments;
+  };
+
   // Helper function to get driver name
   const getDriverName = (driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
@@ -512,7 +519,8 @@ const VehicleDetails: React.FC = () => {
         status: 'approved' as const,
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
-        type: 'general' as const,
+        type: 'paid' as const,
+        paymentType: 'prepayment' as const,
         verifiedKm: 0,
         companyId: '',
         createdAt: '',
@@ -603,6 +611,24 @@ const VehicleDetails: React.FC = () => {
           amortizationSchedule: updatedSchedule,
           paidInstallments: updatedPaidInstallments
         }
+      });
+
+      // Add EMI payment as expense record for Payments screen visibility
+      await addExpense({
+        vehicleId: vehicleId!,
+        amount: vehicle.loanDetails?.emiPerMonth || 0,
+        description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+        billUrl: '',
+        submittedBy: 'owner',
+        status: 'approved' as const,
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'paid' as const,
+        paymentType: 'emi' as const,
+        verifiedKm: 0,
+        companyId: '',
+        createdAt: '',
+        updatedAt: ''
       });
 
       // Add penalty as expense if applicable
@@ -1093,7 +1119,7 @@ const VehicleDetails: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Investment:</span>
-                  <span className="font-medium">₹{financialData.totalInvestmentWithPrepayments.toLocaleString()}</span>
+                  <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Earnings:</span>
@@ -1246,7 +1272,7 @@ const VehicleDetails: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>Total Investment (with prepayments)</span>
-                    <span className="font-medium">₹{financialData.totalInvestmentWithPrepayments.toLocaleString()}</span>
+                    <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Expenses</span>
@@ -2622,12 +2648,12 @@ const VehicleDetails: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span>Total Investment (with prepayments)</span>
-                    <span className="font-medium">₹{financialData.totalInvestmentWithPrepayments.toLocaleString()}</span>
+                    <span>Initial Investment</span>
+                    <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total Earnings</span>
-                    <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
+                    <span>Total Investment (with prepayments)</span>
+                    <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Expenses</span>
@@ -2636,6 +2662,14 @@ const VehicleDetails: React.FC = () => {
                   <div className="flex justify-between">
                     <span>EMI Amount Paid</span>
                     <span className="font-medium text-blue-600">₹{financialData.totalEmiPaid.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Earnings</span>
+                    <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Current Vehicle Value</span>
+                    <span className="font-medium">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
                   </div>
                   {financialData.isInvestmentCovered && (
                     <div className="flex justify-between">
@@ -2646,19 +2680,13 @@ const VehicleDetails: React.FC = () => {
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Net Profit/Loss</span>
-                    <span className={`font-bold ${financialData.roiAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{financialData.roiAmount.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">ROI</span>
+                    <span className="font-medium">Current ROI</span>
                     <span className={`font-bold ${financialData.currentROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       ₹{financialData.roiAmount.toLocaleString()} ({financialData.currentROI.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Gross Profit/Loss (if sold now)</span>
+                    <span className="font-medium">Gross Profit/Loss (if sold)</span>
                     <span className={`font-bold ${financialData.grossProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       ₹{financialData.grossProfitLoss.toLocaleString()}
                     </span>
@@ -2701,8 +2729,8 @@ const VehicleDetails: React.FC = () => {
                   <div className="flex justify-between">
                     <span>Projected ROI (1 Year)</span>
                     <span className={`font-medium ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {financialData.totalInvestmentWithPrepayments > 0 ? 
-                        ((financialData.projectedYearlyProfit / financialData.totalInvestmentWithPrepayments) * 100).toFixed(1) : 0
+                      {getTotalInvestment() > 0 ? 
+                        ((financialData.projectedYearlyProfit / getTotalInvestment()) * 100).toFixed(1) : 0
                       }%
                     </span>
                   </div>
@@ -3313,3 +3341,4 @@ const VehicleDetails: React.FC = () => {
 };
 
 export default VehicleDetails;
+
