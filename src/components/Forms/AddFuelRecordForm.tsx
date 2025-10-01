@@ -20,7 +20,8 @@ interface FuelRecordData {
   status: 'approved';
   approvedAt: string;
   adjustmentWeeks: number;
-  type: string;
+  expenseType: 'fuel';
+  type: 'fuel';
   verifiedKm: number;
   companyId: string;
   createdAt: string;
@@ -35,7 +36,7 @@ interface FuelRecordData {
 }
 
 interface AddFuelRecordFormProps {
-  onSuccess: (data: FuelRecordData) => void;
+  onSuccess: (data: FuelRecordData) => void | Promise<void>;
   isCorrection?: boolean;
 }
 
@@ -119,7 +120,8 @@ const AddFuelRecordForm: React.FC<AddFuelRecordFormProps> = ({ onSuccess, isCorr
         status: 'approved' as const,
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
-        type: 'fuel',
+        expenseType: 'fuel' as const,
+        type: 'fuel' as const,
         verifiedKm: parseInt(data.odometer) || 0,
         companyId: '',
         createdAt: '',

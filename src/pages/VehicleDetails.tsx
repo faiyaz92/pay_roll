@@ -115,6 +115,7 @@ const VehicleDetails: React.FC = () => {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showExpenseCorrectionForm, setShowExpenseCorrectionForm] = useState(false);
   const [selectedExpenseType, setSelectedExpenseType] = useState('fuel');
+  const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -583,7 +584,7 @@ const VehicleDetails: React.FC = () => {
       updatedSchedule[monthIndex] = {
         ...scheduleItem,
         isPaid: true,
-        paidDate: new Date().toISOString().split('T')[0]
+        paidAt: new Date().toISOString().split('T')[0]
       };
 
       // Update paid installments array with payment date
