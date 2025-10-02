@@ -678,10 +678,16 @@ interface VehicleFinancialData {
   totalExpenses: number;
   currentROI: number;
   roiAmount: number; // ROI in actual amount
+  totalReturn: number; // Total return amount (total earnings)
+  roiPercentage: number; // Proper ROI %: [(Total Return - Investment) / Investment] × 100
+  roiVsInvestmentPercentage: number; // ROI percentage difference from total investment
+  isROIGreaterThanInvestment: boolean; // Whether ROI > total investment
   totalEmiPaid: number; // Total EMI amount paid so far
   totalInvestmentWithPrepayments: number; // Initial investment + prepayments
   isInvestmentCovered: boolean; // Whether profit >= total investment
-  grossProfitLoss: number; // Current value + profit - loan (what you get if sold)
+  grossProfitLoss: number; // |ROI - Total Investment|
+  grossProfitLossPercentage: number; // Percentage difference from total investment
+  isProfit: boolean; // Whether ROI > total investment
   projectedYearlyProfit: number; // Projected profit for one year
   avgMonthlyProfit: number; // Average monthly profit for projections
   isCurrentlyRented: boolean;
@@ -712,29 +718,30 @@ const calculateVehicleFinancials = (
   const totalEarnings = vehiclePayments.reduce((sum, p) => sum + p.amountPaid, 0) + 
     (vehicle.previousData?.rentEarnings || 0);
 
-  // Calculate total expenses from expenses collection
+  // Calculate total expenses from expenses collection (including EMI payments for true total outflow)
   const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
-  const totalExpenses = vehicleExpenses.reduce((sum, e) => sum + e.amount, 0) + 
+  const totalExpenses = vehicleExpenses
+    .reduce((sum, e) => sum + e.amount, 0) + // Include ALL expenses including EMI
     (vehicle.previousData?.expenses || 0);
 
-  // Calculate monthly expenses (average from last 12 months or use recent data)
+  // Calculate monthly expenses (average from last 3 months, excluding EMI for profit calculations)
   const recentExpenses = vehicleExpenses.filter(e => {
     const expenseDate = new Date(e.createdAt);
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    return expenseDate >= threeMonthsAgo;
+    return expenseDate >= threeMonthsAgo && !((e.paymentType === 'emi') || (e.type === 'emi'));
   });
-  const monthlyExpenses = recentExpenses.length > 0 ? 
-    recentExpenses.reduce((sum, e) => sum + e.amount, 0) / 3 : 
-    totalExpenses / 12; // Average over year if no recent data
+  const monthlyExpenses = recentExpenses.length > 0 ?
+    recentExpenses.reduce((sum, e) => sum + e.amount, 0) / 3 :
+    (totalExpenses - vehicleExpenses.filter(e => (e.paymentType === 'emi') || (e.type === 'emi')).reduce((sum, e) => sum + e.amount, 0)) / 12;
 
-  // Calculate monthly profit
+  // Calculate monthly profit (rent - operating expenses, EMI is separate)
   const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;
-  const monthlyProfit = monthlyRent - monthlyExpenses - monthlyEMI;
+  const monthlyProfit = monthlyRent - monthlyExpenses; // EMI not deducted here as it's a loan payment
 
   // Calculate ROI based on cash flows, not asset value
   // ROI should reflect actual returns from the business operation
-  const totalInvestment = vehicle.initialInvestment + totalExpenses;
+  // const totalInvestment = vehicle.initialInvestment + totalExpenses; // WRONG - expenses are not investment
   
   // Calculate outstanding loan and next EMI due
   const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
@@ -763,28 +770,23 @@ const calculateVehicleFinancials = (
     .filter(emi => emi.isPaid)
     .reduce((sum, emi) => sum + (emi.interest || 0) + (emi.principal || 0), 0);
   
-  // Calculate total investment including prepayments
-  // Prepayments are typically recorded in the expenses or a separate field
+  // Calculate total investment (initial investment + prepayments only, not operating expenses)
   const prepaymentAmount = vehicleExpenses
     .filter(e => e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal'))
     .reduce((sum, e) => sum + e.amount, 0);
-  const totalInvestmentWithPrepayments = totalInvestment + prepaymentAmount;
+  const totalInvestmentWithPrepayments = (vehicle.initialInvestment || vehicle.initialCost || 0) + prepaymentAmount;
   
-  // Calculate ROI based on simple business logic as requested
-  // ROI = (Total Earnings - Total Expenses - EMI Paid) vs (Initial Investment + Prepayments)
-  const netCashFlow = totalEarnings - totalExpenses - totalEmiPaid;
-  const currentValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost;
+  // Calculate total return: current car value + earnings - total expenses - outstanding loan
+  const currentCarValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0;
+  const totalReturn = currentCarValue + totalEarnings - totalExpenses - outstandingLoan;
   
-  // Simple business ROI: Actual cash performance vs total investment
-  const currentROI = totalInvestmentWithPrepayments > 0 ? (netCashFlow / totalInvestmentWithPrepayments) * 100 : 0;
-  const roiAmount = netCashFlow; // ROI in actual amount (profit/loss)
+  // Calculate ROI using standard formula: [(Total Return - Investment) / Investment] × 100
+  const roiPercentage = totalInvestmentWithPrepayments > 0 ? 
+    ((totalReturn - totalInvestmentWithPrepayments) / totalInvestmentWithPrepayments) * 100 : 0;
   
-  // Check if investment is covered (profit >= total investment)
-  const isInvestmentCovered = netCashFlow >= totalInvestmentWithPrepayments;
-  
-  // Calculate gross profit/loss (what you get if you sell the taxi)
-  const vehicleValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost;
-  const grossProfitLoss = vehicleValue + netCashFlow - outstandingLoan;
+  // Calculate profit/loss: Total Return - Investment
+  const profitLoss = totalReturn - totalInvestmentWithPrepayments;
+  const isProfit = profitLoss >= 0;
   
   // Calculate yearly projections
   const avgMonthlyProfit = monthlyProfit; // Current monthly profit calculation
@@ -799,12 +801,19 @@ const calculateVehicleFinancials = (
     monthlyProfit,
     totalEarnings,
     totalExpenses,
-    currentROI,
-    roiAmount,
+    currentROI: roiPercentage, // Keep currentROI for backward compatibility
+    roiAmount: totalReturn, // ROI amount is now total return
+    totalReturn,
+    roiPercentage,
+    roiVsInvestmentPercentage: Math.abs(profitLoss / totalInvestmentWithPrepayments) * 100, // Percentage difference
+    isROIGreaterThanInvestment: profitLoss >= 0,
     totalEmiPaid,
     totalInvestmentWithPrepayments,
-    isInvestmentCovered,
-    grossProfitLoss,
+    isInvestmentCovered: profitLoss >= 0,
+    grossProfitLoss: Math.abs(profitLoss), // Absolute value for display
+    grossProfitLossPercentage: totalInvestmentWithPrepayments > 0 ? 
+      Math.abs(profitLoss / totalInvestmentWithPrepayments) * 100 : 0,
+    isProfit,
     projectedYearlyProfit,
     avgMonthlyProfit,
     isCurrentlyRented: !!currentAssignment,
