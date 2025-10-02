@@ -1697,8 +1697,8 @@ const VehicleDetails: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">Net Cash Flow</span>
-                    <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
+                    <span className={`font-bold ${(financialData.totalEarnings - (financialData.totalExpenses - expenseData.prepayments)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ₹{(financialData.totalEarnings - (financialData.totalExpenses - expenseData.prepayments)).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1706,7 +1706,7 @@ const VehicleDetails: React.FC = () => {
                     <span className={`font-bold ${(financialData.monthlyRent - financialData.monthlyExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       ₹{Math.round(financialData.monthlyRent - financialData.monthlyExpenses).toLocaleString()}
                     </span>
-                  </div>
+                  </div>      
                   <div className="flex justify-between border-t pt-2">
                     <span className="font-medium">Profit/Loss</span>
                     <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
