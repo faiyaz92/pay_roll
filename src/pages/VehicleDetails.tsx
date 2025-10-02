@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -87,6 +87,7 @@ const VehicleDetails: React.FC = () => {
   const { toast } = useToast();
   const { userInfo } = useAuth();
   const { vehicles, drivers, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments } = useFirebaseData();
+  const { assignments: allAssignments } = useAssignments();
   const [prepaymentAmount, setPrepaymentAmount] = useState('');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
@@ -495,7 +496,7 @@ const VehicleDetails: React.FC = () => {
 
   // Helper function to recalculate amortization schedule after prepayment
   const recalculateAmortizationSchedule = (
-    currentSchedule: any[],
+    currentSchedule: EMIScheduleItem[],
     newOutstanding: number,
     emiPerMonth: number,
     interestRate: number
@@ -1218,8 +1219,7 @@ const VehicleDetails: React.FC = () => {
       XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Expenses');
 
       // Assignments Sheet
-      const { assignments } = useAssignments();
-      const vehicleAssignments = assignments.filter(a => a.vehicleId === vehicleId);
+      const vehicleAssignments = allAssignments.filter(a => a.vehicleId === vehicleId);
 
       const assignmentsData = [
         ['Assignment History'],
@@ -1565,7 +1565,7 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total Expenses</span>
+                    <span>Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI + Prepayments)</span></span>
                     <span className="font-medium text-red-600">₹{financialData.totalExpenses.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
@@ -1577,7 +1577,7 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
-                    <span>Total Return</span>
+                    <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
                     <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
                   </div>
                   {financialData.isInvestmentCovered && (
@@ -1775,7 +1775,7 @@ const VehicleDetails: React.FC = () => {
                         >
                           Confirm & Pay ₹{prepaymentResults.amount.toLocaleString()}
                         </Button>
-                        <Button 
+                        <Button
                           variant="outline"
                           onClick={() => setShowPrepaymentResults(false)}
                         >
@@ -1787,6 +1787,89 @@ const VehicleDetails: React.FC = () => {
                 </CardContent>
               </Card>
             )}
+          </div>
+
+          {/* Financial Breakdowns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Total Returns Breakdown */}
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  Total Returns Breakdown
+                </CardTitle>
+                <CardDescription>
+                  Components that make up your total returns
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Car Value:</span>
+                  <span className="font-medium text-green-600">+₹{(vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Earnings:</span>
+                  <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Expenses:</span>
+                  <span className="font-medium text-red-600">-₹{financialData.totalExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Outstanding Loan:</span>
+                  <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
+                </div>
+                <div className="h-6"></div>
+                <div className="h-6"></div>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Total Returns:</span>
+                  <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Expenses Breakdown */}
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-red-600" />
+                  Total Expenses Breakdown
+                </CardTitle>
+                <CardDescription>
+                  Components that make up your total costs
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Fuel Expenses:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Maintenance:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Insurance:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Penalties:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">EMI Payments:</span>
+                  <span className="font-medium text-blue-600">₹{expenseData.emiPayments.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Other Expenses:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.otherExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Total Expenses:</span>
+                  <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -2952,7 +3035,7 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total Expenses</span>
+                    <span>Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI + Prepayments)</span></span>
                     <span className="font-medium text-red-600">₹{financialData.totalExpenses.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
@@ -2960,7 +3043,7 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium text-blue-600">₹{financialData.totalEmiPaid.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total Return</span>
+                    <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
                     <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
@@ -2979,12 +3062,6 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium">ROI</span>
                     <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Profit/Loss</span>
-                    <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{(financialData.totalReturn - financialData.totalInvestmentWithPrepayments).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
@@ -3059,6 +3136,89 @@ const VehicleDetails: React.FC = () => {
                     </p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Financial Breakdowns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Total Returns Breakdown */}
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  Total Returns Breakdown
+                </CardTitle>
+                <CardDescription>
+                  Components that make up your total returns
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Car Value:</span>
+                  <span className="font-medium text-green-600">+₹{(vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Earnings:</span>
+                  <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Expenses:</span>
+                  <span className="font-medium text-red-600">-₹{financialData.totalExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Outstanding Loan:</span>
+                  <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
+                </div>
+                <div className="h-6"></div>
+                <div className="h-6"></div>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Total Returns:</span>
+                  <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Expenses Breakdown */}
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-red-600" />
+                  Total Expenses Breakdown
+                </CardTitle>
+                <CardDescription>
+                  Components that make up your total costs
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Fuel Expenses:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Maintenance:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Insurance:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Penalties:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">EMI Payments:</span>
+                  <span className="font-medium text-blue-600">₹{expenseData.emiPayments.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Other Expenses:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.otherExpenses.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Total Expenses:</span>
+                  <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -3643,4 +3803,5 @@ const VehicleDetails: React.FC = () => {
 };
 
 export default VehicleDetails;
+
 
