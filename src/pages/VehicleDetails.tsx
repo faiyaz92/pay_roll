@@ -427,30 +427,46 @@ const VehicleDetails: React.FC = () => {
   const handlePrepayment = () => {
     const amount = parseFloat(prepaymentAmount);
     const outstandingLoan = financialData.outstandingLoan;
-    
+
     if (amount > 0 && amount <= outstandingLoan) {
       // Calculate new outstanding and tenure
       const monthlyRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
       const newOutstanding = outstandingLoan - amount;
       const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
-      
-      let newTenure = 0;
-      let outstanding = newOutstanding;
-      
-      // Calculate new tenure with same EMI
-      while (outstanding > 0 && newTenure < 360) { // Max 30 years
-        const interest = outstanding * monthlyRate;
-        const principal = Math.max(emiPerMonth - interest, outstanding); // Ensure we don't go negative
-        outstanding -= principal;
-        newTenure++;
-        
-        if (principal <= 0 || outstanding <= 0) break;
+
+      // Calculate current remaining tenure with existing outstanding
+      let currentTenure = 0;
+      let tempOutstanding = outstandingLoan;
+      while (tempOutstanding > 0 && currentTenure < 360) {
+        const interest = tempOutstanding * monthlyRate;
+        const principal = Math.min(emiPerMonth - interest, tempOutstanding);
+        tempOutstanding -= principal;
+        currentTenure++;
+        if (principal <= 0 || tempOutstanding <= 0) break;
       }
-      
-      const currentTenure = vehicle.loanDetails?.amortizationSchedule?.filter(s => !s.isPaid).length || 0;
+
+      // Calculate new tenure with reduced principal
+      let newTenure = 0;
+      let tempOutstandingNew = newOutstanding;
+      while (tempOutstandingNew > 0 && newTenure < 360) {
+        const interest = tempOutstandingNew * monthlyRate;
+        const principal = Math.min(emiPerMonth - interest, tempOutstandingNew);
+        tempOutstandingNew -= principal;
+        newTenure++;
+        if (principal <= 0 || tempOutstandingNew <= 0) break;
+      }
+
       const tenureReduction = Math.max(0, currentTenure - newTenure);
-      const interestSavings = Math.max(0, (emiPerMonth * tenureReduction) - amount);
-      
+
+      // Calculate interest savings correctly
+      const originalTotalPayments = currentTenure * emiPerMonth;
+      const originalInterest = originalTotalPayments - outstandingLoan;
+
+      const newTotalPayments = newTenure * emiPerMonth;
+      const newInterest = newTotalPayments - newOutstanding;
+
+      const interestSavings = Math.max(0, originalInterest - newInterest);
+
       // Store results to display in card
       setPrepaymentResults({
         amount,
@@ -460,7 +476,7 @@ const VehicleDetails: React.FC = () => {
         interestSavings
       });
       setShowPrepaymentResults(true);
-      
+
     } else if (amount > outstandingLoan) {
       toast({
         title: 'Amount Exceeds Outstanding Loan',
@@ -476,36 +492,79 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
+  // Helper function to recalculate amortization schedule after prepayment
+  const recalculateAmortizationSchedule = (
+    currentSchedule: any[],
+    newOutstanding: number,
+    emiPerMonth: number,
+    interestRate: number
+  ) => {
+    const monthlyRate = interestRate / 12 / 100;
+    const newSchedule = [];
+    let outstanding = newOutstanding;
+    
+    // Find the last paid installment to continue from there
+    const lastPaidIndex = currentSchedule.findLastIndex(item => item.isPaid);
+    const nextMonthNumber = lastPaidIndex >= 0 ? currentSchedule[lastPaidIndex].month + 1 : 1;
+    
+    // Get the due date for the next installment
+    let nextDueDate: Date;
+    if (lastPaidIndex >= 0 && currentSchedule[lastPaidIndex].paidAt) {
+      nextDueDate = new Date(currentSchedule[lastPaidIndex].paidAt);
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+    } else {
+      // Fallback to current date if no paid installments
+      nextDueDate = new Date();
+      nextDueDate.setDate(vehicle.loanDetails?.emiDueDate || 1);
+    }
+
+    let month = nextMonthNumber;
+    
+    // Generate new schedule with reduced principal
+    while (outstanding > 0 && month <= 360) { // Max 30 years from current point
+      const interest = outstanding * monthlyRate;
+      const principal = Math.min(emiPerMonth - interest, outstanding);
+      outstanding -= principal;
+
+      const dueDate = new Date(nextDueDate);
+      dueDate.setMonth(nextDueDate.getMonth() + (month - nextMonthNumber));
+
+      newSchedule.push({
+        month,
+        interest: Math.round(interest * 100) / 100,
+        principal: Math.round(principal * 100) / 100,
+        outstanding: Math.round(outstanding * 100) / 100,
+        dueDate: dueDate.toISOString().split('T')[0],
+        isPaid: false,
+        paidAt: null,
+      });
+
+      month++;
+      
+      if (outstanding <= 0) break;
+    }
+
+    return newSchedule;
+  };
+
   const processPrepayment = async () => {
     if (!prepaymentResults) return;
     
     try {
-      // Update vehicle with new outstanding loan
-      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
-      
-      // Mark enough EMIs as prepaid to account for the prepayment
-      let remainingPrepayment = prepaymentResults.amount;
-      for (let i = 0; i < updatedSchedule.length && remainingPrepayment > 0; i++) {
-        if (!updatedSchedule[i].isPaid) {
-          const principalAmount = updatedSchedule[i].principal || 0;
-          if (remainingPrepayment >= principalAmount) {
-            updatedSchedule[i].isPaid = true;
-            updatedSchedule[i].paidAt = new Date().toISOString().split('T')[0];
-            (updatedSchedule[i] as EMIScheduleItem).prepaid = true;
-            remainingPrepayment -= principalAmount;
-          } else {
-            // Partial payment for this EMI
-            updatedSchedule[i].principal = principalAmount - remainingPrepayment;
-            remainingPrepayment = 0;
-          }
-        }
-      }
+      // Recalculate the amortization schedule with new outstanding amount
+      const currentSchedule = vehicle.loanDetails?.amortizationSchedule || [];
+      const newSchedule = recalculateAmortizationSchedule(
+        currentSchedule,
+        prepaymentResults.newOutstanding,
+        vehicle.loanDetails?.emiPerMonth || 0,
+        vehicle.loanDetails?.interestRate || 8.5
+      );
 
-      // Update vehicle in Firestore
+      // Update vehicle in Firestore with new schedule and outstanding loan
       await updateVehicle(vehicleId!, {
         loanDetails: {
           ...vehicle.loanDetails!,
-          amortizationSchedule: updatedSchedule,
+          amortizationSchedule: newSchedule,
           outstandingLoan: prepaymentResults.newOutstanding
         }
       });
@@ -530,7 +589,7 @@ const VehicleDetails: React.FC = () => {
 
       toast({
         title: 'Prepayment Successful',
-        description: `₹${prepaymentResults.amount.toLocaleString()} prepayment processed successfully. Outstanding reduced to ₹${prepaymentResults.newOutstanding.toLocaleString()}.`,
+        description: `₹${prepaymentResults.amount.toLocaleString()} prepayment processed successfully. Outstanding reduced to ₹${prepaymentResults.newOutstanding.toLocaleString()}. Tenure reduced by ${prepaymentResults.tenureReduction} months.`,
       });
 
       // Reset form and close results
