@@ -118,6 +118,7 @@ const VehicleDetails: React.FC = () => {
   const [showExpenseCorrectionForm, setShowExpenseCorrectionForm] = useState(false);
   const [selectedExpenseType, setSelectedExpenseType] = useState('fuel');
   const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
+  const [projectionYear, setProjectionYear] = useState(1); // Default to 1 year projection
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -1298,6 +1299,106 @@ const VehicleDetails: React.FC = () => {
     });
   };
 
+  // Projection calculation function
+  const calculateProjection = (years: number) => {
+    const months = years * 12;
+    
+    // Current financial data
+    const currentTotalEarnings = financialData.totalEarnings;
+    const currentTotalExpenses = financialData.totalExpenses;
+    const currentOutstandingLoan = financialData.outstandingLoan;
+    const currentCarValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0;
+    const currentTotalInvestment = getTotalInvestment();
+    
+    // Monthly projections based on current trends
+    const monthlyEarnings = financialData.monthlyRent;
+    const monthlyExpenses = financialData.monthlyExpenses;
+    const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;
+    const monthlyNetCashFlow = monthlyEarnings - monthlyExpenses;
+    
+    // Project future earnings and expenses
+    const projectedEarnings = currentTotalEarnings + (monthlyEarnings * months);
+    const projectedExpenses = currentTotalExpenses + (monthlyExpenses * months) + (monthlyEMI * months);
+    const projectedNetCashFlow = projectedEarnings - projectedExpenses;
+    
+    // Calculate future car value using depreciation
+    const depreciationRate = vehicle.depreciationRate || 10; // Default 10% if not set
+    const depreciationPerYear = depreciationRate / 100;
+    const futureCarValue = currentCarValue * Math.pow((1 - depreciationPerYear), years);
+    
+    // Calculate future outstanding loan
+    let futureOutstandingLoan = currentOutstandingLoan;
+    const monthlyRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
+    const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
+    
+    // Simulate loan payments over the projection period
+    for (let i = 0; i < months; i++) {
+      if (futureOutstandingLoan > 0) {
+        const interest = futureOutstandingLoan * monthlyRate;
+        const principal = Math.min(emiPerMonth - interest, futureOutstandingLoan);
+        futureOutstandingLoan -= principal;
+        if (futureOutstandingLoan < 0) futureOutstandingLoan = 0;
+      }
+    }
+    
+    // Calculate projected total return and ROI
+    const projectedTotalReturn = futureCarValue + projectedEarnings - projectedExpenses - futureOutstandingLoan;
+    const projectedROI = currentTotalInvestment > 0 ? 
+      ((projectedTotalReturn - currentTotalInvestment) / currentTotalInvestment) * 100 : 0;
+    
+    // Calculate projected profit/loss
+    const projectedProfitLoss = projectedTotalReturn - currentTotalInvestment;
+    
+    // Find break-even point (when ROI becomes positive)
+    let breakEvenMonths = 0;
+    let breakEvenDate = null;
+    let tempOutstandingLoan = currentOutstandingLoan;
+    let tempEarnings = currentTotalEarnings;
+    let tempExpenses = currentTotalExpenses;
+    let tempCarValue = currentCarValue;
+    
+    while (breakEvenMonths < 120) { // Max 10 years
+      // Monthly updates
+      tempEarnings += monthlyEarnings;
+      tempExpenses += monthlyExpenses + monthlyEMI;
+      tempCarValue *= (1 - depreciationPerYear / 12); // Monthly depreciation
+      
+      // Update loan
+      if (tempOutstandingLoan > 0) {
+        const interest = tempOutstandingLoan * monthlyRate;
+        const principal = Math.min(emiPerMonth - interest, tempOutstandingLoan);
+        tempOutstandingLoan -= principal;
+        if (tempOutstandingLoan < 0) tempOutstandingLoan = 0;
+      }
+      
+      const tempTotalReturn = tempCarValue + tempEarnings - tempExpenses - tempOutstandingLoan;
+      const tempROI = currentTotalInvestment > 0 ? 
+        ((tempTotalReturn - currentTotalInvestment) / currentTotalInvestment) * 100 : 0;
+      
+      if (tempROI >= 0) {
+        breakEvenDate = new Date();
+        breakEvenDate.setMonth(breakEvenDate.getMonth() + breakEvenMonths);
+        break;
+      }
+      
+      breakEvenMonths++;
+    }
+    
+    return {
+      projectedEarnings,
+      projectedExpenses,
+      projectedNetCashFlow,
+      monthlyNetCashFlow,
+      futureCarValue,
+      futureOutstandingLoan,
+      projectedTotalReturn,
+      projectedROI,
+      projectedProfitLoss,
+      breakEvenMonths: breakEvenMonths < 120 ? breakEvenMonths : null,
+      breakEvenDate: breakEvenDate ? breakEvenDate.toLocaleDateString() : null
+    };
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -1592,6 +1693,18 @@ const VehicleDetails: React.FC = () => {
                     <span className="font-medium">ROI</span>
                     <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Net Cash Flow</span>
+                    <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Monthly Net Cash Flow</span>
+                    <span className={`font-bold ${(financialData.monthlyRent - financialData.monthlyExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ₹{Math.round(financialData.monthlyRent - financialData.monthlyExpenses).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
@@ -3219,6 +3332,150 @@ const VehicleDetails: React.FC = () => {
                   <span>Total Expenses:</span>
                   <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Financial Projections */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Projection Controls */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  Financial Projections
+                </CardTitle>
+                <CardDescription>
+                  Project future performance based on current trends
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="projection-year">Projection Period</Label>
+                  <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select years" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 Year</SelectItem>
+                      <SelectItem value="2">2 Years</SelectItem>
+                      <SelectItem value="3">3 Years</SelectItem>
+                      <SelectItem value="5">5 Years</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {(() => {
+                  const projection = calculateProjection(projectionYear);
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Projected Net Cash Flow:</span>
+                        <span className={`font-bold ${projection.projectedNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{projection.projectedNetCashFlow.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Monthly Net Cash Flow:</span>
+                        <span className={`font-bold ${projection.monthlyNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{projection.monthlyNetCashFlow.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Projected Profit/Loss:</span>
+                        <span className={`font-bold ${projection.projectedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{projection.projectedProfitLoss.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Projected ROI:</span>
+                        <span className={`font-bold ${projection.projectedROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {projection.projectedROI >= 0 ? '+' : ''}{projection.projectedROI.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Future Car Value:</span>
+                        <span className="font-medium text-blue-600">
+                          ₹{projection.futureCarValue.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Outstanding Loan:</span>
+                        <span className="font-medium text-red-600">
+                          ₹{projection.futureOutstandingLoan.toLocaleString()}
+                        </span>
+                      </div>
+                      {projection.breakEvenMonths !== null && (
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="font-medium">Break-even Point:</span>
+                          <span className="font-bold text-green-600">
+                            {projection.breakEvenMonths} months ({projection.breakEvenDate})
+                          </span>
+                        </div>
+                      )}
+                      {projection.breakEvenMonths === null && (
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="font-medium">Break-even Status:</span>
+                          <Badge variant="outline" className="text-orange-600">
+                            Not within 10 years
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Projection Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Projection Summary</CardTitle>
+                <CardDescription>
+                  Key insights from {projectionYear}-year projection
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const projection = calculateProjection(projectionYear);
+                  const isProfitable = projection.projectedProfitLoss >= 0;
+                  const roiPositive = projection.projectedROI >= 0;
+                  
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Investment Recovery:</span>
+                        <Badge variant={isProfitable ? "default" : "destructive"}>
+                          {isProfitable ? "Recovered" : "Not Recovered"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ROI Status:</span>
+                        <Badge variant={roiPositive ? "default" : "destructive"}>
+                          {roiPositive ? "Positive" : "Negative"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Cash Flow:</span>
+                        <Badge variant={projection.projectedNetCashFlow >= 0 ? "default" : "destructive"}>
+                          {projection.projectedNetCashFlow >= 0 ? "Positive" : "Negative"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Loan Status:</span>
+                        <Badge variant={projection.futureOutstandingLoan === 0 ? "default" : "secondary"}>
+                          {projection.futureOutstandingLoan === 0 ? "Cleared" : "Outstanding"}
+                        </Badge>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-3 rounded-lg mt-4">
+                        <p className="text-sm text-gray-700">
+                          <strong>Assumptions:</strong> Projections based on current monthly earnings (₹{financialData.monthlyRent.toLocaleString()}) and expenses (₹{financialData.monthlyExpenses.toLocaleString()}), with {vehicle.depreciationRate || 10}% annual depreciation and loan payments.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
