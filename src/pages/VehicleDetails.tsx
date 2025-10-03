@@ -3248,12 +3248,12 @@ const VehicleDetails: React.FC = () => {
             </Card>
 
             {/* Projections - Dynamic Data */}
-            <Card>
-              <CardHeader>
+            <Card className="h-full flex flex-col">
+              <CardHeader className="flex-shrink-0">
                 <CardTitle>Yearly Projections</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
+              <CardContent className="flex flex-col flex-grow min-h-0">
+                <div className="space-y-3 flex-grow overflow-y-auto">
                   <div className="flex justify-between">
                     <span>Current Monthly Rent</span>
                     <span className="font-medium">
@@ -3281,7 +3281,7 @@ const VehicleDetails: React.FC = () => {
                   <div className="flex justify-between">
                     <span>Projected ROI (1 Year)</span>
                     <span className={`font-medium ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {getTotalInvestment() > 0 ? 
+                      {getTotalInvestment() > 0 ?
                         ((financialData.projectedYearlyProfit / getTotalInvestment()) * 100).toFixed(1) : 0
                       }%
                     </span>
@@ -3294,21 +3294,24 @@ const VehicleDetails: React.FC = () => {
                       </Badge>
                     </div>
                   )}
-                  <div className="flex justify-between border-t pt-2">
+                </div>
+
+                <div className="flex-shrink-0 mt-auto">
+                  <div className="flex justify-between border-t pt-2 mb-2">
                     <span className="font-medium">Business Status</span>
                     <Badge variant={financialData.projectedYearlyProfit >= 0 ? "default" : "destructive"}>
                       {financialData.projectedYearlyProfit >= 0 ? "Profitable Projection" : "Loss Projection"}
                     </Badge>
                   </div>
+
+                  {!financialData.isCurrentlyRented && (
+                    <div className="bg-yellow-50 p-2 rounded-lg">
+                      <p className="text-xs text-yellow-700">
+                        <strong>Note:</strong> Vehicle is not currently rented. Projections will be accurate once assigned to a driver.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                
-                {!financialData.isCurrentlyRented && (
-                  <div className="bg-yellow-50 p-3 rounded-lg mt-4">
-                    <p className="text-sm text-yellow-700">
-                      <strong>Note:</strong> Vehicle is not currently rented. Projections will be accurate once assigned to a driver.
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
