@@ -732,17 +732,20 @@ const calculateVehicleFinancials = (
     operationalMonths = Math.max(1, monthsDiff + 1); // +1 to include current month
   }
 
-  // Calculate total expenses from expenses collection (including EMI payments for true total outflow)
+  // Calculate total expenses from expenses collection (including EMI payments but excluding prepayments)
   const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
   const totalExpenses = vehicleExpenses
-    .reduce((sum, e) => sum + e.amount, 0) + // Include ALL expenses including EMI
+    .filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
+                   e.description.toLowerCase().includes('prepayment') ||
+                   e.description.toLowerCase().includes('principal')))
+    .reduce((sum, e) => sum + e.amount, 0) + // Include expenses and EMI but exclude prepayments
     (vehicle.previousData?.expenses || 0);
 
   // Calculate monthly expenses based on actual operational months (excluding prepayments for cash flow)
   const prepaymentAmount = vehicleExpenses
     .filter(e => e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal'))
     .reduce((sum, e) => sum + e.amount, 0);
-  const operatingExpenses = totalExpenses - prepaymentAmount; // Exclude prepayments from monthly calculations
+  const operatingExpenses = totalExpenses ; // Exclude prepayments from monthly calculations
   const monthlyExpenses = operationalMonths > 0 ? operatingExpenses / operationalMonths : 0;
 
   // Calculate monthly profit (rent - operating expenses, EMI is separate)
@@ -780,9 +783,9 @@ const calculateVehicleFinancials = (
   // Calculate total investment (initial investment + prepayments only, not operating expenses)
   const totalInvestmentWithPrepayments = (vehicle.initialInvestment || vehicle.initialCost || 0) + prepaymentAmount;
   
-  // Calculate total return: current car value + earnings - total expenses (excluding prepayments) - outstanding loan
+  // Calculate total return: earnings + current car value - total expenses (excluding prepayment) - outstanding loan
   const currentCarValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0;
-  const totalReturn = currentCarValue + totalEarnings - (totalExpenses - prepaymentAmount) - outstandingLoan;
+  const totalReturn = totalEarnings + currentCarValue - totalExpenses - outstandingLoan;
   
   // Calculate ROI using standard formula: [(Total Return - Investment) / Investment] × 100
   const roiPercentage = totalInvestmentWithPrepayments > 0 ? 

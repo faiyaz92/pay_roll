@@ -96,6 +96,9 @@ const Reports: React.FC = () => {
 
     const totalExpenses = filteredExpenses
       .filter(e => e.status === 'approved')
+      .filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
+                     e.description.toLowerCase().includes('prepayment') ||
+                     e.description.toLowerCase().includes('principal')))
       .reduce((sum, e) => sum + e.amount, 0);
 
     const netProfit = totalRevenue - totalExpenses;
