@@ -671,6 +671,7 @@ export const useTenantCompanies = () => {
 
 // Enhanced Vehicle Financial Data Calculations
 interface VehicleFinancialData {
+  totalInvestment: any;
   monthlyRent: number;
   monthlyExpenses: number;
   monthlyProfit: number;
@@ -678,12 +679,12 @@ interface VehicleFinancialData {
   totalExpenses: number;
   currentROI: number;
   roiAmount: number; // ROI in actual amount
-  totalReturn: number; // Total return amount (total earnings)
+  totalReturn: number; // Total return amount (total earnings + depreciated car value - outstanding loan)
   roiPercentage: number; // Proper ROI %: [(Total Return - Investment) / Investment] × 100
   roiVsInvestmentPercentage: number; // ROI percentage difference from total investment
   isROIGreaterThanInvestment: boolean; // Whether ROI > total investment
   totalEmiPaid: number; // Total EMI amount paid so far
-  totalInvestmentWithPrepayments: number; // Initial investment + prepayments
+  totalInvestmentWithPrepayments: number; // Just prepayments for separate display
   isInvestmentCovered: boolean; // Whether profit >= total investment
   grossProfitLoss: number; // |ROI - Total Investment|
   grossProfitLossPercentage: number; // Percentage difference from total investment
@@ -695,69 +696,76 @@ interface VehicleFinancialData {
   outstandingLoan: number;
   nextEMIDue: string | null;
   daysUntilEMI: number;
+  totalNetCashFlow: number; // Total earnings - recurring expenses
+  currentVehicleValue: number; // Current car value (residual or depreciated)
 }
 
 const calculateVehicleFinancials = (
-  vehicleId: string, 
-  vehicle: Vehicle, 
-  assignments: Assignment[], 
-  payments: Payment[], 
+  vehicleId: string,
+  vehicle: Vehicle,
+  assignments: Assignment[],
+  payments: Payment[],
   expenses: Expense[]
 ): VehicleFinancialData => {
-  // Get current active assignment
+  // ===== NEW FINANCIAL CALCULATION FORMULAS =====
+  // Based on taxi business economics case studies
+
+  // 1. Get current active assignment for monthly rent calculation
   const currentAssignment = assignments.find(
     a => a.vehicleId === vehicleId && a.status === 'active'
   );
 
-  // Calculate monthly rent from current assignment
-  const monthlyRent = currentAssignment ? 
+  // 2. Calculate monthly rent from current assignment
+  const monthlyRent = currentAssignment ?
     (currentAssignment.weeklyRent * 52) / 12 : 0;
 
-  // Calculate total earnings from all rent payments for this vehicle (from payments collection)
+  // 3. Calculate total earnings from all rent payments for this vehicle
   const vehiclePayments = payments.filter(p => p.vehicleId === vehicleId && p.status === 'paid');
-  const totalEarnings = vehiclePayments.reduce((sum, p) => sum + p.amountPaid, 0) + 
+  const totalEarnings = vehiclePayments.reduce((sum, p) => sum + p.amountPaid, 0) +
     (vehicle.previousData?.rentEarnings || 0);
 
-  // Calculate operational months based on actual data
+  // 4. Calculate operational months based on payment history
   let operationalMonths = 1; // Minimum 1 month
   if (vehiclePayments.length > 0) {
-    // Find earliest payment date
     const earliestPaymentDate = vehiclePayments
       .map(p => new Date(p.paidAt || p.collectionDate || p.createdAt))
       .sort((a, b) => a.getTime() - b.getTime())[0];
-    
+
     const currentDate = new Date();
-    const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 + 
+    const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 +
                       (currentDate.getMonth() - earliestPaymentDate.getMonth());
-    operationalMonths = Math.max(1, monthsDiff + 1); // +1 to include current month
+    operationalMonths = Math.max(1, monthsDiff + 1);
   }
 
-  // Calculate total expenses from expenses collection (including EMI payments but excluding prepayments)
+  // 5. Calculate total operating expenses (excluding prepayments and EMI)
   const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
-  const totalExpenses = vehicleExpenses
+  const totalOperatingExpenses = vehicleExpenses
     .filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
                    e.description.toLowerCase().includes('prepayment') ||
-                   e.description.toLowerCase().includes('principal')))
-    .reduce((sum, e) => sum + e.amount, 0) + // Include expenses and EMI but exclude prepayments
+                   e.description.toLowerCase().includes('principal') ||
+                   e.paymentType === 'emi' || e.type === 'emi'))
+    .reduce((sum, e) => sum + e.amount, 0) +
     (vehicle.previousData?.expenses || 0);
 
-  // Calculate monthly expenses based on actual operational months (excluding prepayments for cash flow)
-  const prepaymentAmount = vehicleExpenses
-    .filter(e => e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal'))
+  // 5b. Calculate TOTAL expenses (including EMI and prepayments for display)
+  const totalAllExpenses = vehicleExpenses.reduce((sum, e) => sum + e.amount, 0) +
+    (vehicle.previousData?.expenses || 0);
+
+  // 6. Calculate prepayments (principal payments made upfront)
+  const prepayments = vehicleExpenses
+    .filter(e => e.description.toLowerCase().includes('prepayment') ||
+                 e.description.toLowerCase().includes('principal'))
     .reduce((sum, e) => sum + e.amount, 0);
-  const operatingExpenses = totalExpenses ; // Exclude prepayments from monthly calculations
-  const monthlyExpenses = operationalMonths > 0 ? operatingExpenses / operationalMonths : 0;
 
-  // Calculate monthly profit (rent - operating expenses, EMI is separate)
-  const monthlyProfit = monthlyRent - monthlyExpenses; // EMI not deducted here as it's a loan payment
+  // 7. Calculate monthly operating expenses
+  const monthlyExpenses = operationalMonths > 0 ? totalOperatingExpenses / operationalMonths : 0;
 
-  // Calculate ROI based on cash flows, not asset value
-  // ROI should reflect actual returns from the business operation
-  // const totalInvestment = vehicle.initialInvestment + totalExpenses; // WRONG - expenses are not investment
-  
-  // Calculate outstanding loan and next EMI due
+  // 8. Calculate monthly profit (rent - operating expenses, EMI separate)
+  const monthlyProfit = monthlyRent - monthlyExpenses;
+
+  // 9. Calculate outstanding loan and next EMI due
   const amortizationSchedule = vehicle.loanDetails?.amortizationSchedule || [];
-  
+
   let outstandingLoan = 0;
   let nextEMIDue: string | null = null;
   let daysUntilEMI = 0;
@@ -765,61 +773,70 @@ const calculateVehicleFinancials = (
   if (amortizationSchedule.length > 0) {
     const unpaidSchedules = amortizationSchedule.filter(s => !s.isPaid);
     if (unpaidSchedules.length > 0) {
-      // Calculate outstanding loan from unpaid EMIs
       outstandingLoan = unpaidSchedules.reduce((sum, emi) => sum + (emi.principal || 0), 0);
       nextEMIDue = unpaidSchedules[0].dueDate;
       daysUntilEMI = Math.ceil((new Date(nextEMIDue).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     }
   } else {
-    // Fallback calculation if no amortization schedule
     outstandingLoan = (vehicle.loanDetails?.outstandingLoan || 0);
   }
-  
-  // Calculate total EMI paid so far
+
+  // 10. Calculate total EMI paid so far
   const totalEmiPaid = amortizationSchedule
     .filter(emi => emi.isPaid)
     .reduce((sum, emi) => sum + (emi.interest || 0) + (emi.principal || 0), 0);
-  
-  // Calculate total investment (initial investment + prepayments only, not operating expenses)
-  const totalInvestmentWithPrepayments = (vehicle.initialInvestment || vehicle.initialCost || 0) + prepaymentAmount;
-  
-  // Calculate total return: earnings + current car value - total expenses (excluding prepayment) - outstanding loan
-  const currentCarValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0;
-  const totalReturn = totalEarnings + currentCarValue - totalExpenses - outstandingLoan;
-  
-  // Calculate ROI using standard formula: [(Total Return - Investment) / Investment] × 100
-  const roiPercentage = totalInvestmentWithPrepayments > 0 ? 
-    ((totalReturn - totalInvestmentWithPrepayments) / totalInvestmentWithPrepayments) * 100 : 0;
-  
-  // Calculate profit/loss: Total Return - Investment
-  const profitLoss = totalReturn - totalInvestmentWithPrepayments;
+
+  // 11. Calculate current depreciated car value
+  const initialCarValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+  const depreciationRate = vehicle.depreciationRate || 10; // Default 10% annual depreciation
+  const depreciationPerMonth = depreciationRate / 100 / 12;
+  const currentDepreciatedCarValue = initialCarValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
+
+  // ===== CORE FINANCIAL FORMULAS (REWRITTEN FROM SCRATCH) =====
+
+  // TOTAL EXPENSES FOR DISPLAY = Recurring Expenses + EMI (excluding prepayment - rare event)
+  const totalExpensesForDisplay = totalOperatingExpenses + totalEmiPaid;
+
+  // TOTAL INVESTMENT = Initial Investment + Prepayment + (Recurring Expenses + EMI)
+  const totalInvestment = (vehicle.initialInvestment || vehicle.initialCost || 0) + prepayments + totalExpensesForDisplay;
+
+  // TOTAL RETURN = Current Car Value + Total Earnings - Outstanding Loan
+  const totalReturn = (vehicle.residualValue || currentDepreciatedCarValue) + totalEarnings - outstandingLoan;
+
+  // PROFIT/LOSS = Total Return - Total Investment
+  const profitLoss = totalReturn - totalInvestment;
+
+  // ROI = (Profit/Loss ÷ Total Investment) × 100
+  const roiPercentage = totalInvestment > 0 ?
+    (profitLoss / totalInvestment) * 100 : 0;
+
+  // TOTAL NET CASH FLOW = Total Earnings - Total Operating Expenses (recurring expenses only)
+  const totalNetCashFlow = totalEarnings - totalOperatingExpenses;
+
+  // ===== ADDITIONAL CALCULATIONS =====
+
   const isProfit = profitLoss >= 0;
-  
-  // Calculate yearly projections
-  const avgMonthlyProfit = monthlyProfit; // Current monthly profit calculation
-  const projectedYearlyProfit = avgMonthlyProfit * 12; // Project for full year
-  
-  // Note: This ROI calculation shows actual cash returns from the business
-  // If totalEarnings = 0, ROI will be negative showing the loss of invested capital
+  const avgMonthlyProfit = monthlyProfit;
+  const projectedYearlyProfit = avgMonthlyProfit * 12;
 
   return {
     monthlyRent,
     monthlyExpenses,
     monthlyProfit,
     totalEarnings,
-    totalExpenses,
-    currentROI: roiPercentage, // Keep currentROI for backward compatibility
-    roiAmount: totalReturn, // ROI amount is now total return
+    totalExpenses: totalExpensesForDisplay, // Prepayments + Recurring Expenses for display
+    currentROI: roiPercentage,
+    roiAmount: totalReturn,
     totalReturn,
     roiPercentage,
-    roiVsInvestmentPercentage: Math.abs(profitLoss / totalInvestmentWithPrepayments) * 100, // Percentage difference
+    roiVsInvestmentPercentage: Math.abs(profitLoss / totalInvestment) * 100,
     isROIGreaterThanInvestment: profitLoss >= 0,
     totalEmiPaid,
-    totalInvestmentWithPrepayments,
+    totalInvestmentWithPrepayments: prepayments, // Just prepayments for separate display
     isInvestmentCovered: profitLoss >= 0,
-    grossProfitLoss: Math.abs(profitLoss), // Absolute value for display
-    grossProfitLossPercentage: totalInvestmentWithPrepayments > 0 ? 
-      Math.abs(profitLoss / totalInvestmentWithPrepayments) * 100 : 0,
+    grossProfitLoss: Math.abs(profitLoss),
+    grossProfitLossPercentage: totalInvestment > 0 ?
+      Math.abs(profitLoss / totalInvestment) * 100 : 0,
     isProfit,
     projectedYearlyProfit,
     avgMonthlyProfit,
@@ -827,7 +844,10 @@ const calculateVehicleFinancials = (
     currentAssignment,
     outstandingLoan,
     nextEMIDue,
-    daysUntilEMI
+    daysUntilEMI,
+    totalInvestment,
+    totalNetCashFlow, // New field for net cash flow
+    currentVehicleValue: vehicle.residualValue || currentDepreciatedCarValue, // Current car value
   };
 };
 

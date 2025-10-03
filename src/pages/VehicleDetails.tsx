@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
@@ -118,6 +119,10 @@ const VehicleDetails: React.FC = () => {
   const [selectedExpenseType, setSelectedExpenseType] = useState('fuel');
   const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
   const [projectionYear, setProjectionYear] = useState(1); // Default to 1 year projection
+  const [assumedMonthlyRent, setAssumedMonthlyRent] = useState(''); // For assumption-based projections
+  const [projectionMode, setProjectionMode] = useState<'current' | 'assumed'>('current'); // Current trends vs assumptions
+  const [increasedEMI, setIncreasedEMI] = useState(''); // For increased EMI projections
+  const [netCashFlowMode, setNetCashFlowMode] = useState(false); // Use net cash flow for EMI payoff
 
   // Find vehicle from the vehicles array
   const vehicle = vehicles.find(v => v.id === vehicleId);
@@ -231,11 +236,9 @@ const VehicleDetails: React.FC = () => {
   // Get real expense data for this vehicle
   const expenseData = getVehicleExpenseData();
 
-  // Helper function to calculate total investment (initial investment + prepayments only)
+  // Helper function to get total investment (Initial + Prepayments + Recurring Expenses)
   const getTotalInvestment = () => {
-    const initialInvestment = vehicle?.initialInvestment || vehicle?.initialCost || 0;
-    const totalPrepayments = expenseData.prepayments;
-    return initialInvestment + totalPrepayments;
+    return financialData.totalInvestment; // Initial + Prepayments + Recurring Expenses
   };
 
   // Helper function to get driver name
@@ -1146,7 +1149,7 @@ const VehicleDetails: React.FC = () => {
         ['Financial Summary'],
         ['Total Return', `₹${financialData.totalReturn.toLocaleString()}`],
         ['Total Expenses', `₹${expenseData.totalExpenses.toLocaleString()}`],
-        ['Profit/Loss', `₹${(financialData.totalReturn - financialData.totalInvestmentWithPrepayments).toLocaleString()}`],
+        ['Profit/Loss', `₹${(financialData.totalReturn - financialData.totalInvestment).toLocaleString()}`],
         ['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`],
         ['Outstanding Loan', vehicle.financingType === 'loan' ? `₹${financialData.outstandingLoan.toLocaleString()}` : 'N/A']
       ];
@@ -1160,7 +1163,7 @@ const VehicleDetails: React.FC = () => {
         ['Metric', 'Amount'],
         ['Total Return', financialData.totalReturn],
         ['Total Expenses', expenseData.totalExpenses],
-        ['Profit/Loss', financialData.totalReturn - financialData.totalInvestmentWithPrepayments],
+        ['Profit/Loss', financialData.totalReturn - financialData.totalInvestment],
         ['Monthly Profit', calculateMonthlyProfit()],
         ['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`],
         ['Outstanding Loan', vehicle.financingType === 'loan' ? financialData.outstandingLoan : 0],
@@ -1331,122 +1334,209 @@ const VehicleDetails: React.FC = () => {
   };
 
   // Projection calculation function
-  const calculateProjection = (years: number) => {
+  // ===== COMPLETELY REWRITTEN PROJECTION CALCULATION =====
+  // Based on new taxi business financial formulas
+  const calculateProjection = (years: number, assumedMonthlyRent?: number, increasedEMIAmount?: number, netCashFlowMode?: boolean) => {
     const months = years * 12;
-    
-    // Current financial data
+
+    // ===== CURRENT FINANCIAL STATE =====
     const currentTotalEarnings = financialData.totalEarnings;
-    const currentTotalExpenses = expenseData.totalExpenses; // Use expenseData which excludes prepayments
+    const currentTotalOperatingExpenses = expenseData.totalExpenses; // Operating expenses only
     const currentOutstandingLoan = financialData.outstandingLoan;
-    const currentCarValue = vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0;
-    const currentTotalInvestment = getTotalInvestment();
-    
-    // Calculate operational months based on payment history
-    const vehiclePayments = firebasePayments.filter(payment => 
+    const currentTotalEmiPaid = financialData.totalEmiPaid;
+    const currentPrepayments = expenseData.prepayments;
+
+    // Calculate current depreciated car value
+    const initialCarValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+    const depreciationRate = vehicle.depreciationRate || 10;
+    const depreciationPerMonth = depreciationRate / 100 / 12;
+
+    // Get operational months
+    const vehiclePayments = firebasePayments.filter(payment =>
       payment.vehicleId === vehicleId && payment.status === 'paid'
     );
-    let operationalMonths = 1; // Minimum 1 month
+    let operationalMonths = 1;
     if (vehiclePayments.length > 0) {
-      // Find earliest payment date
       const earliestPaymentDate = vehiclePayments
         .map(p => new Date(p.paidAt || p.collectionDate || p.createdAt))
         .sort((a, b) => a.getTime() - b.getTime())[0];
-      
+
       const currentDate = new Date();
-      const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 + 
+      const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 +
                         (currentDate.getMonth() - earliestPaymentDate.getMonth());
-      operationalMonths = Math.max(1, monthsDiff + 1); // +1 to include current month
+      operationalMonths = Math.max(1, monthsDiff + 1);
     }
-    
-    // Monthly projections based on current trends
-    const monthlyEarnings = financialData.monthlyRent;
-    const monthlyExpenses = expenseData.monthlyAverage; // Use expenseData monthly average which excludes prepayments
-    const monthlyEMI = vehicle.loanDetails?.emiPerMonth || 0;
-    // Calculate monthly average net cash flow from historical data
-    const monthlyNetCashFlow = operationalMonths > 0 ? 
-      (currentTotalEarnings - currentTotalExpenses) / operationalMonths : 0;
-    
-    // Project future earnings and expenses
-    const projectedEarnings = currentTotalEarnings + (monthlyEarnings * months);
-    const projectedExpenses = currentTotalExpenses * (months / Math.max(operationalMonths, 1)); // Scale current expenses by projection ratio
-    // Calculate projected net cash flow (like current Total Net Cash Flow logic: total earnings - total expenses)
-    const projectedNetCashFlow = projectedEarnings - projectedExpenses;
-    
-    // Calculate future car value using depreciation
-    const depreciationRate = vehicle.depreciationRate || 10; // Default 10% if not set
-    const depreciationPerYear = depreciationRate / 100;
-    const futureCarValue = currentCarValue * Math.pow((1 - depreciationPerYear), years);
-    
-    // Calculate future outstanding loan
-    let futureOutstandingLoan = currentOutstandingLoan;
-    const monthlyRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
-    const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
-    
-    // Simulate loan payments over the projection period
-    for (let i = 0; i < months; i++) {
-      if (futureOutstandingLoan > 0) {
-        const interest = futureOutstandingLoan * monthlyRate;
-        const principal = Math.min(emiPerMonth - interest, futureOutstandingLoan);
-        futureOutstandingLoan -= principal;
-        if (futureOutstandingLoan < 0) futureOutstandingLoan = 0;
+
+    const currentDepreciatedCarValue = initialCarValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
+
+    // ===== CURRENT TOTAL INVESTMENT (ALL MONEY PAID OUT SO FAR) =====
+    // Total Investment = Initial Investment + Prepayments + Total EMI Paid + Total Operating Expenses
+    const currentTotalInvestment = (vehicle.initialInvestment || vehicle.initialCost || 0) +
+                                  currentPrepayments +
+                                  currentTotalEmiPaid +
+                                  currentTotalOperatingExpenses;
+
+    // ===== CURRENT TOTAL RETURN =====
+    // Total Return = Total Earnings + Current Depreciated Car Value
+    const currentTotalReturn = currentTotalEarnings + currentDepreciatedCarValue;
+
+    // ===== MONTHLY PROJECTION PARAMETERS =====
+    const monthlyEarnings = assumedMonthlyRent || financialData.monthlyRent;
+    const monthlyOperatingExpenses = expenseData.monthlyAverage;
+    let monthlyEMI = increasedEMIAmount || vehicle.loanDetails?.emiPerMonth || 0;
+
+    // Net cash flow mode: Use net cash flow to pay extra EMI
+    if (netCashFlowMode) {
+      const netCashFlow = monthlyEarnings - monthlyOperatingExpenses;
+      if (netCashFlow > 0) {
+        monthlyEMI += netCashFlow;
       }
     }
-    
-    // Calculate projected total return and ROI
-    const projectedTotalReturn = futureCarValue + projectedEarnings - projectedExpenses - futureOutstandingLoan;
-    const projectedROI = currentTotalInvestment > 0 ? 
-      ((projectedTotalReturn - currentTotalInvestment) / currentTotalInvestment) * 100 : 0;
-    
-    // Calculate projected profit/loss
-    const projectedProfitLoss = projectedTotalReturn - currentTotalInvestment;
-    
-    // Find break-even point (when ROI becomes positive)
+
+    // ===== MONTH-BY-MONTH PROJECTION SIMULATION =====
+    let projectedEarnings = currentTotalEarnings;
+    let projectedOperatingExpenses = currentTotalOperatingExpenses;
+    let projectedEmiPaid = currentTotalEmiPaid;
+    let projectedOutstandingLoan = currentOutstandingLoan;
+    let projectedDepreciatedCarValue = currentDepreciatedCarValue;
+
+    const monthlyInterestRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
+
+    // Simulate each month
+    for (let month = 0; month < months; month++) {
+      // Add monthly earnings and operating expenses
+      projectedEarnings += monthlyEarnings;
+      projectedOperatingExpenses += monthlyOperatingExpenses;
+
+      // Process loan payments
+      if (projectedOutstandingLoan > 0) {
+        const monthlyInterest = projectedOutstandingLoan * monthlyInterestRate;
+        const monthlyPrincipal = Math.min(monthlyEMI - monthlyInterest, projectedOutstandingLoan);
+        projectedEmiPaid += monthlyInterest + monthlyPrincipal;
+        projectedOutstandingLoan -= monthlyPrincipal;
+        if (projectedOutstandingLoan < 0) projectedOutstandingLoan = 0;
+      }
+
+      // Apply depreciation to car value
+      projectedDepreciatedCarValue *= (1 - depreciationPerMonth);
+    }
+
+    // ===== PROJECTED FINANCIAL CALCULATIONS =====
+
+    // Projected Total Investment = Current Total Investment + Future Operating Expenses + Future EMI Payments
+    const projectedTotalInvestment = currentTotalInvestment +
+                                    (monthlyOperatingExpenses * months) +
+                                    (projectedEmiPaid - currentTotalEmiPaid);
+
+    // Projected Total Return = Projected Earnings + Projected Depreciated Car Value
+    const projectedTotalReturn = projectedEarnings + projectedDepreciatedCarValue;
+
+    // Projected Profit/Loss = Projected Total Return - Projected Total Investment
+    const projectedProfitLoss = projectedTotalReturn - projectedTotalInvestment;
+
+    // Projected ROI = (Projected Profit/Loss ÷ Projected Total Investment) × 100
+    const projectedROI = projectedTotalInvestment > 0 ?
+      (projectedProfitLoss / projectedTotalInvestment) * 100 : 0;
+
+    // ===== BREAK-EVEN ANALYSIS =====
+    // Find when cumulative total return >= cumulative total investment
     let breakEvenMonths = 0;
     let breakEvenDate = null;
-    let tempOutstandingLoan = currentOutstandingLoan;
+
     let tempEarnings = currentTotalEarnings;
-    let tempExpenses = currentTotalExpenses; // This is already expenseData.totalExpenses (excluding prepayments)
-    let tempCarValue = currentCarValue;
-    
+    let tempOperatingExpenses = currentTotalOperatingExpenses;
+    let tempEmiPaid = currentTotalEmiPaid;
+    let tempOutstandingLoan = currentOutstandingLoan;
+    let tempDepreciatedCarValue = currentDepreciatedCarValue;
+    let tempTotalInvestment = currentTotalInvestment;
+
     while (breakEvenMonths < 120) { // Max 10 years
       // Monthly updates
       tempEarnings += monthlyEarnings;
-      tempExpenses += monthlyExpenses + monthlyEMI; // monthlyExpenses is already expenseData.monthlyAverage (excluding prepayments)
-      tempCarValue *= (1 - depreciationPerYear / 12); // Monthly depreciation
-      
-      // Update loan
+      tempOperatingExpenses += monthlyOperatingExpenses;
+      tempTotalInvestment += monthlyOperatingExpenses; // Add operating expenses to investment
+
+      // Process loan payments
       if (tempOutstandingLoan > 0) {
-        const interest = tempOutstandingLoan * monthlyRate;
-        const principal = Math.min(emiPerMonth - interest, tempOutstandingLoan);
+        const interest = tempOutstandingLoan * monthlyInterestRate;
+        const principal = Math.min(monthlyEMI - interest, tempOutstandingLoan);
+        tempEmiPaid += interest + principal;
+        tempTotalInvestment += interest + principal; // Add EMI to investment
         tempOutstandingLoan -= principal;
         if (tempOutstandingLoan < 0) tempOutstandingLoan = 0;
       }
-      
-      const tempTotalReturn = tempCarValue + tempEarnings - tempExpenses - tempOutstandingLoan;
-      const tempROI = currentTotalInvestment > 0 ? 
-        ((tempTotalReturn - currentTotalInvestment) / currentTotalInvestment) * 100 : 0;
-      
-      if (tempROI >= 0) {
+
+      // Apply depreciation
+      tempDepreciatedCarValue *= (1 - depreciationPerMonth);
+
+      // Check break-even condition: Total Return >= Total Investment
+      const tempTotalReturn = tempEarnings + tempDepreciatedCarValue;
+      const tempProfitLoss = tempTotalReturn - tempTotalInvestment;
+
+      if (tempProfitLoss >= 0) {
         breakEvenDate = new Date();
         breakEvenDate.setMonth(breakEvenDate.getMonth() + breakEvenMonths);
         break;
       }
-      
+
       breakEvenMonths++;
     }
-    
+
+    // ===== LOAN CLEARANCE TIMELINE =====
+    // Find when loan will be fully paid off
+    let loanClearanceMonths = 0;
+    let loanClearanceDate = null;
+    let tempOutstandingLoanForClearance = currentOutstandingLoan;
+
+    while (loanClearanceMonths < 120 && tempOutstandingLoanForClearance > 0) {
+      if (tempOutstandingLoanForClearance > 0) {
+        const interest = tempOutstandingLoanForClearance * monthlyInterestRate;
+        const principal = Math.min(monthlyEMI - interest, tempOutstandingLoanForClearance);
+        tempOutstandingLoanForClearance -= principal;
+
+        if (tempOutstandingLoanForClearance <= 0) {
+          loanClearanceDate = new Date();
+          loanClearanceDate.setMonth(loanClearanceDate.getMonth() + loanClearanceMonths);
+          break;
+        }
+      }
+
+      loanClearanceMonths++;
+    }
+
+    // ===== ADDITIONAL PROJECTION METRICS =====
+    const projectedNetCashFlow = projectedEarnings - projectedOperatingExpenses;
+
     return {
+      // Current state
+      currentTotalInvestment,
+      currentTotalReturn,
+      currentDepreciatedCarValue,
+
+      // Projected results
       projectedEarnings,
-      projectedExpenses,
+      projectedOperatingExpenses,
       projectedNetCashFlow,
-      monthlyNetCashFlow,
-      futureCarValue,
-      futureOutstandingLoan,
+      projectedEmiPaid,
+      projectedTotalInvestment,
       projectedTotalReturn,
-      projectedROI,
       projectedProfitLoss,
+      projectedROI,
+      projectedDepreciatedCarValue,
+
+      // Future values
+      futureOutstandingLoan: projectedOutstandingLoan,
+
+      // Analysis results
       breakEvenMonths: breakEvenMonths < 120 ? breakEvenMonths : null,
-      breakEvenDate: breakEvenDate ? breakEvenDate.toLocaleDateString() : null
+      breakEvenDate: breakEvenDate ? breakEvenDate.toLocaleDateString() : null,
+      loanClearanceMonths: loanClearanceMonths < 120 ? loanClearanceMonths : null,
+      loanClearanceDate: loanClearanceDate ? loanClearanceDate.toLocaleDateString() : null,
+
+      // Monthly parameters (for reference)
+      monthlyEarnings,
+      monthlyOperatingExpenses,
+      monthlyEMI
     };
   };
 
@@ -1544,58 +1634,24 @@ const VehicleDetails: React.FC = () => {
             {/* Financial Summary Card */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Financial Summary</CardTitle>
+                <CardTitle className="text-lg">Investment & Returns</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Initial Investment:</span>
+                  <span className="text-gray-600">Initial investment:</span>
                   <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Investment:</span>
-                  <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
+                  <span className="text-gray-600">Prepayment:</span>
+                  <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Earnings:</span>
-                  <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
+                  <span className="text-gray-600">Total expenses:</span>
+                  <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Expenses:</span>
-                  <span className="font-medium text-red-600">₹{financialData.totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">EMI Paid:</span>
-                  <span className="font-medium text-blue-600">₹{financialData.totalEmiPaid.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Monthly Profit:</span>
-                  <span className={`font-medium ${calculateMonthlyProfit() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{Math.round(calculateMonthlyProfit()).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-600">Total Return:</span>
-                  <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">ROI:</span>
-                  <span className={`font-medium ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                  </span>
-                </div>
-                {financialData.isInvestmentCovered && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Investment Status:</span>
-                    <Badge variant="default" className="bg-green-500">
-                      Investment Covered
-                    </Badge>
-                  </div>
-                )}
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-600">Profit/Loss:</span>
-                  <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{(financialData.totalReturn - financialData.totalInvestmentWithPrepayments).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
-                  </span>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span className="text-gray-700">Total investment:</span>
+                  <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1704,59 +1760,72 @@ const VehicleDetails: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col">
                 <div className="space-y-3 flex-1">
-                  <div className="flex justify-between">
-                    <span>Initial Investment</span>
-                    <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Investment (with prepayments)</span>
-                    <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Earnings</span>
-                    <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Current Vehicle Value</span>
-                    <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI)</span></span>
-                    <span className="font-medium text-red-600">₹{financialData.totalExpenses.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Outstanding Loan</span>
-                    <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
-                    <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                  </div>
-                  {financialData.isInvestmentCovered && (
+                  {/* Investment Breakdown */}
+                  <div className="space-y-2 pb-3 border-b">
+                    <h4 className="font-semibold text-sm text-gray-700">Investment Breakdown</h4>
                     <div className="flex justify-between">
-                      <span>Investment Status</span>
-                      <Badge variant="default" className="bg-green-500 text-white">
-                        Investment Covered
-                      </Badge>
+                      <span>Initial investment</span>
+                      <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="font-medium">ROI</span>
-                    <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                    </span>
+                    <div className="flex justify-between">
+                      <span>Prepayment</span>
+                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Total expenses</span>
+                      <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2 font-semibold">
+                      <span>Total investment</span>
+                      <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Total Net Cash Flow</span>
-                    <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
-                    </span>
+
+                  {/* Returns & Performance */}
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm text-gray-700">Returns & Performance</h4>
+                    <div className="flex justify-between">
+                      <span>Total Earnings</span>
+                      <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Current Vehicle Value</span>
+                      <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Outstanding Loan</span>
+                      <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
+                      <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
+                    </div>
+                    {financialData.isInvestmentCovered && (
+                      <div className="flex justify-between">
+                        <span>Investment Status</span>
+                        <Badge variant="default" className="bg-green-500 text-white">
+                          Investment Covered
+                        </Badge>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="font-medium">ROI</span>
+                      <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total Net Cash Flow</span>
+                      <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-between border-t pt-2 mt-auto">
                   <span className="font-medium">Profit/Loss</span>
                   <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{(financialData.totalReturn - financialData.totalInvestmentWithPrepayments).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
+                    ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
                   </span>
                 </div>
               </CardContent>
@@ -3185,63 +3254,76 @@ const VehicleDetails: React.FC = () => {
             {/* Financial Performance - Dynamic Data */}
             <Card className="flex flex-col h-full">
               <CardHeader>
-                <CardTitle>Financial Performance</CardTitle>
+                <CardTitle>Investment & Returns</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col">
                 <div className="space-y-3 flex-1">
-                  <div className="flex justify-between">
-                    <span>Initial Investment</span>
-                    <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Investment (with prepayments)</span>
-                    <span className="font-medium">₹{getTotalInvestment().toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Earnings</span>
-                    <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Current Vehicle Value</span>
-                    <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI)</span></span>
-                    <span className="font-medium text-red-600">₹{financialData.totalExpenses.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Outstanding Loan</span>
-                    <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
-                    <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                  </div>
-                  {financialData.isInvestmentCovered && (
+                  {/* Investment Breakdown */}
+                  <div className="space-y-2 pb-3 border-b">
+                    <h4 className="font-semibold text-sm text-gray-700">Investment Breakdown</h4>
                     <div className="flex justify-between">
-                      <span>Investment Status</span>
-                      <Badge variant="default" className="bg-green-500 text-white">
-                        Investment Covered
-                      </Badge>
+                      <span>Initial investment</span>
+                      <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="font-medium">ROI</span>
-                    <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                    </span>
+                    <div className="flex justify-between">
+                      <span>Prepayment</span>
+                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Total expenses</span>
+                      <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2 font-semibold">
+                      <span>Total investment</span>
+                      <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Total Net Cash Flow</span>
-                    <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
-                    </span>
+
+                  {/* Returns & Performance */}
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm text-gray-700">Returns & Performance</h4>
+                    <div className="flex justify-between">
+                      <span>Total Earnings</span>
+                      <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Current Vehicle Value</span>
+                      <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Outstanding Loan</span>
+                      <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
+                      <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
+                    </div>
+                    {financialData.isInvestmentCovered && (
+                      <div className="flex justify-between">
+                        <span>Investment Status</span>
+                        <Badge variant="default" className="bg-green-500 text-white">
+                          Investment Covered
+                        </Badge>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="font-medium">ROI</span>
+                      <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total Net Cash Flow</span>
+                      <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-between border-t pt-2 mt-auto">
                   <span className="font-medium">Profit/Loss</span>
                   <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{(financialData.totalReturn - financialData.totalInvestmentWithPrepayments).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
+                    ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
                   </span>
                 </div>
               </CardContent>
@@ -3332,7 +3414,30 @@ const VehicleDetails: React.FC = () => {
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Current Car Value:</span>
-                  <span className="font-medium text-green-600">+₹{(vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0).toLocaleString()}</span>
+                  <span className="font-medium text-green-600">+₹{(() => {
+                    const initialValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+                    const depreciationRate = vehicle.depreciationRate || 10;
+                    const depreciationPerMonth = depreciationRate / 100 / 12;
+                    
+                    // Calculate operational months
+                    const vehiclePayments = firebasePayments.filter(payment => 
+                      payment.vehicleId === vehicleId && payment.status === 'paid'
+                    );
+                    let operationalMonths = 1;
+                    if (vehiclePayments.length > 0) {
+                      const earliestPaymentDate = vehiclePayments
+                        .map(p => new Date(p.paidAt || p.collectionDate || p.createdAt))
+                        .sort((a, b) => a.getTime() - b.getTime())[0];
+                      
+                      const currentDate = new Date();
+                      const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 + 
+                                        (currentDate.getMonth() - earliestPaymentDate.getMonth());
+                      operationalMonths = Math.max(1, monthsDiff + 1);
+                    }
+                    
+                    const depreciatedValue = initialValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
+                    return Math.round(depreciatedValue).toLocaleString();
+                  })()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Earnings:</span>
@@ -3403,30 +3508,94 @@ const VehicleDetails: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Financial Projections Card - Shows all metrics like Financial Performance */}
             <Card className="flex flex-col h-full">
-              <CardHeader>
+              <CardHeader className="flex-shrink-0">
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
+                    <CardDescription>
+                      {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}
+                    </CardDescription>
                   </div>
-                  <div className="w-32">
-                    <Label htmlFor="projection-year" className="text-xs text-gray-600">Projection Period</Label>
-                    <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
-                      <SelectTrigger className="mt-1 h-8">
-                        <SelectValue placeholder="Select years" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Year</SelectItem>
-                        <SelectItem value="2">2 Years</SelectItem>
-                        <SelectItem value="3">3 Years</SelectItem>
-                        <SelectItem value="5">5 Years</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-2">
+                    <div className="w-32">
+                      <Label htmlFor="projection-year" className="text-xs text-gray-600">Projection Period</Label>
+                      <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select years" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Year</SelectItem>
+                          <SelectItem value="2">2 Years</SelectItem>
+                          <SelectItem value="3">3 Years</SelectItem>
+                          <SelectItem value="5">5 Years</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-32">
+                      <Label htmlFor="projection-mode" className="text-xs text-gray-600">Projection Mode</Label>
+                      <Select value={projectionMode} onValueChange={(value: 'current' | 'assumed') => setProjectionMode(value)}>
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="current">Current Trends</SelectItem>
+                          <SelectItem value="assumed">Assumed Rent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                </div>
+                {projectionMode === 'assumed' && (
+                  <div className="mt-3">
+                    <Label htmlFor="assumed-rent" className="text-sm text-gray-600">Assumed Monthly Rent (₹)</Label>
+                    <Input
+                      id="assumed-rent"
+                      type="number"
+                      value={assumedMonthlyRent}
+                      onChange={(e) => setAssumedMonthlyRent(e.target.value)}
+                      placeholder={`Current: ₹${Math.round(financialData.monthlyRent).toLocaleString()}`}
+                      className="mt-1 h-8"
+                    />
+                  </div>
+                )}
+                {vehicle.financingType === 'loan' && (
+                  <div className="mt-3">
+                    <Label htmlFor="increased-emi" className="text-sm text-gray-600">Increased EMI Amount (₹)</Label>
+                    <Input
+                      id="increased-emi"
+                      type="number"
+                      value={increasedEMI}
+                      onChange={(e) => setIncreasedEMI(e.target.value)}
+                      placeholder={`Current EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}`}
+                      className="mt-1 h-8"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter amount to pay extra towards EMI for faster loan clearance
+                    </p>
+                  </div>
+                )}
+                <div className="mt-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="net-cash-flow"
+                      checked={netCashFlowMode}
+                      onCheckedChange={(checked) => setNetCashFlowMode(checked as boolean)}
+                    />
+                    <Label htmlFor="net-cash-flow" className="text-sm text-gray-600">
+                      Use Net Cash Flow for EMI Payment
+                    </Label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Automatically use monthly net cash flow (rent - expenses) to pay extra EMI
+                  </p>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col">
                 {(() => {
-                  const projection = calculateProjection(projectionYear);
+                  const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ? 
+                    parseFloat(assumedMonthlyRent) : undefined;
+                  const increasedEMIAmt = increasedEMI ? parseFloat(increasedEMI) : undefined;
+                  const projection = calculateProjection(projectionYear, assumedRent, increasedEMIAmt, netCashFlowMode);
                   const projectedTotalInvestment = getTotalInvestment();
                   const projectedIsProfit = projection.projectedProfitLoss >= 0;
                   const projectedGrossProfitLossPercentage = projectedTotalInvestment > 0 ?
@@ -3449,11 +3618,11 @@ const VehicleDetails: React.FC = () => {
                         </div>
                         <div className="flex justify-between">
                           <span>Projected Vehicle Value</span>
-                          <span className="font-medium text-green-600">₹{projection.futureCarValue.toLocaleString()}</span>
+                          <span className="font-medium text-green-600">₹{projection.projectedDepreciatedCarValue.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Projected Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI)</span></span>
-                          <span className="font-medium text-red-600">₹{projection.projectedExpenses.toLocaleString()}</span>
+                          <span className="font-medium text-red-600">₹{projection.projectedOperatingExpenses.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Projected Outstanding Loan</span>
@@ -3475,6 +3644,22 @@ const VehicleDetails: React.FC = () => {
                             ₹{projection.projectedNetCashFlow.toLocaleString()}
                           </span>
                         </div>
+                        {projection.breakEvenMonths && (
+                          <div className="flex justify-between">
+                            <span className="font-medium">Break-even Point</span>
+                            <span className="font-bold text-blue-600">
+                              {projection.breakEvenMonths} months ({projection.breakEvenDate})
+                            </span>
+                          </div>
+                        )}
+                        {projection.loanClearanceMonths && (
+                          <div className="flex justify-between">
+                            <span className="font-medium">Loan Clearance</span>
+                            <span className="font-bold text-purple-600">
+                              {projection.loanClearanceMonths} months ({projection.loanClearanceDate})
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex justify-between border-t pt-2 mt-auto">
                         <span className="font-medium">Projected Profit/Loss</span>
@@ -3489,50 +3674,152 @@ const VehicleDetails: React.FC = () => {
             </Card>
 
             {/* Projection Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Projection Summary</CardTitle>
+            <Card className="h-full flex flex-col">
+              <CardHeader className="flex-shrink-0">
+                <CardTitle>Projection Summary & Insights</CardTitle>
                 <CardDescription>
                   Key insights from {projectionYear}-year projection
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="flex-1 flex flex-col">
                 {(() => {
-                  const projection = calculateProjection(projectionYear);
+                  const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ? 
+                    parseFloat(assumedMonthlyRent) : undefined;
+                  const increasedEMIAmt = increasedEMI ? parseFloat(increasedEMI) : undefined;
+                  const projection = calculateProjection(projectionYear, assumedRent, increasedEMIAmt, netCashFlowMode);
                   const isProfitable = projection.projectedProfitLoss >= 0;
                   const roiPositive = projection.projectedROI >= 0;
 
                   return (
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span>Investment Recovery:</span>
-                        <Badge variant={isProfitable ? "default" : "destructive"}>
-                          {isProfitable ? "Recovered" : "Not Recovered"}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>ROI Status:</span>
-                        <Badge variant={roiPositive ? "default" : "destructive"}>
-                          {roiPositive ? "Positive" : "Negative"}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Cash Flow:</span>
-                        <Badge variant={projection.projectedNetCashFlow >= 0 ? "default" : "destructive"}>
-                          {projection.projectedNetCashFlow >= 0 ? "Positive" : "Negative"}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Loan Status:</span>
-                        <Badge variant={projection.futureOutstandingLoan === 0 ? "default" : "secondary"}>
-                          {projection.futureOutstandingLoan === 0 ? "Cleared" : "Outstanding"}
-                        </Badge>
+                    <div className="space-y-4 flex-1 flex flex-col">
+                      <div className="space-y-3 flex-1">
+                        <div className="flex justify-between">
+                          <span>Investment Recovery:</span>
+                          <Badge variant={isProfitable ? "default" : "destructive"}>
+                            {isProfitable ? "Recovered" : "Not Recovered"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>ROI Status:</span>
+                          <Badge variant={roiPositive ? "default" : "destructive"}>
+                            {roiPositive ? "Positive" : "Negative"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Cash Flow:</span>
+                          <Badge variant={projection.projectedNetCashFlow >= 0 ? "default" : "destructive"}>
+                            {projection.projectedNetCashFlow >= 0 ? "Positive" : "Negative"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Loan Status:</span>
+                          <Badge variant={projection.futureOutstandingLoan === 0 ? "default" : "secondary"}>
+                            {projection.futureOutstandingLoan === 0 ? "Cleared" : "Outstanding"}
+                          </Badge>
+                        </div>
+
+                        {projection.breakEvenMonths && (
+                          <div className="flex justify-between">
+                            <span>Break-even Point:</span>
+                            <span className="font-medium text-blue-600">
+                              {projection.breakEvenMonths} months ({projection.breakEvenDate})
+                            </span>
+                          </div>
+                        )}
+
+                        {projection.loanClearanceMonths && (
+                          <div className="flex justify-between">
+                            <span>Loan Clearance:</span>
+                            <span className="font-medium text-purple-600">
+                              {projection.loanClearanceMonths} months ({projection.loanClearanceDate})
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Net Cash Flow EMI Payoff Projection */}
+                        {vehicle.financingType === 'loan' && financialData.outstandingLoan > 0 && (
+                          <div className="border-t pt-3 mt-3">
+                            <h4 className="font-medium text-sm mb-2">Net Cash Flow EMI Payoff</h4>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              <div className="flex justify-between">
+                                <span>Monthly Net Cash Flow:</span>
+                                <span>₹{Math.round(historicalMonthlyNetCashFlow).toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Outstanding Loan:</span>
+                                <span>₹{financialData.outstandingLoan.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Months to Clear Loan:</span>
+                                <span className={`font-medium ${historicalMonthlyNetCashFlow > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {historicalMonthlyNetCashFlow > 0 ? 
+                                    Math.ceil(financialData.outstandingLoan / historicalMonthlyNetCashFlow) : 
+                                    'Never (Negative Cash Flow)'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Increased EMI Projection */}
+                        {vehicle.financingType === 'loan' && increasedEMI && (
+                          <div className="border-t pt-3 mt-3">
+                            <h4 className="font-medium text-sm mb-2">Increased EMI Impact</h4>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              <div className="flex justify-between">
+                                <span>Current EMI:</span>
+                                <span>₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Increased EMI:</span>
+                                <span>₹{parseInt(increasedEMI).toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Monthly Savings:</span>
+                                <span className="font-medium text-green-600">
+                                  ₹{(parseInt(increasedEMI) - (vehicle.loanDetails?.emiPerMonth || 0)).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Loan Clear Months:</span>
+                                <span className="font-medium text-blue-600">
+                                  {parseInt(increasedEMI) > (vehicle.loanDetails?.emiPerMonth || 0) ? 
+                                    Math.ceil(financialData.outstandingLoan / parseInt(increasedEMI)) : 
+                                    'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="bg-gray-50 p-3 rounded-lg mt-4">
-                        <p className="text-sm text-gray-700">
-                          <strong>Assumptions:</strong> Projections based on current monthly earnings (₹{financialData.monthlyRent.toLocaleString()}) and expenses (₹{financialData.monthlyExpenses.toLocaleString()}), with {vehicle.depreciationRate || 10}% annual depreciation and loan payments.
-                        </p>
+                      <div className="border-t pt-3 mt-auto">
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <p className="text-sm text-gray-700">
+                            <strong>Assumptions:</strong> {projectionMode === 'current' ? 
+                              `Projections based on current monthly earnings (₹${financialData.monthlyRent.toLocaleString()}) and expenses (₹${financialData.monthlyExpenses.toLocaleString()})` :
+                              `Projections based on assumed monthly rent (₹${assumedMonthlyRent || '0'}) and current expenses (₹${financialData.monthlyExpenses.toLocaleString()})`
+                            }, with {vehicle.depreciationRate || 10}% annual depreciation and loan payments.
+                          </p>
+                        </div>
+
+                        {/* Increased EMI Input */}
+                        {vehicle.financingType === 'loan' && (
+                          <div className="mt-3">
+                            <Label htmlFor="increased-emi" className="text-xs text-gray-600">Test Increased EMI (₹)</Label>
+                            <Input
+                              id="increased-emi"
+                              type="number"
+                              value={increasedEMI}
+                              onChange={(e) => setIncreasedEMI(e.target.value)}
+                              placeholder={`Current: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}`}
+                              className="mt-1 h-8 text-xs"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              See how increasing EMI affects loan payoff timeline
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
