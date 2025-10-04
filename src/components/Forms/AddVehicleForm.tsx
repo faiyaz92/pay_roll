@@ -49,6 +49,13 @@ const vehicleSchema = z.object({
   // Maintenance
   odometer: z.number().min(0, 'Odometer reading is required'),
   lastMaintenanceKm: z.number().min(0, 'Last maintenance km is required'),
+  
+  // Insurance Information
+  insuranceProvider: z.string().min(2, 'Insurance provider is required'),
+  insurancePolicyNumber: z.string().min(2, 'Insurance policy number is required'),
+  insuranceStartDate: z.string().min(1, 'Insurance start date is required'),
+  insuranceExpiryDate: z.string().min(1, 'Insurance expiry date is required'),
+  insurancePremium: z.number().min(0, 'Insurance premium must be positive'),
 });
 
 type VehicleFormData = z.infer<typeof vehicleSchema>;
@@ -101,7 +108,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       year: vehicle?.year || new Date().getFullYear(),
       condition: vehicle?.condition || 'new',
       purchasePrice: vehicle?.initialCost || 0,
-      depreciationRate: vehicle?.depreciationRate ? (vehicle.depreciationRate * 100) : 15,
+      depreciationRate: vehicle?.depreciationRate || 15,
       financingType: vehicle?.financingType || 'loan',
       loanAmount: vehicle?.loanDetails?.totalLoan || 0,
       downPayment: vehicle?.loanDetails?.downPayment || 0,
@@ -116,6 +123,11 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       previousRentEarnings: vehicle?.previousData?.rentEarnings || 0,
       odometer: vehicle?.odometer || 0,
       lastMaintenanceKm: vehicle?.lastMaintenanceKm || 0,
+      insuranceProvider: vehicle?.insuranceProvider || '',
+      insurancePolicyNumber: vehicle?.insurancePolicyNumber || '',
+      insuranceStartDate: vehicle?.insuranceStartDate || '',
+      insuranceExpiryDate: vehicle?.insuranceExpiryDate || '',
+      insurancePremium: vehicle?.insurancePremium || 0,
     },
   });
 
@@ -286,9 +298,14 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           model: data.model,
           year: data.year,
           condition: data.condition,
+          insuranceProvider: data.insuranceProvider,
+          insurancePolicyNumber: data.insurancePolicyNumber,
+          insuranceStartDate: data.insuranceStartDate,
+          insuranceExpiryDate: data.insuranceExpiryDate,
+          insurancePremium: data.insurancePremium,
           initialCost: data.purchasePrice,
           residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
-          depreciationRate: data.depreciationRate / 100,
+          depreciationRate: data.depreciationRate,
           financingType: data.financingType,
           odometer: data.odometer,
           lastMaintenanceKm: data.lastMaintenanceKm,
@@ -368,10 +385,17 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           year: data.year,
           condition: data.condition,
 
+          // Insurance Details
+          insuranceProvider: data.insuranceProvider,
+          insurancePolicyNumber: data.insurancePolicyNumber,
+          insuranceStartDate: data.insuranceStartDate,
+          insuranceExpiryDate: data.insuranceExpiryDate,
+          insurancePremium: data.insurancePremium,
+
           // Financial Details
           initialCost: data.purchasePrice,
           residualValue: data.purchasePrice * (1 - (data.depreciationRate / 100)),
-          depreciationRate: data.depreciationRate / 100,
+          depreciationRate: data.depreciationRate,
           initialInvestment,
           financingType: data.financingType,
 
@@ -450,10 +474,11 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="financial">Financial</TabsTrigger>
             <TabsTrigger value="loan">Loan Details</TabsTrigger>
+            <TabsTrigger value="insurance">Insurance</TabsTrigger>
             <TabsTrigger value="history">Historical Data</TabsTrigger>
           </TabsList>
 
@@ -1019,6 +1044,95 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
             )}
           </TabsContent>
 
+          {/* Insurance Tab */}
+          <TabsContent value="insurance" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Insurance Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="insuranceProvider"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Insurance Provider</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="insurancePolicyNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Policy Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., HDFC123456789" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="insuranceStartDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Policy Start Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="insuranceExpiryDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Policy Expiry Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="insurancePremium"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Annual Premium (₹)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Enter annual premium amount"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Historical Data Tab */}
           <TabsContent value="history" className="space-y-4">
             {(watchCondition === 'used' || watchCondition === 'new_in_operation') ? (
@@ -1148,7 +1262,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
             type="button" 
             variant="outline" 
             onClick={() => {
-              const tabs = ['basic', 'financial', 'loan', 'history'];
+              const tabs = ['basic', 'financial', 'loan', 'insurance', 'history'];
               const currentIndex = tabs.indexOf(activeTab);
               if (currentIndex > 0) {
                 setActiveTab(tabs[currentIndex - 1]);
@@ -1163,7 +1277,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
             type="button" 
             variant="outline" 
             onClick={() => {
-              const tabs = ['basic', 'financial', 'loan', 'history'];
+              const tabs = ['basic', 'financial', 'loan', 'insurance', 'history'];
               const currentIndex = tabs.indexOf(activeTab);
               if (currentIndex < tabs.length - 1) {
                 setActiveTab(tabs[currentIndex + 1]);

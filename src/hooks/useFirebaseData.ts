@@ -670,7 +670,7 @@ export const useTenantCompanies = () => {
 };
 
 // Enhanced Vehicle Financial Data Calculations
-interface VehicleFinancialData {
+export interface VehicleFinancialData {
   totalInvestment: any;
   monthlyRent: number;
   monthlyExpenses: number;

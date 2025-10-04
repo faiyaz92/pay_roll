@@ -207,6 +207,13 @@ export interface Payment {
   paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
   expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
   companyId: string;
+  // Display properties (added when creating payment records)
+  date?: string;
+  description?: string;
+  paymentMethod?: string;
+  reference?: string;
+  transactionId?: string;
+  amount?: number; // For backward compatibility
 }
 
 export interface Expense {

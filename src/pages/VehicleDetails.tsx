@@ -17,6 +17,18 @@ import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 import { collection, addDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { Vehicle, Assignment } from '@/types/user';
+import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
+
+// Import tab components
+import OverviewTab from '@/components/VehicleDetails/OverviewTab';
+import FinancialTab from '@/components/VehicleDetails/FinancialTab';
+import AnalyticsTab from '@/components/VehicleDetails/AnalyticsTab';
+import { EMITab } from '@/components/VehicleDetails/EMITab';
+import { RentTab } from '@/components/VehicleDetails/RentTab';
+import { ExpensesTab } from '@/components/VehicleDetails/ExpensesTab';
+import { PaymentsTab } from '@/components/VehicleDetails/PaymentsTab';
+import { DocumentsTab } from '@/components/VehicleDetails/DocumentsTab';
+import { AssignmentsTab } from '@/components/VehicleDetails/AssignmentsTab';
 
 // Define EMI schedule item type
 type EMIScheduleItem = {
@@ -80,7 +92,6 @@ import {
   AlertTriangle,
   Download
 } from 'lucide-react';
-import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 
 const VehicleDetails: React.FC = () => {
   const { vehicleId } = useParams();
@@ -236,9 +247,9 @@ const VehicleDetails: React.FC = () => {
   // Get real expense data for this vehicle
   const expenseData = getVehicleExpenseData();
 
-  // Helper function to get total investment (Initial + Prepayments + Recurring Expenses)
+  // Helper function to get total investment (Initial + Prepayments + Total Expenses)
   const getTotalInvestment = () => {
-    return financialData.totalInvestment; // Initial + Prepayments + Recurring Expenses
+    return (vehicle.initialInvestment || vehicle.initialCost || 0) + expenseData.prepayments + expenseData.totalExpenses;
   };
 
   // Helper function to get driver name
@@ -947,179 +958,7 @@ const VehicleDetails: React.FC = () => {
   };
 
   // Assignment History Tab Component
-  const AssignmentHistoryTab: React.FC<{ vehicleId: string }> = ({ vehicleId }) => {
-    const { assignments, loading } = useAssignments();
-    
-    // Filter assignments for this vehicle
-    const vehicleAssignments = assignments.filter(assignment => assignment.vehicleId === vehicleId);
-    
-    if (loading) {
-      return <div className="flex justify-center py-8">Loading assignment history...</div>;
-    }
 
-    if (vehicleAssignments.length === 0) {
-      return (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <History className="w-12 h-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Assignment History</h3>
-            <p className="text-gray-500 text-center">
-              This vehicle has not been assigned to any driver yet.
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="w-5 h-5" />
-              Assignment History ({vehicleAssignments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {vehicleAssignments.map((assignment, index) => {
-                const startDate = new Date(assignment.startDate);
-                const endDate = assignment.endDate ? new Date(assignment.endDate) : null;
-                const monthlyRent = (assignment.weeklyRent * 52) / 12;
-                
-                return (
-                  <div key={assignment.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge className={
-                            assignment.status === 'active' 
-                              ? 'bg-green-100 text-green-800' 
-                              : assignment.status === 'ended' 
-                                ? 'bg-gray-100 text-gray-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                          }>
-                            {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
-                          </Badge>
-                          {index === 0 && assignment.status === 'active' && (
-                            <Badge className="bg-blue-100 text-blue-800">Current</Badge>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <Label className="text-gray-500">Driver</Label>
-                            <p className="font-medium">{getDriverName(assignment.driverId)}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">Start Date</Label>
-                            <p className="font-medium">{startDate.toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">End Date</Label>
-                            <p className="font-medium">{endDate ? endDate.toLocaleDateString() : 'Ongoing'}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">Duration</Label>
-                            <p className="font-medium">
-                              {endDate 
-                                ? `${Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days`
-                                : `${Math.ceil((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days (ongoing)`
-                              }
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm mt-3">
-                          <div>
-                            <Label className="text-gray-500">Daily Rent</Label>
-                            <p className="font-medium">₹{assignment.dailyRent.toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">Weekly Rent</Label>
-                            <p className="font-medium">₹{assignment.weeklyRent.toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">Monthly Rent</Label>
-                            <p className="font-medium">₹{monthlyRent.toFixed(0).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <Label className="text-gray-500">Collection Day</Label>
-                            <p className="font-medium">
-                              {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][assignment.collectionDay]}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {assignment.initialOdometer && (
-                          <div className="mt-3 text-sm">
-                            <Label className="text-gray-500">Initial Odometer</Label>
-                            <p className="font-medium">{assignment.initialOdometer.toLocaleString()} km</p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex gap-2 ml-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/drivers/${assignment.driverId}`)}
-                        >
-                          View Driver
-                        </Button>
-                        {assignment.status === 'active' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => navigate(`/assignments/${assignment.id}`)}
-                          >
-                            Manage
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Summary Statistics */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {vehicleAssignments.filter(a => a.status === 'active').length}
-              </div>
-              <div className="text-sm text-gray-600">Active Assignments</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {vehicleAssignments.filter(a => a.status === 'ended').length}
-              </div>
-              <div className="text-sm text-gray-600">Completed Assignments</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                ₹{vehicleAssignments
-                  .filter(a => a.status === 'active')
-                  .reduce((sum, a) => sum + ((a.weeklyRent * 52) / 12), 0)
-                  .toFixed(0)
-                  .toLocaleString()
-                }
-              </div>
-              <div className="text-sm text-gray-600">Monthly Revenue</div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  };
 
   // Export Functions
   const exportToExcel = async () => {
@@ -1334,51 +1173,39 @@ const VehicleDetails: React.FC = () => {
   };
 
   // Projection calculation function
-  // ===== COMPLETELY REWRITTEN PROJECTION CALCULATION =====
-  // Based on new taxi business financial formulas
+  // ===== CORRECTED PROJECTION CALCULATION =====
+  // Based on Investment & Returns logic: ROI = (Returns - Investment) / Investment
   const calculateProjection = (years: number, assumedMonthlyRent?: number, increasedEMIAmount?: number, netCashFlowMode?: boolean) => {
     const months = years * 12;
 
+    // ===== FIXED INVESTMENT (DOESN'T GROW OVER TIME) =====
+    // Investment = Initial Investment + Prepayments (one-time costs)
+    const fixedInvestment = (vehicle.initialInvestment || vehicle.initialCost || 0) + expenseData.prepayments;
+
     // ===== CURRENT FINANCIAL STATE =====
     const currentTotalEarnings = financialData.totalEarnings;
-    const currentTotalOperatingExpenses = expenseData.totalExpenses; // Operating expenses only
+    const currentTotalOperatingExpenses = expenseData.totalExpenses;
     const currentOutstandingLoan = financialData.outstandingLoan;
     const currentTotalEmiPaid = financialData.totalEmiPaid;
-    const currentPrepayments = expenseData.prepayments;
 
-    // Calculate current depreciated car value
+    // Calculate current depreciated car value (yearly depreciation)
     const initialCarValue = vehicle.initialInvestment || vehicle.initialCost || 0;
-    const depreciationRate = vehicle.depreciationRate || 10;
-    const depreciationPerMonth = depreciationRate / 100 / 12;
+    const depreciationRate = vehicle.depreciationRate ?? 10;
+    const depreciationPerYear = depreciationRate / 100;
 
-    // Get operational months
-    const vehiclePayments = firebasePayments.filter(payment =>
-      payment.vehicleId === vehicleId && payment.status === 'paid'
-    );
-    let operationalMonths = 1;
-    if (vehiclePayments.length > 0) {
-      const earliestPaymentDate = vehiclePayments
-        .map(p => new Date(p.paidAt || p.collectionDate || p.createdAt))
-        .sort((a, b) => a.getTime() - b.getTime())[0];
+    // Calculate operational years since purchase (add 1 to include current year)
+    const purchaseYear = vehicle.year || new Date().getFullYear();
+    const currentYear = new Date().getFullYear();
+    const operationalYears = Math.max(1, currentYear - purchaseYear + 1);
 
-      const currentDate = new Date();
-      const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 +
-                        (currentDate.getMonth() - earliestPaymentDate.getMonth());
-      operationalMonths = Math.max(1, monthsDiff + 1);
-    }
+    const currentDepreciatedCarValue = initialCarValue * Math.pow((1 - depreciationPerYear), operationalYears);
 
-    const currentDepreciatedCarValue = initialCarValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
+    // ===== CURRENT TOTAL RETURNS =====
+    // Returns = Earnings + Current Depreciated Car Value - Outstanding Loan
+    const currentTotalReturns = currentTotalEarnings + currentDepreciatedCarValue - currentOutstandingLoan;
 
-    // ===== CURRENT TOTAL INVESTMENT (ALL MONEY PAID OUT SO FAR) =====
-    // Total Investment = Initial Investment + Prepayments + Total EMI Paid + Total Operating Expenses
-    const currentTotalInvestment = (vehicle.initialInvestment || vehicle.initialCost || 0) +
-                                  currentPrepayments +
-                                  currentTotalEmiPaid +
-                                  currentTotalOperatingExpenses;
-
-    // ===== CURRENT TOTAL RETURN =====
-    // Total Return = Total Earnings + Current Depreciated Car Value
-    const currentTotalReturn = currentTotalEarnings + currentDepreciatedCarValue;
+    // ===== CURRENT ROI =====
+    const currentROI = fixedInvestment > 0 ? ((currentTotalReturns - fixedInvestment) / fixedInvestment) * 100 : 0;
 
     // ===== MONTHLY PROJECTION PARAMETERS =====
     const monthlyEarnings = assumedMonthlyRent || financialData.monthlyRent;
@@ -1386,11 +1213,9 @@ const VehicleDetails: React.FC = () => {
     let monthlyEMI = increasedEMIAmount || vehicle.loanDetails?.emiPerMonth || 0;
 
     // Net cash flow mode: Use net cash flow to pay extra EMI
-    if (netCashFlowMode) {
+    if (netCashFlowMode && monthlyEarnings > monthlyOperatingExpenses) {
       const netCashFlow = monthlyEarnings - monthlyOperatingExpenses;
-      if (netCashFlow > 0) {
-        monthlyEMI += netCashFlow;
-      }
+      monthlyEMI += netCashFlow;
     }
 
     // ===== MONTH-BY-MONTH PROJECTION SIMULATION =====
@@ -1417,26 +1242,26 @@ const VehicleDetails: React.FC = () => {
         if (projectedOutstandingLoan < 0) projectedOutstandingLoan = 0;
       }
 
-      // Apply depreciation to car value
-      projectedDepreciatedCarValue *= (1 - depreciationPerMonth);
+      // Apply yearly depreciation (only at end of each year)
+      if ((month + 1) % 12 === 0) {
+        projectedDepreciatedCarValue *= (1 - depreciationPerYear);
+      }
     }
 
-    // ===== PROJECTED FINANCIAL CALCULATIONS =====
+    // ===== PROJECTED TOTAL RETURNS =====
+    // Projected Returns = Projected Earnings + Projected Depreciated Car Value - Projected Outstanding Loan
+    const projectedTotalReturns = projectedEarnings + projectedDepreciatedCarValue - projectedOutstandingLoan;
 
-    // Projected Total Investment = Current Total Investment + Future Operating Expenses + Future EMI Payments
-    const projectedTotalInvestment = currentTotalInvestment +
-                                    (monthlyOperatingExpenses * months) +
-                                    (projectedEmiPaid - currentTotalEmiPaid);
+    // ===== PROJECTED ROI =====
+    // ROI = (Total Returns - Fixed Investment) / Fixed Investment × 100
+    const projectedROI = fixedInvestment > 0 ?
+      ((projectedTotalReturns - fixedInvestment) / fixedInvestment) * 100 : 0;
 
-    // Projected Total Return = Projected Earnings + Projected Depreciated Car Value
-    const projectedTotalReturn = projectedEarnings + projectedDepreciatedCarValue;
+    // ===== PROJECTED PROFIT/LOSS =====
+    const projectedProfitLoss = projectedTotalReturns - fixedInvestment;
 
-    // Projected Profit/Loss = Projected Total Return - Projected Total Investment
-    const projectedProfitLoss = projectedTotalReturn - projectedTotalInvestment;
-
-    // Projected ROI = (Projected Profit/Loss ÷ Projected Total Investment) × 100
-    const projectedROI = projectedTotalInvestment > 0 ?
-      (projectedProfitLoss / projectedTotalInvestment) * 100 : 0;
+    // ===== PROJECTED NET CASH FLOW =====
+    const projectedNetCashFlow = projectedEarnings - projectedOperatingExpenses;
 
     // ===== BREAK-EVEN ANALYSIS =====
     // Find when cumulative total return >= cumulative total investment
@@ -1448,30 +1273,30 @@ const VehicleDetails: React.FC = () => {
     let tempEmiPaid = currentTotalEmiPaid;
     let tempOutstandingLoan = currentOutstandingLoan;
     let tempDepreciatedCarValue = currentDepreciatedCarValue;
-    let tempTotalInvestment = currentTotalInvestment;
 
     while (breakEvenMonths < 120) { // Max 10 years
       // Monthly updates
       tempEarnings += monthlyEarnings;
       tempOperatingExpenses += monthlyOperatingExpenses;
-      tempTotalInvestment += monthlyOperatingExpenses; // Add operating expenses to investment
 
       // Process loan payments
       if (tempOutstandingLoan > 0) {
         const interest = tempOutstandingLoan * monthlyInterestRate;
         const principal = Math.min(monthlyEMI - interest, tempOutstandingLoan);
         tempEmiPaid += interest + principal;
-        tempTotalInvestment += interest + principal; // Add EMI to investment
         tempOutstandingLoan -= principal;
         if (tempOutstandingLoan < 0) tempOutstandingLoan = 0;
       }
 
-      // Apply depreciation
-      tempDepreciatedCarValue *= (1 - depreciationPerMonth);
+      // Apply yearly depreciation (only at end of each year)
+      if ((breakEvenMonths + 1) % 12 === 0) {
+        tempDepreciatedCarValue *= (1 - depreciationPerYear);
+      }
 
-      // Check break-even condition: Total Return >= Total Investment
-      const tempTotalReturn = tempEarnings + tempDepreciatedCarValue;
-      const tempProfitLoss = tempTotalReturn - tempTotalInvestment;
+      // Check break-even condition: Total Return >= Fixed Investment
+      // Fixed investment = initial investment + prepayments (one-time costs)
+      const tempTotalReturn = tempEarnings + tempDepreciatedCarValue - tempOutstandingLoan;
+      const tempProfitLoss = tempTotalReturn - fixedInvestment;
 
       if (tempProfitLoss >= 0) {
         breakEvenDate = new Date();
@@ -1505,12 +1330,12 @@ const VehicleDetails: React.FC = () => {
     }
 
     // ===== ADDITIONAL PROJECTION METRICS =====
-    const projectedNetCashFlow = projectedEarnings - projectedOperatingExpenses;
+    // projectedNetCashFlow is already calculated above
 
     return {
       // Current state
-      currentTotalInvestment,
-      currentTotalReturn,
+      currentTotalInvestment: fixedInvestment,
+      currentTotalReturn: currentTotalReturns,
       currentDepreciatedCarValue,
 
       // Projected results
@@ -1518,8 +1343,7 @@ const VehicleDetails: React.FC = () => {
       projectedOperatingExpenses,
       projectedNetCashFlow,
       projectedEmiPaid,
-      projectedTotalInvestment,
-      projectedTotalReturn,
+      projectedTotalReturn: projectedTotalReturns,
       projectedProfitLoss,
       projectedROI,
       projectedDepreciatedCarValue,
@@ -1601,2429 +1425,122 @@ const VehicleDetails: React.FC = () => {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Vehicle Info Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Vehicle Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Condition:</span>
-                  <Badge variant="outline" className="capitalize">
-                    {vehicle.condition || 'N/A'}
-                  </Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Purchase Price:</span>
-                  <span className="font-medium">₹{vehicle.initialCost.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current Value:</span>
-                  <span className="font-medium">₹{vehicle.residualValue.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Depreciation:</span>
-                  <span className="text-red-600">
-                    {((vehicle.depreciationRate) * 100).toFixed(1)}% yearly
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Financial Summary Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Investment & Returns</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Initial investment:</span>
-                  <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Prepayment:</span>
-                  <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total expenses:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2 font-semibold">
-                  <span className="text-gray-700">Total investment:</span>
-                  <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Rental Status Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Current Rental Status</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <Badge variant={financialData.isCurrentlyRented ? "default" : "secondary"}>
-                    {financialData.isCurrentlyRented ? "Rented" : "Available"}
-                  </Badge>
-                </div>
-                {financialData.isCurrentlyRented && getCurrentAssignmentDetails() ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Driver:</span>
-                      <span className="font-medium text-blue-600">
-                        {getDriverName(getCurrentAssignmentDetails()!.driverId)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Weekly Rent:</span>
-                      <span className="font-medium text-green-600">
-                        ₹{getCurrentAssignmentDetails()!.weeklyRent.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Daily Rate:</span>
-                      <span className="font-medium">
-                        ₹{getCurrentAssignmentDetails()!.dailyRent.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Monthly (Est.):</span>
-                      <span className="font-medium text-green-600">
-                        ₹{Math.round(getCurrentMonthlyRent()).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Since:</span>
-                      <span className="text-sm">
-                        {new Date(getCurrentAssignmentDetails()!.startDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-gray-500 text-sm">Vehicle is currently available for rental</p>
-                    <p className="text-xs text-gray-400 mt-1">No monthly rent being generated</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Loan Status Card */}
-            {vehicle.financingType === 'loan' && vehicle.loanDetails && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Loan Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Outstanding:</span>
-                    <span className="font-medium text-red-600">
-                      ₹{vehicle.loanDetails.outstandingLoan?.toLocaleString() || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Monthly EMI:</span>
-                    <span className="font-medium">₹{vehicle.loanDetails.emiPerMonth?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">EMIs Paid:</span>
-                    <span className="font-medium">
-                      {vehicle.loanDetails.paidInstallments?.length || 0}/{vehicle.loanDetails.totalInstallments || 0}
-                    </span>
-                  </div>
-                  
-                  <Progress 
-                    value={((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1)) * 100} 
-                    className="h-2"
-                  />
-                  
-                  <div className="text-center">
-                    <Badge variant="outline">
-                      Next EMI Due: {vehicle.loanDetails.emiDueDate || 'N/A'}th of every month
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <OverviewTab
+            vehicle={vehicle}
+            financialData={financialData}
+            expenseData={expenseData}
+            getTotalInvestment={getTotalInvestment}
+            getDriverName={getDriverName}
+            getCurrentAssignmentDetails={getCurrentAssignmentDetails}
+            getCurrentMonthlyRent={getCurrentMonthlyRent}
+          />
         </TabsContent>
 
         {/* Financials Tab */}
+        {/* Financials Tab */}
         <TabsContent value="financials" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Investment & Returns */}
-            <Card className="flex flex-col h-full">
-              <CardHeader>
-                <CardTitle>Investment & Returns</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col">
-                <div className="space-y-3 flex-1">
-                  {/* Investment Breakdown */}
-                  <div className="space-y-2 pb-3 border-b">
-                    <h4 className="font-semibold text-sm text-gray-700">Investment Breakdown</h4>
-                    <div className="flex justify-between">
-                      <span>Initial investment</span>
-                      <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Prepayment</span>
-                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total expenses</span>
-                      <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2 font-semibold">
-                      <span>Total investment</span>
-                      <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  {/* Returns & Performance */}
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-gray-700">Returns & Performance</h4>
-                    <div className="flex justify-between">
-                      <span>Total Earnings</span>
-                      <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Current Vehicle Value</span>
-                      <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Outstanding Loan</span>
-                      <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
-                      <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                    </div>
-                    {financialData.isInvestmentCovered && (
-                      <div className="flex justify-between">
-                        <span>Investment Status</span>
-                        <Badge variant="default" className="bg-green-500 text-white">
-                          Investment Covered
-                        </Badge>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="font-medium">ROI</span>
-                      <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Total Net Cash Flow</span>
-                      <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-between border-t pt-2 mt-auto">
-                  <span className="font-medium">Profit/Loss</span>
-                  <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Monthly Breakdown */}
-            <Card className="flex flex-col h-full">
-              <CardHeader>
-                <CardTitle>Monthly Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col">
-                <div className="space-y-3 flex-1">
-                  <div className="flex justify-between">
-                    <span>Monthly Earnings</span>
-                    <span className="font-medium text-green-600">₹{Math.round(financialData.isCurrentlyRented ? financialData.monthlyRent : 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Monthly Expenses (Avg.)</span>
-                    <span className="font-medium text-red-600">₹{Math.round(financialData.monthlyExpenses).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Monthly EMI</span>
-                    <span className="font-medium text-blue-600">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
-                  </div>
-                  {financialData.isCurrentlyRented && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Net Operating Profit</span>
-                        <span className={`font-bold ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ₹{Math.round(financialData.monthlyProfit).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">After EMI Deduction</span>
-                        <span className={`font-bold ${(financialData.monthlyProfit - (vehicle.loanDetails?.emiPerMonth || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ₹{Math.round(financialData.monthlyProfit - (vehicle.loanDetails?.emiPerMonth || 0)).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Yearly Profit (Est.)</span>
-                        <span className={`font-bold ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ₹{(Math.round(financialData.monthlyProfit) * 12).toLocaleString()}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="flex justify-between border-t pt-2 mt-auto">
-                  <span className="font-medium">Monthly Net Cash Flow</span>
-                  <span className={`font-bold ${historicalMonthlyNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{Math.round(historicalMonthlyNetCashFlow).toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Loan Details */}
-            {vehicle.financingType === 'loan' && vehicle.loanDetails && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Loan Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span>Original Loan</span>
-                      <span className="font-medium">₹{vehicle.loanDetails.totalLoan?.toLocaleString() || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Outstanding Balance</span>
-                      <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>EMIs Paid</span>
-                      <div className="text-right">
-                        <div className="font-medium text-green-600">
-                          {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments || 0}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ₹{financialData.totalEmiPaid.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                    {financialData.nextEMIDue && (
-                      <div className="flex justify-between">
-                        <span>Next EMI Due</span>
-                        <span className={`font-medium ${financialData.daysUntilEMI <= 7 ? 'text-red-600' : 'text-gray-600'}`}>
-                          {new Date(financialData.nextEMIDue).toLocaleDateString()} 
-                          {financialData.daysUntilEMI >= 0 && (
-                            <span className="text-xs block">({financialData.daysUntilEMI} days)</span>
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    <Progress 
-                      value={(vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100} 
-                      className="mt-2"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Prepayment Calculator */}
-            {vehicle.financingType === 'loan' && vehicle.loanDetails && financialData.outstandingLoan > 0 && (
-              <Card id="prepayment">
-                <CardHeader>
-                  <CardTitle>Prepayment Calculator</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-blue-50 p-3 rounded-lg mb-4">
-                    <p className="text-sm text-blue-700">
-                      <strong>Outstanding:</strong> ₹{financialData.outstandingLoan.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Calculate how prepayment reduces your loan tenure
-                    </p>
-                  </div>
-                  <div>
-                    <Label htmlFor="prepayment">Prepayment Amount (₹)</Label>
-                    <Input
-                      id="prepayment"
-                      type="number"
-                      value={prepaymentAmount}
-                      onChange={(e) => setPrepaymentAmount(e.target.value)}
-                      placeholder="Enter amount to prepay"
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Outstanding loan: ₹{financialData.outstandingLoan.toLocaleString()} • You can pay more than the EMI amount
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handlePrepayment}
-                    disabled={!prepaymentAmount || parseFloat(prepaymentAmount) <= 0}
-                    className="w-full"
-                  >
-                    <Calculator className="h-4 w-4 mr-2" />
-                    Calculate Benefits
-                  </Button>
-                  
-                  {/* Prepayment Results Card */}
-                  {showPrepaymentResults && prepaymentResults && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-green-800">Prepayment Analysis</h4>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setShowPrepaymentResults(false)}
-                        >
-                          ✕
-                        </Button>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Prepayment Amount:</span>
-                          <span className="font-medium">₹{prepaymentResults.amount.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>New Outstanding:</span>
-                          <span className="font-medium text-green-600">₹{prepaymentResults.newOutstanding.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Tenure Reduction:</span>
-                          <span className="font-medium text-blue-600">{prepaymentResults.tenureReduction} months</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Interest Savings:</span>
-                          <span className="font-medium text-green-600">₹{prepaymentResults.interestSavings.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 flex gap-2">
-                        <Button 
-                          onClick={processPrepayment}
-                          className="flex-1 bg-green-600 hover:bg-green-700"
-                        >
-                          Confirm & Pay ₹{prepaymentResults.amount.toLocaleString()}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowPrepaymentResults(false)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Financial Breakdowns */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Total Returns Breakdown */}
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Total Returns Breakdown
-                </CardTitle>
-                <CardDescription>
-                  Components that make up your total returns
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current Car Value:</span>
-                  <span className="font-medium text-green-600">+₹{(vehicle.residualValue || vehicle.initialInvestment || vehicle.initialCost || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Earnings:</span>
-                  <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Expenses:</span>
-                  <span className="font-medium text-red-600">-₹{financialData.totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Outstanding Loan:</span>
-                  <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
-                </div>
-                <div className="h-6"></div>
-                <div className="h-6"></div>
-                <div className="flex justify-between border-t pt-2 font-semibold">
-                  <span>Total Returns:</span>
-                  <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Expenses Breakdown */}
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-600" />
-                  Total Expenses Breakdown
-                </CardTitle>
-                <CardDescription>
-                  Components that make up your total costs
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Fuel Expenses:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Maintenance:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Insurance:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Penalties:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">EMI Payments:</span>
-                  <span className="font-medium text-blue-600">₹{expenseData.emiPayments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Other Expenses:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.otherExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2 font-semibold">
-                  <span>Total Expenses:</span>
-                  <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <FinancialTab
+            vehicle={vehicle}
+            financialData={financialData}
+            expenseData={expenseData}
+            firebasePayments={firebasePayments}
+            vehicleId={vehicleId}
+            getTotalInvestment={getTotalInvestment}
+            historicalMonthlyNetCashFlow={historicalMonthlyNetCashFlow}
+            prepaymentAmount={prepaymentAmount}
+            setPrepaymentAmount={setPrepaymentAmount}
+            handlePrepayment={handlePrepayment}
+            showPrepaymentResults={showPrepaymentResults}
+            setShowPrepaymentResults={setShowPrepaymentResults}
+            prepaymentResults={prepaymentResults}
+            processPrepayment={processPrepayment}
+          />
         </TabsContent>
 
         {/* EMI Tracking Tab */}
         <TabsContent value="emi" className="space-y-4">
-          {vehicle.financingType === 'loan' && vehicle.loanDetails ? (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold">EMI Payment Schedule</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    ₹{(vehicle.loanDetails.emiPerMonth || 0).toLocaleString()} per month • {vehicle.loanDetails.interestRate}% annual interest
-                  </p>
-                </div>
-                <div className="text-right">
-                  <Badge variant="outline" className="mb-2">
-                    {vehicle.loanDetails.paidInstallments?.length || 0} of {vehicle.loanDetails.totalInstallments || 0} paid
-                  </Badge>
-                  <p className="text-sm text-gray-600">
-                    Outstanding: ₹{financialData.outstandingLoan.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* EMI Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <Card className="bg-blue-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {vehicle.loanDetails.paidInstallments?.length || 0}
-                    </div>
-                    <div className="text-sm text-blue-700">EMIs Paid</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-yellow-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {financialData.daysUntilEMI >= 0 ? financialData.daysUntilEMI : 'Overdue'}
-                    </div>
-                    <div className="text-sm text-yellow-700">Days to Next EMI</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-red-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      ₹{Math.round(financialData.outstandingLoan / 100000).toFixed(1)}L
-                    </div>
-                    <div className="text-sm text-red-700">Outstanding</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-green-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
-                    </div>
-                    <div className="text-sm text-green-700">Completed</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* EMI Schedule Grid */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-medium">EMI Payment Grid</h4>
-                  <div className="flex items-center gap-4 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-100 rounded"></div>
-                      <span>Paid</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-yellow-100 rounded"></div>
-                      <span>Due Soon</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-100 rounded"></div>
-                      <span>Overdue</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-gray-100 rounded"></div>
-                      <span>Future</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {(vehicle.loanDetails.amortizationSchedule || []).map((emi, index) => {
-                    const dueDate = emi.dueDate ? new Date(emi.dueDate) : new Date();
-                    const today = new Date();
-                    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    
-                    // Check if payment can be made (3 days before due date OR overdue)
-                    const threeDaysFromNow = new Date();
-                    threeDaysFromNow.setDate(today.getDate() + 3);
-                    const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0; // Allow if due soon OR overdue
-                    
-                    let bgColor = 'bg-gray-100 hover:bg-gray-200';
-                    let textColor = 'text-gray-600';
-                    let borderColor = 'border-gray-200';
-                    let icon = <Clock className="h-4 w-4" />;
-                    let status = 'Future';
-                    
-                    if (emi.isPaid) {
-                      bgColor = 'bg-green-100 hover:bg-green-150';
-                      textColor = 'text-green-700';
-                      borderColor = 'border-green-200';
-                      icon = <CheckCircle className="h-4 w-4" />;
-                      status = 'Paid';
-                      if (emi.paidAt) {
-                        status = `Paid ${new Date(emi.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
-                      }
-                    } else if (daysDiff < 0) {
-                      bgColor = 'bg-red-100 hover:bg-red-150';
-                      textColor = 'text-red-700';
-                      borderColor = 'border-red-300';
-                      icon = <AlertCircle className="h-4 w-4" />;
-                      status = `${Math.abs(daysDiff)} days overdue`;
-                    } else if (daysDiff <= 7) {
-                      bgColor = 'bg-yellow-100 hover:bg-yellow-150';
-                      textColor = 'text-yellow-700';
-                      borderColor = 'border-yellow-300';
-                      icon = <AlertCircle className="h-4 w-4" />;
-                      status = daysDiff === 0 ? 'Due Today' : `${daysDiff} days left`;
-                    }
-                    
-                    return (
-                      <Card 
-                        key={index} 
-                        className={`${bgColor} ${borderColor} border-2 transition-all duration-200 ${
-                          !emi.isPaid && canPayNow ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
-                        }`}
-                        onClick={() => !emi.isPaid && canPayNow && markEMIPaid(index, emi)}
-                      >
-                        <CardContent className="p-3 text-center space-y-2">
-                          <div className={`${textColor} flex justify-center`}>
-                            {icon}
-                          </div>
-                          <div className={`text-sm font-bold ${textColor}`}>
-                            EMI {emi.month}
-                          </div>
-                          <div className={`text-xs ${textColor}`}>
-                            {dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-                          </div>
-                          <div className={`text-xs ${textColor} font-medium`}>
-                            ₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}
-                          </div>
-                          <div className={`text-xs ${textColor}`}>
-                            {status}
-                          </div>
-                          {!emi.isPaid && canPayNow && (
-                            <Button 
-                              size="sm" 
-                              className="text-xs py-1 px-2 h-6 w-full mt-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                markEMIPaid(index, emi);
-                              }}
-                            >
-                              Pay Now
-                            </Button>
-                          )}
-                          {!emi.isPaid && !canPayNow && daysDiff > 3 && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              Available in {daysDiff - 3} days
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Quick Actions</h4>
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-blue-700 border-blue-300"
-                    onClick={() => {
-                      // Scroll to prepayment calculator in Financials tab
-                      const financialsTab = document.querySelector('[value="financials"]') as HTMLElement;
-                      if (financialsTab) {
-                        financialsTab.click();
-                        setTimeout(() => {
-                          const prepaymentSection = document.querySelector('#prepayment');
-                          if (prepaymentSection) {
-                            prepaymentSection.scrollIntoView({ behavior: 'smooth' });
-                            (prepaymentSection as HTMLInputElement).focus();
-                          }
-                        }, 100);
-                      }
-                    }}
-                  >
-                    <Calculator className="h-4 w-4 mr-1" />
-                    Calculate Prepayment
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-blue-700 border-blue-300"
-                    onClick={() => {
-                      toast({
-                        title: 'Reminder Set',
-                        description: `EMI payment reminders will be sent 3 days before each due date for ${vehicle.vehicleName || 'this vehicle'}.`,
-                      });
-                    }}
-                  >
-                    <Calendar className="h-4 w-4 mr-1" />
-                    Set Payment Reminders
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-blue-700 border-blue-300"
-                    onClick={() => {
-                      const paidCount = vehicle.loanDetails?.paidInstallments?.length || 0;
-                      const totalCount = vehicle.loanDetails?.totalInstallments || 0;
-                      const completionPercentage = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0';
-                      
-                      toast({
-                        title: 'Payment History Summary',
-                        description: `EMIs Paid: ${paidCount} of ${totalCount}\nCompletion: ${completionPercentage}%\nRemaining: ${totalCount - paidCount} installments\nOutstanding: ₹${financialData.outstandingLoan.toLocaleString()}`,
-                      });
-                    }}
-                  >
-                    <TrendingUp className="h-4 w-4 mr-1" />
-                    View Payment History
-                  </Button>
-                </div>
-                <p className="text-xs text-blue-600 mt-2">
-                  <strong>Note:</strong> EMI payments can be marked as paid starting 3 days before due date. Overdue payments can include penalty charges.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-700 mb-2">Cash Purchase</h3>
-                <p className="text-gray-500">This vehicle was purchased with cash payment - no EMI tracking required</p>
-                <p className="text-sm text-gray-400 mt-2">You have full ownership without any loan obligations</p>
-              </CardContent>
-            </Card>
-          )}
+          <EMITab
+            vehicle={vehicle}
+            financialData={financialData}
+            markEMIPaid={markEMIPaid}
+          />
         </TabsContent>
 
         {/* Rent Collection Tab */}
         <TabsContent value="rent" className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Weekly Rent Collection</h3>
-              <Badge variant="outline">
-                Driver: {vehicle.assignedDriverId || 'Not Assigned'}
-              </Badge>
-            </div>
-            
-            {/* Rent Collection Summary */}
-            {vehicle.assignedDriverId && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <Card className="bg-green-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {firebasePayments.filter(p => p.vehicleId === vehicleId && p.status === 'paid').length}
-                    </div>
-                    <div className="text-sm text-green-700">Weeks Collected</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-blue-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      ₹{firebasePayments
-                        .filter(p => p.vehicleId === vehicleId && p.status === 'paid')
-                        .reduce((sum, p) => sum + p.amountPaid, 0)
-                        .toLocaleString()}
-                    </div>
-                    <div className="text-sm text-blue-700">Total Collected</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-yellow-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      ₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString() || '0'}
-                    </div>
-                    <div className="text-sm text-yellow-700">Weekly Rate</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-purple-50">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {Math.round(((getCurrentAssignmentDetails()?.weeklyRent || 0) * 52) / 12).toLocaleString()}
-                    </div>
-                    <div className="text-sm text-purple-700">Est. Monthly</div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-            
-            {vehicle.assignedDriverId ? (
-              <div>
-                {(() => {
-                  const currentAssignment = financialData.currentAssignment;
-                  if (!currentAssignment) {
-                    return (
-                      <Card>
-                        <CardContent className="p-8 text-center">
-                          <p className="text-gray-500 mb-4">No active assignment found for this vehicle</p>
-                        </CardContent>
-                      </Card>
-                    );
-                  }
-
-                  // Calculate assignment dates
-                  const assignmentStartDate = new Date(
-                    typeof currentAssignment.startDate === 'string' 
-                      ? currentAssignment.startDate 
-                      : currentAssignment.startDate?.toDate?.() || currentAssignment.startDate
-                  );
-                  
-                  // Calculate end date based on agreement duration (in months)
-                  const agreementEndDate = new Date(assignmentStartDate);
-                  agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
-
-                  // Calculate total weeks in assignment
-                  const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
-                  
-                  // Get current date for comparison
-                  const today = new Date();
-                  
-                  return (
-                    <div>
-                      {/* Assignment Info Header */}
-                      <Card className="mb-4 bg-blue-50 border-blue-200">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <h4 className="font-semibold text-blue-900">Assignment Period</h4>
-                              <p className="text-sm text-blue-700">
-                                {assignmentStartDate.toLocaleDateString('en-IN', { 
-                                  day: 'numeric', 
-                                  month: 'long', 
-                                  year: 'numeric' 
-                                })} - {agreementEndDate.toLocaleDateString('en-IN', { 
-                                  day: 'numeric', 
-                                  month: 'long', 
-                                  year: 'numeric' 
-                                })}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-bold text-blue-900">{totalWeeks}</div>
-                              <div className="text-sm text-blue-700">Total Weeks</div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Rent Collection Grid - Based on Assignment Timeline */}
-                      <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                        {Array.from({ length: Math.min(totalWeeks, 52) }, (_, weekIndex) => {
-                          // Calculate this week's dates based on assignment start date
-                          const weekStartDate = new Date(assignmentStartDate);
-                          weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
-                          weekStartDate.setHours(0, 0, 0, 0);
-                          
-                          const weekEndDate = new Date(weekStartDate);
-                          weekEndDate.setDate(weekEndDate.getDate() + 6);
-                          weekEndDate.setHours(23, 59, 59, 999);
-                          
-                          // Determine week status relative to today
-                          const isPastWeek = weekEndDate < today;
-                          const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
-                          const isFutureWeek = weekStartDate > today;
-                          const isUpcoming = isFutureWeek && weekStartDate <= new Date(today.getTime() + (5 * 7 * 24 * 60 * 60 * 1000));
-                          
-                          // Check if rent was actually collected for this week from the database
-                          const weekRentPayment = firebasePayments.find(payment => {
-                            if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
-                            const paymentWeekStart = new Date(payment.weekStart);
-                            // More precise matching - check if payment week matches this assignment week
-                            return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
-                          });
-                          
-                          let bgColor = 'bg-gray-100';
-                          let textColor = 'text-gray-600';
-                          let icon = <Clock className="h-4 w-4" />;
-                          let status = '';
-                          
-                          if (isPastWeek) {
-                            if (weekRentPayment) {
-                              bgColor = 'bg-green-100';
-                              textColor = 'text-green-700';
-                              icon = <CheckCircle className="h-4 w-4" />;
-                              status = 'Collected';
-                            } else {
-                              bgColor = 'bg-red-100';
-                              textColor = 'text-red-700';
-                              icon = <AlertCircle className="h-4 w-4" />;
-                              status = 'Overdue';
-                            }
-                          } else if (isCurrentWeek) {
-                            if (weekRentPayment) {
-                              bgColor = 'bg-green-100';
-                              textColor = 'text-green-700';
-                              icon = <CheckCircle className="h-4 w-4" />;
-                              status = 'Collected';
-                            } else {
-                              bgColor = 'bg-yellow-100';
-                              textColor = 'text-yellow-700';
-                              icon = <DollarSign className="h-4 w-4" />;
-                              status = 'Due Now';
-                            }
-                          } else if (isUpcoming) {
-                            bgColor = 'bg-blue-100';
-                            textColor = 'text-blue-700';
-                            icon = <Calendar className="h-4 w-4" />;
-                            const daysUntil = Math.ceil((weekStartDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                            status = `${daysUntil} days`;
-                          }
-                          
-                          // Determine if payment can be made (current week or overdue)
-                          const canMarkPaid = !weekRentPayment && (isCurrentWeek || isPastWeek);
-                          
-                          return (
-                            <Card 
-                              key={weekIndex} 
-                              className={`${bgColor} transition-shadow`}
-                            >
-                              <CardContent className="p-3 text-center">
-                                <div className={`${textColor} mb-1`}>
-                                  {icon}
-                                </div>
-                                <div className={`text-sm font-medium ${textColor}`}>
-                                  Week {weekIndex + 1}
-                                </div>
-                                <div className={`text-xs ${textColor}`}>
-                                  {weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                </div>
-                                {status && (
-                                  <div className={`text-xs ${textColor} mt-1`}>
-                                    {status}
-                                  </div>
-                                )}
-                                {weekRentPayment ? (
-                                  <div className={`text-xs ${textColor} mt-1 font-semibold`}>
-                                    ₹{weekRentPayment.amountPaid.toLocaleString()}
-                                  </div>
-                                ) : canMarkPaid ? (
-                                  <Button 
-                                    size="sm" 
-                                    className="text-xs py-1 px-2 h-6 w-full mt-2"
-                                    disabled={isProcessingRentPayment === weekIndex}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      markRentCollected(weekIndex, currentAssignment, weekStartDate);
-                                    }}
-                                  >
-                                    {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Paid'}
-                                  </Button>
-                                ) : (
-                                  <div className={`text-xs ${textColor} mt-1`}>
-                                    ₹{currentAssignment.weeklyRent.toLocaleString()}
-                                  </div>
-                                )}
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-
-                      {totalWeeks > 52 && (
-                        <Card className="mt-4 bg-orange-50 border-orange-200">
-                          <CardContent className="p-4 text-center">
-                            <p className="text-orange-700">
-                              Assignment has {totalWeeks} weeks. Showing first 52 weeks.
-                              <br />
-                              <span className="text-sm">Complete assignment: {agreementEndDate.toLocaleDateString('en-IN')}</span>
-                            </p>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-gray-500 mb-4">No driver assigned to this vehicle</p>
-                  <Button>Assign Driver</Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <RentTab
+            vehicle={vehicle}
+            vehicleId={vehicleId}
+            firebasePayments={firebasePayments}
+            financialData={financialData}
+            getCurrentAssignmentDetails={getCurrentAssignmentDetails}
+            markRentCollected={markRentCollected}
+            isProcessingRentPayment={isProcessingRentPayment}
+          />
         </TabsContent>
 
         {/* Expenses Tab */}
         <TabsContent value="expenses" className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-lg font-semibold">Vehicle Expenses</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Track fuel, maintenance, and other vehicle-related expenses
-                </p>
-              </div>
-              <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Expense
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
-            </div>
-
-            {/* Expense Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card className="bg-red-50">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-red-600">
-                    ₹{expenseData.totalExpenses.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-red-700">Total Expenses</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-blue-50">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    ₹{Math.round(expenseData.monthlyAverage).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-blue-700">Monthly Average</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-yellow-50">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {expenseData.recentExpenses.length}
-                  </div>
-                  <div className="text-sm text-yellow-700">Total Records</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-green-50">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {expenseData.expenseRatio.toFixed(1)}%
-                  </div>
-                  <div className="text-sm text-green-700">Expense Ratio</div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Expense Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Fuel className="h-5 w-5 text-blue-600" />
-                    Fuel Expenses
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">This Month</span>
-                      <span className="font-medium">₹{Math.round(expenseData.fuelExpenses / 12).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">₹{expenseData.fuelExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-orange-600" />
-                    Maintenance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">This Month</span>
-                      <span className="font-medium">₹{Math.round(expenseData.maintenanceExpenses / 12).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-green-600" />
-                    Insurance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">This Month</span>
-                      <span className="font-medium">₹{Math.round(expenseData.insuranceExpenses / 12).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-indigo-600" />
-                    EMI Payments
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">This Month</span>
-                      <span className="font-medium">₹{Math.round(expenseData.emiPayments / 12).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">₹{expenseData.emiPayments.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Monthly loan payments
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Banknote className="h-5 w-5 text-orange-600" />
-                    Prepayments
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">This Month</span>
-                      <span className="font-medium">₹{Math.round(expenseData.prepayments / 12).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Early loan payments
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-purple-600" />
-                    Other Expenses
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Penalties</span>
-                      <span className="font-medium">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">General</span>
-                      <span className="font-medium">₹{expenseData.otherExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Permits, fines, misc. expenses
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Expenses Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Expenses</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {expenseData.recentExpenses.length > 0 ? (
-                    <div className="space-y-3">
-                      {expenseData.recentExpenses.map((expense, index) => (
-                        <div key={expense.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              expense.description.toLowerCase().includes('fuel') ? 'bg-blue-100' :
-                              expense.type === 'maintenance' ? 'bg-orange-100' :
-                              expense.type === 'insurance' ? 'bg-green-100' :
-                              expense.type === 'penalties' ? 'bg-red-100' :
-                              expense.type === 'emi' ? 'bg-indigo-100' :
-                              expense.type === 'prepayment' ? 'bg-orange-100' :
-                              'bg-purple-100'
-                            }`}>
-                              {expense.description.toLowerCase().includes('fuel') ? (
-                                <Fuel className="h-4 w-4 text-blue-600" />
-                              ) : expense.type === 'maintenance' ? (
-                                <Settings className="h-4 w-4 text-orange-600" />
-                              ) : expense.type === 'insurance' ? (
-                                <Shield className="h-4 w-4 text-green-600" />
-                              ) : expense.type === 'penalties' ? (
-                                <AlertCircle className="h-4 w-4 text-red-600" />
-                              ) : expense.type === 'emi' ? (
-                                <CreditCard className="h-4 w-4 text-indigo-600" />
-                              ) : expense.type === 'prepayment' ? (
-                                <Banknote className="h-4 w-4 text-orange-600" />
-                              ) : (
-                                <DollarSign className="h-4 w-4 text-purple-600" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="font-medium">{expense.description}</div>
-                              <div className="text-sm text-gray-500">
-                                {expense.type === 'maintenance' ? 'Maintenance' :
-                                 expense.type === 'insurance' ? 'Insurance' :
-                                 expense.type === 'penalties' ? 'Penalties' :
-                                 expense.type === 'emi' ? 'EMI Payment' :
-                                 expense.type === 'prepayment' ? 'Prepayment' :
-                                 expense.description.toLowerCase().includes('fuel') ? 'Fuel' :
-                                 'General Expense'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-medium text-red-600">₹{expense.amount.toLocaleString()}</div>
-                            <div className="text-sm text-gray-500">{new Date(expense.createdAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 mb-2">No expenses recorded yet</p>
-                      <Button variant="outline">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add First Expense
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Expense Analysis */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Expense Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium mb-3">Monthly Trends</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Current Month</span>
-                        <span className="font-medium">₹{Math.round(expenseData.monthlyAverage).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Average Monthly</span>
-                        <span className="font-medium">₹{Math.round(expenseData.totalExpenses / 12).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Total Records</span>
-                        <span className="font-medium">{expenseData.recentExpenses.length} transactions</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-3">Expense vs Earnings</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Total Earnings</span>
-                        <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Total Expenses</span>
-                        <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Expense Ratio</span>
-                        <span className="font-medium">
-                          {expenseData.expenseRatio.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <ExpensesTab
+            expenseData={expenseData}
+            financialData={financialData}
+            addExpenseDialogOpen={addExpenseDialogOpen}
+            setAddExpenseDialogOpen={setAddExpenseDialogOpen}
+          />
         </TabsContent>
 
         {/* Payment History Tab */}
         <TabsContent value="payments" className="space-y-4">
-          <div className="space-y-4">
-            {/* Payment History Header and Filters */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Payment History</h3>
-                <p className="text-sm text-muted-foreground">Track all payments and receipts for this vehicle</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {/* Level 1: Transaction Type Filter */}
-                <select 
-                  className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
-                  value={transactionTypeFilter}
-                  onChange={(e) => {
-                    setTransactionTypeFilter(e.target.value);
-                    setPaidSubTypeFilter('all'); // Reset sub-filters
-                    setExpenseSubTypeFilter('all');
-                    setPaymentFilter('all'); // Reset legacy filter
-                  }}
-                >
-                  <option value="all">All Transactions</option>
-                  <option value="paid">Paid</option>
-                  <option value="received">Received</option>
-                </select>
-
-                {/* Level 2: Paid Sub-Type Filter (only show when "Paid" is selected) */}
-                {transactionTypeFilter === 'paid' && (
-                  <select 
-                    className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
-                    value={paidSubTypeFilter}
-                    onChange={(e) => {
-                      setPaidSubTypeFilter(e.target.value);
-                      setExpenseSubTypeFilter('all'); // Reset expense sub-filter
-                    }}
-                  >
-                    <option value="all">All Paid Types</option>
-                    <option value="emi">EMI</option>
-                    <option value="prepayment">Prepayment</option>
-                    <option value="expenses">Expenses</option>
-                  </select>
-                )}
-
-                {/* Level 3: Expense Sub-Type Filter (only show when "Expenses" is selected) */}
-                {paidSubTypeFilter === 'expenses' && (
-                  <select 
-                    className="px-3 py-2 border rounded-md text-sm min-w-[120px]"
-                    value={expenseSubTypeFilter}
-                    onChange={(e) => setExpenseSubTypeFilter(e.target.value)}
-                  >
-                    <option value="all">All Expenses</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="insurance">Insurance</option>
-                    <option value="fuel">Fuel</option>
-                    <option value="penalties">Penalties</option>
-                    <option value="general">General</option>
-                  </select>
-                )}
-
-                {/* Legacy Filter (hidden when using new system) */}
-                {transactionTypeFilter === 'all' && (
-                  <select 
-                    className="px-3 py-2 border rounded-md text-sm"
-                    value={paymentFilter}
-                    onChange={(e) => setPaymentFilter(e.target.value)}
-                  >
-                    <option value="all">All Transactions</option>
-                    <option value="emi">EMI Payments</option>
-                    <option value="prepayment">Prepayments</option>
-                    <option value="rent">Rent Received</option>
-                    <option value="expense">Expenses</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
-                )}
-
-                {/* Date Filter */}
-                <input
-                  type="month"
-                  className="px-3 py-2 border rounded-md text-sm"
-                  value={paymentDateFilter}
-                  onChange={(e) => setPaymentDateFilter(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Active Filters Indicator */}
-            {(transactionTypeFilter !== 'all' || paidSubTypeFilter !== 'all' || expenseSubTypeFilter !== 'all' || paymentDateFilter) && (
-              <div className="flex flex-wrap gap-2 items-center text-sm">
-                <span className="text-muted-foreground">Active filters:</span>
-                {transactionTypeFilter !== 'all' && (
-                  <Badge variant="secondary">
-                    {transactionTypeFilter === 'paid' ? 'Paid Transactions' : 'Received Transactions'}
-                  </Badge>
-                )}
-                {paidSubTypeFilter !== 'all' && (
-                  <Badge variant="secondary">
-                    {paidSubTypeFilter === 'emi' ? 'EMI' : 
-                     paidSubTypeFilter === 'prepayment' ? 'Prepayment' : 'Expenses'}
-                  </Badge>
-                )}
-                {expenseSubTypeFilter !== 'all' && (
-                  <Badge variant="secondary">
-                    {expenseSubTypeFilter.charAt(0).toUpperCase() + expenseSubTypeFilter.slice(1)}
-                  </Badge>
-                )}
-                {paymentDateFilter && (
-                  <Badge variant="secondary">
-                    {new Date(paymentDateFilter).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                  </Badge>
-                )}
-                <button 
-                  onClick={() => {
-                    setTransactionTypeFilter('all');
-                    setPaidSubTypeFilter('all');
-                    setExpenseSubTypeFilter('all');
-                    setPaymentDateFilter('');
-                    setPaymentFilter('all');
-                  }}
-                  className="text-blue-600 hover:text-blue-800 text-xs"
-                >
-                  Clear all filters
-                </button>
-              </div>
-            )}
-
-            {/* Payment Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <TrendingDown className="h-4 w-4 text-red-500" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Paid Out</p>
-                      <p className="text-xl font-bold text-red-500">
-                        ₹{(filteredPayments.filter(p => p.type === 'paid')
-                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Received</p>
-                      <p className="text-xl font-bold text-green-500">
-                        ₹{(filteredPayments.filter(p => p.type === 'received')
-                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <CreditCard className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">EMI Payments</p>
-                      <p className="text-xl font-bold">
-                        ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'emi')
-                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <CircleDollarSign className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Prepayments</p>
-                      <p className="text-xl font-bold text-purple-500">
-                        ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'prepayment')
-                          .reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Payment History Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Transaction History
-                  <Badge variant="secondary" className="ml-auto">
-                    {filteredPayments.length} transactions
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="max-h-[500px] overflow-y-auto">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2 font-medium">Date</th>
-                        <th className="text-left p-2 font-medium">Type</th>
-                        <th className="text-left p-2 font-medium">Description</th>
-                        <th className="text-right p-2 font-medium">Amount</th>
-                        <th className="text-left p-2 font-medium">Method</th>
-                        <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">Reference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredPayments.length > 0 ? (
-                        filteredPayments.map((payment, index) => (
-                          <tr key={index} className="border-b hover:bg-muted/50">
-                            <td className="p-2">
-                              {new Date(payment.date).toLocaleDateString('en-IN')}
-                            </td>
-                            <td className="p-2">
-                              <Badge 
-                                variant={
-                                  payment.type === 'received' ? 'default' :
-                                  payment.paymentType === 'emi' ? 'secondary' :
-                                  payment.paymentType === 'prepayment' ? 'outline' :
-                                  payment.expenseType === 'insurance' ? 'secondary' :
-                                  payment.expenseType === 'penalties' ? 'destructive' :
-                                  payment.expenseType === 'fuel' ? 'secondary' :
-                                  'destructive'
-                                }
-                                className={
-                                  payment.type === 'received' ? 'bg-green-100 text-green-800' :
-                                  payment.paymentType === 'emi' ? 'bg-indigo-100 text-indigo-800' :
-                                  payment.paymentType === 'prepayment' ? 'bg-orange-100 text-orange-800' :
-                                  payment.expenseType === 'insurance' ? 'bg-blue-100 text-blue-800' :
-                                  payment.expenseType === 'penalties' ? 'bg-red-100 text-red-800' :
-                                  payment.expenseType === 'fuel' ? 'bg-blue-100 text-blue-800' :
-                                  payment.expenseType === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-purple-100 text-purple-800'
-                                }
-                              >
-                                {payment.type === 'received' && payment.paymentType === 'rent' ? 'RENT' :
-                                 payment.type === 'received' && payment.paymentType === 'security' ? 'SECURITY' :
-                                 payment.paymentType === 'emi' ? 'EMI' :
-                                 payment.paymentType === 'prepayment' ? 'PREPAYMENT' :
-                                 payment.expenseType === 'insurance' ? 'INSURANCE' :
-                                 payment.expenseType === 'penalties' ? 'PENALTY' :
-                                 payment.expenseType === 'maintenance' ? 'MAINTENANCE' :
-                                 payment.expenseType === 'fuel' ? 'FUEL' :
-                                 payment.expenseType === 'general' ? 'GENERAL' :
-                                 'EXPENSE'}
-                              </Badge>
-                            </td>
-                            <td className="p-2 text-sm">
-                              {payment.description || `${payment.type} payment`}
-                            </td>
-                            <td className={`p-2 text-right font-medium ${
-                              payment.type === 'received' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {payment.type === 'received' ? '+' : '-'}₹{payment.amount.toLocaleString()}
-                            </td>
-                            <td className="p-2 text-sm">
-                              {payment.paymentMethod || 'Bank Transfer'}
-                            </td>
-                            <td className="p-2">
-                              <Badge variant={payment.status === 'completed' ? 'default' : 'secondary'}>
-                                {payment.status || 'completed'}
-                              </Badge>
-                            </td>
-                            <td className="p-2 text-sm text-muted-foreground">
-                              {payment.reference || payment.transactionId || '-'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                            <div className="flex flex-col items-center gap-2">
-                              <History className="h-8 w-8 opacity-50" />
-                              <p>No payment history found</p>
-                              <p className="text-sm">Transactions will appear here once recorded</p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <div className="flex flex-wrap gap-2">
-              <Button 
-                onClick={() => setShowEmiForm(true)}
-                className="flex items-center gap-2"
-              >
-                <CreditCard className="h-4 w-4" />
-                Record EMI Payment
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setShowRentForm(true)}
-                className="flex items-center gap-2"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Record Rent Receipt
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setShowExpenseForm(true)}
-                className="flex items-center gap-2"
-              >
-                <TrendingDown className="h-4 w-4" />
-                Add Expense
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setShowExpenseCorrectionForm(true)}
-                className="border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2"
-              >
-                <AlertTriangle className="h-4 w-4" />
-                Correction
-              </Button>
-            </div>
-          </div>
+          <PaymentsTab
+            transactionTypeFilter={transactionTypeFilter}
+            setTransactionTypeFilter={setTransactionTypeFilter}
+            paidSubTypeFilter={paidSubTypeFilter}
+            setPaidSubTypeFilter={setPaidSubTypeFilter}
+            expenseSubTypeFilter={expenseSubTypeFilter}
+            setExpenseSubTypeFilter={setExpenseSubTypeFilter}
+            paymentFilter={paymentFilter}
+            setPaymentFilter={setPaymentFilter}
+            paymentDateFilter={paymentDateFilter}
+            setPaymentDateFilter={setPaymentDateFilter}
+            filteredPayments={filteredPayments}
+            setShowEmiForm={setShowEmiForm}
+            setShowRentForm={setShowRentForm}
+            setShowExpenseForm={setShowExpenseForm}
+            setShowExpenseCorrectionForm={setShowExpenseCorrectionForm}
+          />
         </TabsContent>
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Financial Performance - Dynamic Data */}
-            <Card className="flex flex-col h-full">
-              <CardHeader>
-                <CardTitle>Investment & Returns</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col">
-                <div className="space-y-3 flex-1">
-                  {/* Investment Breakdown */}
-                  <div className="space-y-2 pb-3 border-b">
-                    <h4 className="font-semibold text-sm text-gray-700">Investment Breakdown</h4>
-                    <div className="flex justify-between">
-                      <span>Initial investment</span>
-                      <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Prepayment</span>
-                      <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total expenses</span>
-                      <span className="font-medium text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2 font-semibold">
-                      <span>Total investment</span>
-                      <span className="text-lg">₹{getTotalInvestment().toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  {/* Returns & Performance */}
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-gray-700">Returns & Performance</h4>
-                    <div className="flex justify-between">
-                      <span>Total Earnings</span>
-                      <span className="font-medium text-green-600">₹{financialData.totalEarnings.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Current Vehicle Value</span>
-                      <span className="font-medium text-green-600">₹{vehicle.residualValue?.toLocaleString() || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Outstanding Loan</span>
-                      <span className="font-medium text-red-600">₹{financialData.outstandingLoan.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span>Total Return <span className="text-xs text-gray-500">(Earnings + Current Car Value - Outstanding Loan)</span></span>
-                      <span className="font-medium text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                    </div>
-                    {financialData.isInvestmentCovered && (
-                      <div className="flex justify-between">
-                        <span>Investment Status</span>
-                        <Badge variant="default" className="bg-green-500 text-white">
-                          Investment Covered
-                        </Badge>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="font-medium">ROI</span>
-                      <span className={`font-bold ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Total Net Cash Flow</span>
-                      <span className={`font-bold ${(financialData.totalEarnings - financialData.totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-between border-t pt-2 mt-auto">
-                  <span className="font-medium">Profit/Loss</span>
-                  <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Projections - Dynamic Data */}
-            <Card className="h-full flex flex-col">
-              <CardHeader className="flex-shrink-0">
-                <CardTitle>Yearly Projections</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col flex-grow min-h-0">
-                <div className="space-y-3 flex-grow overflow-y-auto">
-                  <div className="flex justify-between">
-                    <span>Current Monthly Rent</span>
-                    <span className="font-medium">
-                      ₹{Math.round(financialData.monthlyRent).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Avg Monthly Profit</span>
-                    <span className={`font-medium ${financialData.avgMonthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{Math.round(financialData.avgMonthlyProfit).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Projected Yearly Profit/Loss</span>
-                    <span className={`font-bold ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{Math.round(financialData.projectedYearlyProfit).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>ROI</span>
-                    <span className={`font-medium ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Projected ROI (1 Year)</span>
-                    <span className={`font-medium ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {getTotalInvestment() > 0 ?
-                        ((financialData.projectedYearlyProfit / getTotalInvestment()) * 100).toFixed(1) : 0
-                      }%
-                    </span>
-                  </div>
-                  {financialData.isInvestmentCovered && (
-                    <div className="flex justify-between">
-                      <span>Investment Status</span>
-                      <Badge variant="default" className="bg-green-500 text-white">
-                        Investment Covered
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-shrink-0 mt-auto">
-                  <div className="flex justify-between border-t pt-2 mb-2">
-                    <span className="font-medium">Business Status</span>
-                    <Badge variant={financialData.projectedYearlyProfit >= 0 ? "default" : "destructive"}>
-                      {financialData.projectedYearlyProfit >= 0 ? "Profitable Projection" : "Loss Projection"}
-                    </Badge>
-                  </div>
-
-                  {!financialData.isCurrentlyRented && (
-                    <div className="bg-yellow-50 p-2 rounded-lg">
-                      <p className="text-xs text-yellow-700">
-                        <strong>Note:</strong> Vehicle is not currently rented. Projections will be accurate once assigned to a driver.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Financial Breakdowns */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Total Returns Breakdown */}
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Total Returns Breakdown
-                </CardTitle>
-                <CardDescription>
-                  Components that make up your total returns
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current Car Value:</span>
-                  <span className="font-medium text-green-600">+₹{(() => {
-                    const initialValue = vehicle.initialInvestment || vehicle.initialCost || 0;
-                    const depreciationRate = vehicle.depreciationRate || 10;
-                    const depreciationPerMonth = depreciationRate / 100 / 12;
-                    
-                    // Calculate operational months
-                    const vehiclePayments = firebasePayments.filter(payment => 
-                      payment.vehicleId === vehicleId && payment.status === 'paid'
-                    );
-                    let operationalMonths = 1;
-                    if (vehiclePayments.length > 0) {
-                      const earliestPaymentDate = vehiclePayments
-                        .map(p => new Date(p.paidAt || p.collectionDate || p.createdAt))
-                        .sort((a, b) => a.getTime() - b.getTime())[0];
-                      
-                      const currentDate = new Date();
-                      const monthsDiff = (currentDate.getFullYear() - earliestPaymentDate.getFullYear()) * 12 + 
-                                        (currentDate.getMonth() - earliestPaymentDate.getMonth());
-                      operationalMonths = Math.max(1, monthsDiff + 1);
-                    }
-                    
-                    const depreciatedValue = initialValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
-                    return Math.round(depreciatedValue).toLocaleString();
-                  })()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Earnings:</span>
-                  <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Expenses:</span>
-                  <span className="font-medium text-red-600">-₹{financialData.totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Outstanding Loan:</span>
-                  <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
-                </div>
-                <div className="h-6"></div>
-                <div className="h-6"></div>
-                <div className="flex justify-between border-t pt-2 font-semibold">
-                  <span>Total Returns:</span>
-                  <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Expenses Breakdown */}
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-600" />
-                  Total Expenses Breakdown
-                </CardTitle>
-                <CardDescription>
-                  Components that make up your total costs
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Fuel Expenses:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Maintenance:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Insurance:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Penalties:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">EMI Payments:</span>
-                  <span className="font-medium text-blue-600">₹{expenseData.emiPayments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Other Expenses:</span>
-                  <span className="font-medium text-red-600">₹{expenseData.otherExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2 font-semibold">
-                  <span>Total Expenses:</span>
-                  <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Financial Projections */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Financial Projections Card - Shows all metrics like Financial Performance */}
-            <Card className="flex flex-col h-full">
-              <CardHeader className="flex-shrink-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
-                    <CardDescription>
-                      {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div className="w-32">
-                      <Label htmlFor="projection-year" className="text-xs text-gray-600">Projection Period</Label>
-                      <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
-                        <SelectTrigger className="mt-1 h-8">
-                          <SelectValue placeholder="Select years" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1 Year</SelectItem>
-                          <SelectItem value="2">2 Years</SelectItem>
-                          <SelectItem value="3">3 Years</SelectItem>
-                          <SelectItem value="5">5 Years</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-32">
-                      <Label htmlFor="projection-mode" className="text-xs text-gray-600">Projection Mode</Label>
-                      <Select value={projectionMode} onValueChange={(value: 'current' | 'assumed') => setProjectionMode(value)}>
-                        <SelectTrigger className="mt-1 h-8">
-                          <SelectValue placeholder="Select mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="current">Current Trends</SelectItem>
-                          <SelectItem value="assumed">Assumed Rent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-                {projectionMode === 'assumed' && (
-                  <div className="mt-3">
-                    <Label htmlFor="assumed-rent" className="text-sm text-gray-600">Assumed Monthly Rent (₹)</Label>
-                    <Input
-                      id="assumed-rent"
-                      type="number"
-                      value={assumedMonthlyRent}
-                      onChange={(e) => setAssumedMonthlyRent(e.target.value)}
-                      placeholder={`Current: ₹${Math.round(financialData.monthlyRent).toLocaleString()}`}
-                      className="mt-1 h-8"
-                    />
-                  </div>
-                )}
-                {vehicle.financingType === 'loan' && (
-                  <div className="mt-3">
-                    <Label htmlFor="increased-emi" className="text-sm text-gray-600">Increased EMI Amount (₹)</Label>
-                    <Input
-                      id="increased-emi"
-                      type="number"
-                      value={increasedEMI}
-                      onChange={(e) => setIncreasedEMI(e.target.value)}
-                      placeholder={`Current EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}`}
-                      className="mt-1 h-8"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Enter amount to pay extra towards EMI for faster loan clearance
-                    </p>
-                  </div>
-                )}
-                <div className="mt-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="net-cash-flow"
-                      checked={netCashFlowMode}
-                      onCheckedChange={(checked) => setNetCashFlowMode(checked as boolean)}
-                    />
-                    <Label htmlFor="net-cash-flow" className="text-sm text-gray-600">
-                      Use Net Cash Flow for EMI Payment
-                    </Label>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Automatically use monthly net cash flow (rent - expenses) to pay extra EMI
-                  </p>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col">
-                {(() => {
-                  const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ? 
-                    parseFloat(assumedMonthlyRent) : undefined;
-                  const increasedEMIAmt = increasedEMI ? parseFloat(increasedEMI) : undefined;
-                  const projection = calculateProjection(projectionYear, assumedRent, increasedEMIAmt, netCashFlowMode);
-                  const projectedTotalInvestment = getTotalInvestment();
-                  const projectedIsProfit = projection.projectedProfitLoss >= 0;
-                  const projectedGrossProfitLossPercentage = projectedTotalInvestment > 0 ?
-                    (projection.projectedProfitLoss / projectedTotalInvestment) * 100 : 0;
-
-                  return (
-                    <>
-                      <div className="space-y-3 flex-1">
-                        <div className="flex justify-between">
-                          <span>Initial Investment</span>
-                          <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Total Investment (with prepayments)</span>
-                          <span className="font-medium">₹{projectedTotalInvestment.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Projected Total Earnings</span>
-                          <span className="font-medium text-green-600">₹{projection.projectedEarnings.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Projected Vehicle Value</span>
-                          <span className="font-medium text-green-600">₹{projection.projectedDepreciatedCarValue.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Projected Total Expenses <span className="text-xs text-gray-500">(All Expenses + EMI)</span></span>
-                          <span className="font-medium text-red-600">₹{projection.projectedOperatingExpenses.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Projected Outstanding Loan</span>
-                          <span className="font-medium text-red-600">₹{projection.futureOutstandingLoan.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between border-t pt-2">
-                          <span>Projected Total Return <span className="text-xs text-gray-500">(Earnings + Vehicle Value - Outstanding Loan)</span></span>
-                          <span className="font-medium text-green-600">₹{projection.projectedTotalReturn.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Projected ROI</span>
-                          <span className={`font-bold ${projection.projectedROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {projection.projectedROI >= 0 ? '+' : ''}{projection.projectedROI.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Projected Net Cash Flow</span>
-                          <span className={`font-bold ${projection.projectedNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            ₹{projection.projectedNetCashFlow.toLocaleString()}
-                          </span>
-                        </div>
-                        {projection.breakEvenMonths && (
-                          <div className="flex justify-between">
-                            <span className="font-medium">Break-even Point</span>
-                            <span className="font-bold text-blue-600">
-                              {projection.breakEvenMonths} months ({projection.breakEvenDate})
-                            </span>
-                          </div>
-                        )}
-                        {projection.loanClearanceMonths && (
-                          <div className="flex justify-between">
-                            <span className="font-medium">Loan Clearance</span>
-                            <span className="font-bold text-purple-600">
-                              {projection.loanClearanceMonths} months ({projection.loanClearanceDate})
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex justify-between border-t pt-2 mt-auto">
-                        <span className="font-medium">Projected Profit/Loss</span>
-                        <span className={`font-bold ${projectedIsProfit ? 'text-green-600' : 'text-red-600'}`}>
-                          ₹{projection.projectedProfitLoss.toLocaleString()} ({projectedGrossProfitLossPercentage.toFixed(1)}%)
-                        </span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-
-            {/* Projection Summary */}
-            <Card className="h-full flex flex-col">
-              <CardHeader className="flex-shrink-0">
-                <CardTitle>Projection Summary & Insights</CardTitle>
-                <CardDescription>
-                  Key insights from {projectionYear}-year projection
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                {(() => {
-                  const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ? 
-                    parseFloat(assumedMonthlyRent) : undefined;
-                  const increasedEMIAmt = increasedEMI ? parseFloat(increasedEMI) : undefined;
-                  const projection = calculateProjection(projectionYear, assumedRent, increasedEMIAmt, netCashFlowMode);
-                  const isProfitable = projection.projectedProfitLoss >= 0;
-                  const roiPositive = projection.projectedROI >= 0;
-
-                  return (
-                    <div className="space-y-4 flex-1 flex flex-col">
-                      <div className="space-y-3 flex-1">
-                        <div className="flex justify-between">
-                          <span>Investment Recovery:</span>
-                          <Badge variant={isProfitable ? "default" : "destructive"}>
-                            {isProfitable ? "Recovered" : "Not Recovered"}
-                          </Badge>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>ROI Status:</span>
-                          <Badge variant={roiPositive ? "default" : "destructive"}>
-                            {roiPositive ? "Positive" : "Negative"}
-                          </Badge>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Cash Flow:</span>
-                          <Badge variant={projection.projectedNetCashFlow >= 0 ? "default" : "destructive"}>
-                            {projection.projectedNetCashFlow >= 0 ? "Positive" : "Negative"}
-                          </Badge>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Loan Status:</span>
-                          <Badge variant={projection.futureOutstandingLoan === 0 ? "default" : "secondary"}>
-                            {projection.futureOutstandingLoan === 0 ? "Cleared" : "Outstanding"}
-                          </Badge>
-                        </div>
-
-                        {projection.breakEvenMonths && (
-                          <div className="flex justify-between">
-                            <span>Break-even Point:</span>
-                            <span className="font-medium text-blue-600">
-                              {projection.breakEvenMonths} months ({projection.breakEvenDate})
-                            </span>
-                          </div>
-                        )}
-
-                        {projection.loanClearanceMonths && (
-                          <div className="flex justify-between">
-                            <span>Loan Clearance:</span>
-                            <span className="font-medium text-purple-600">
-                              {projection.loanClearanceMonths} months ({projection.loanClearanceDate})
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Net Cash Flow EMI Payoff Projection */}
-                        {vehicle.financingType === 'loan' && financialData.outstandingLoan > 0 && (
-                          <div className="border-t pt-3 mt-3">
-                            <h4 className="font-medium text-sm mb-2">Net Cash Flow EMI Payoff</h4>
-                            <div className="text-xs text-gray-600 space-y-1">
-                              <div className="flex justify-between">
-                                <span>Monthly Net Cash Flow:</span>
-                                <span>₹{Math.round(historicalMonthlyNetCashFlow).toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Outstanding Loan:</span>
-                                <span>₹{financialData.outstandingLoan.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Months to Clear Loan:</span>
-                                <span className={`font-medium ${historicalMonthlyNetCashFlow > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {historicalMonthlyNetCashFlow > 0 ? 
-                                    Math.ceil(financialData.outstandingLoan / historicalMonthlyNetCashFlow) : 
-                                    'Never (Negative Cash Flow)'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Increased EMI Projection */}
-                        {vehicle.financingType === 'loan' && increasedEMI && (
-                          <div className="border-t pt-3 mt-3">
-                            <h4 className="font-medium text-sm mb-2">Increased EMI Impact</h4>
-                            <div className="text-xs text-gray-600 space-y-1">
-                              <div className="flex justify-between">
-                                <span>Current EMI:</span>
-                                <span>₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Increased EMI:</span>
-                                <span>₹{parseInt(increasedEMI).toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Monthly Savings:</span>
-                                <span className="font-medium text-green-600">
-                                  ₹{(parseInt(increasedEMI) - (vehicle.loanDetails?.emiPerMonth || 0)).toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Loan Clear Months:</span>
-                                <span className="font-medium text-blue-600">
-                                  {parseInt(increasedEMI) > (vehicle.loanDetails?.emiPerMonth || 0) ? 
-                                    Math.ceil(financialData.outstandingLoan / parseInt(increasedEMI)) : 
-                                    'N/A'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="border-t pt-3 mt-auto">
-                        <div className="bg-gray-50 p-3 rounded-lg">
-                          <p className="text-sm text-gray-700">
-                            <strong>Assumptions:</strong> {projectionMode === 'current' ? 
-                              `Projections based on current monthly earnings (₹${financialData.monthlyRent.toLocaleString()}) and expenses (₹${financialData.monthlyExpenses.toLocaleString()})` :
-                              `Projections based on assumed monthly rent (₹${assumedMonthlyRent || '0'}) and current expenses (₹${financialData.monthlyExpenses.toLocaleString()})`
-                            }, with {vehicle.depreciationRate || 10}% annual depreciation and loan payments.
-                          </p>
-                        </div>
-
-                        {/* Increased EMI Input */}
-                        {vehicle.financingType === 'loan' && (
-                          <div className="mt-3">
-                            <Label htmlFor="increased-emi" className="text-xs text-gray-600">Test Increased EMI (₹)</Label>
-                            <Input
-                              id="increased-emi"
-                              type="number"
-                              value={increasedEMI}
-                              onChange={(e) => setIncreasedEMI(e.target.value)}
-                              placeholder={`Current: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}`}
-                              className="mt-1 h-8 text-xs"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              See how increasing EMI affects loan payoff timeline
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          </div>
+          <AnalyticsTab
+            vehicle={vehicle}
+            financialData={financialData}
+            expenseData={expenseData}
+            firebasePayments={firebasePayments}
+            vehicleId={vehicleId}
+            getTotalInvestment={getTotalInvestment}
+            projectionYear={projectionYear}
+            setProjectionYear={setProjectionYear}
+            projectionMode={projectionMode}
+            setProjectionMode={setProjectionMode}
+            assumedMonthlyRent={assumedMonthlyRent}
+            setAssumedMonthlyRent={setAssumedMonthlyRent}
+            increasedEMI={increasedEMI}
+            setIncreasedEMI={setIncreasedEMI}
+            netCashFlowMode={netCashFlowMode}
+            setNetCashFlowMode={setNetCashFlowMode}
+            calculateProjection={calculateProjection}
+          />
         </TabsContent>
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Vehicle Images */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Camera className="w-5 h-5" />
-                  Vehicle Images
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Front Image */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Front View</Label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
-                      {vehicle.images?.front ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={vehicle.images.front}
-                            alt="Vehicle Front"
-                            className="w-full h-full object-cover rounded-md"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="absolute top-2 right-2 p-1 h-8 w-8"
-                            onClick={() => window.open(vehicle.images?.front, '_blank')}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                          <ImageIcon className="w-8 h-8 mb-2" />
-                          <span className="text-sm">No front image</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Back Image */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Back View</Label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
-                      {vehicle.images?.back ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={vehicle.images.back}
-                            alt="Vehicle Back"
-                            className="w-full h-full object-cover rounded-md"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="absolute top-2 right-2 p-1 h-8 w-8"
-                            onClick={() => window.open(vehicle.images?.back, '_blank')}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                          <ImageIcon className="w-8 h-8 mb-2" />
-                          <span className="text-sm">No back image</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Interior Image */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Interior</Label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
-                      {vehicle.images?.interior ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={vehicle.images.interior}
-                            alt="Vehicle Interior"
-                            className="w-full h-full object-cover rounded-md"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="absolute top-2 right-2 p-1 h-8 w-8"
-                            onClick={() => window.open(vehicle.images?.interior, '_blank')}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                          <ImageIcon className="w-8 h-8 mb-2" />
-                          <span className="text-sm">No interior image</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Documents Image */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Documents</Label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 aspect-square bg-gray-50">
-                      {vehicle.images?.documents ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={vehicle.images.documents}
-                            alt="Vehicle Documents"
-                            className="w-full h-full object-cover rounded-md"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="absolute top-2 right-2 p-1 h-8 w-8"
-                            onClick={() => window.open(vehicle.images?.documents, '_blank')}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                          <FileText className="w-8 h-8 mb-2" />
-                          <span className="text-sm">No documents image</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Vehicle Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Vehicle Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label className="text-gray-500">Registration Number</Label>
-                    <p className="font-medium">{vehicle.registrationNumber}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Make & Model</Label>
-                    <p className="font-medium">{vehicle.make} {vehicle.model}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Year</Label>
-                    <p className="font-medium">{vehicle.year}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Condition</Label>
-                    <p className="font-medium capitalize">{vehicle.condition?.replace('_', ' ')}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Purchase Price</Label>
-                    <p className="font-medium">₹{vehicle.initialCost?.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Current Odometer</Label>
-                    <p className="font-medium">{vehicle.odometer?.toLocaleString()} km</p>
-                  </div>
-                </div>
-
-                {vehicle.financingType === 'loan' && vehicle.loanDetails && (
-                  <div className="border-t pt-4">
-                    <Label className="text-gray-500 text-sm">Loan Information</Label>
-                    <div className="grid grid-cols-2 gap-4 text-sm mt-2">
-                      <div>
-                        <Label className="text-gray-500">Loan Account</Label>
-                        <p className="font-medium">{vehicle.loanDetails.loanAccountNumber || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-500">Interest Rate</Label>
-                        <p className="font-medium">{vehicle.loanDetails.interestRate}% p.a.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <DocumentsTab vehicle={vehicle} />
         </TabsContent>
 
         {/* Assignment History Tab */}
         <TabsContent value="assignments" className="space-y-4">
-          <AssignmentHistoryTab vehicleId={vehicleId!} />
+          <AssignmentsTab vehicleId={vehicleId!} getDriverName={getDriverName} />
         </TabsContent>
       </Tabs>
 
