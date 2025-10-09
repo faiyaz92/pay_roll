@@ -35,7 +35,9 @@ export const useFirestorePaths = (companyId?: string) => {
     getSettingsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/settings` : '',
     getAuditLogsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/auditLogs` : '',
     getFuelRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelRecords` : '',
+    getFuelPricesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelPrices` : '',
     getMaintenanceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/maintenanceRecords` : '',
+    getInsuranceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/insuranceRecords` : '',
     
     // Vehicle subcollection paths
     getOdometerHistoryPath: (vehicleId: string) => 

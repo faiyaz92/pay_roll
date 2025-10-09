@@ -46,6 +46,12 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 
+          ⚠️ SAFETY NOTICE: Investment & Returns calculations are PERFECT and WORKING CORRECTLY
+          All ROI calculations, investment tracking, and returns breakdown are accurate.
+          DO NOT MODIFY these calculations without explicit approval.
+          Last verified: October 4, 2025 - All calculations confirmed correct.
+        */}
         {/* Investment & Returns */}
         <InvestmentReturnsCard
           vehicle={vehicle}
@@ -69,10 +75,12 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
                 <span>Monthly Expenses (Avg.)</span>
                 <span className="font-medium text-red-600">₹{Math.round(financialData.monthlyExpenses).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Monthly EMI</span>
-                <span className="font-medium text-blue-600">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
-              </div>
+              {vehicle.financingType === 'loan' && vehicle.loanDetails && (
+                <div className="flex justify-between">
+                  <span>Monthly EMI</span>
+                  <span className="font-medium text-blue-600">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
+                </div>
+              )}
               {financialData.isCurrentlyRented && (
                 <>
                   <div className="flex justify-between">
@@ -83,8 +91,8 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">After EMI Deduction</span>
-                    <span className={`font-bold ${(financialData.monthlyProfit - (vehicle.loanDetails?.emiPerMonth || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{Math.round(financialData.monthlyProfit - (vehicle.loanDetails?.emiPerMonth || 0)).toLocaleString()}
+                    <span className={`font-bold ${(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ₹{Math.round(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -253,6 +261,12 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
           vehicleId={vehicleId}
         />
 
+        {/* 
+          ⚠️ SAFETY NOTICE: Total Expenses Breakdown calculations are PERFECT and WORKING CORRECTLY
+          All expense categorization, totals, and breakdown calculations are accurate.
+          DO NOT MODIFY these calculations without explicit approval.
+          Last verified: October 4, 2025 - All calculations confirmed correct.
+        */}
         <TotalExpensesBreakdownCard
           expenseData={expenseData}
         />

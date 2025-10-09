@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, doc, onSnapshot, setDoc, query, orderBy } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFirestorePaths } from './useFirestorePaths';
 
 export interface FuelPrice {
   id: string;
@@ -17,6 +18,7 @@ export const useFuelPrices = () => {
   const [fuelPrices, setFuelPrices] = useState<FuelPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const { userInfo } = useAuth();
+  const paths = useFirestorePaths(userInfo?.companyId);
 
   useEffect(() => {
     if (!userInfo?.companyId) {
@@ -24,7 +26,7 @@ export const useFuelPrices = () => {
       return;
     }
 
-    const fuelPricesRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelPrices`);
+    const fuelPricesRef = collection(firestore, paths.getFuelPricesPath());
     const q = query(fuelPricesRef, orderBy('fuelType'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -42,7 +44,7 @@ export const useFuelPrices = () => {
   const updateFuelPrice = async (fuelType: string, priceData: Partial<FuelPrice>) => {
     if (!userInfo?.companyId) return;
     
-    const fuelPriceRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/fuelPrices`, fuelType);
+    const fuelPriceRef = doc(firestore, paths.getFuelPricesPath(), fuelType);
     return await setDoc(fuelPriceRef, {
       ...priceData,
       fuelType,

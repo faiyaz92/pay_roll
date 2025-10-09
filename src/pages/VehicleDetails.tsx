@@ -115,7 +115,12 @@ const VehicleDetails: React.FC = () => {
   const [newExpense, setNewExpense] = useState({
     amount: '',
     description: '',
-    type: 'fuel'
+    type: 'fuel',
+    // Proration fields for advance payments
+    isAdvance: false,
+    coverageStartDate: '',
+    coverageEndDate: '',
+    coverageMonths: 0
   });
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [paymentDateFilter, setPaymentDateFilter] = useState('');
@@ -174,44 +179,64 @@ const VehicleDetails: React.FC = () => {
     // For backward compatibility, also check old 'type' field
     const fuelExpenses = vehicleExpenses.filter(e => 
       (e.expenseType === 'fuel') || 
-      e.description.toLowerCase().includes('fuel')
+      e.description.toLowerCase().includes('fuel') ||
+      e.description.toLowerCase().includes('petrol') ||
+      e.description.toLowerCase().includes('diesel')
     ).reduce((sum, e) => sum + e.amount, 0);
     
     const maintenanceExpenses = vehicleExpenses.filter(e => 
       (e.expenseType === 'maintenance') || 
-      (e.type === 'maintenance')
+      (e.type === 'maintenance') ||
+      (e.expenseType as string) === 'repair' ||
+      (e.expenseType as string) === 'service' ||
+      e.description.toLowerCase().includes('maintenance') ||
+      e.description.toLowerCase().includes('repair') ||
+      e.description.toLowerCase().includes('service')
     ).reduce((sum, e) => sum + e.amount, 0);
     
     const insuranceExpenses = vehicleExpenses.filter(e => 
       (e.expenseType === 'insurance') || 
-      (e.type === 'insurance')
+      (e.type === 'insurance') ||
+      e.description.toLowerCase().includes('insurance')
     ).reduce((sum, e) => sum + e.amount, 0);
     
     const penaltyExpenses = vehicleExpenses.filter(e => 
       (e.expenseType === 'penalties') || 
-      (e.type === 'penalties')
+      (e.type === 'penalties') ||
+      (e.expenseType as string) === 'penalty' ||
+      (e.expenseType as string) === 'fine' ||
+      e.description.toLowerCase().includes('penalty') ||
+      e.description.toLowerCase().includes('fine') ||
+      e.description.toLowerCase().includes('late fee')
     ).reduce((sum, e) => sum + e.amount, 0);
     
     const emiPayments = vehicleExpenses.filter(e => 
       (e.paymentType === 'emi') || 
-      (e.type === 'emi')
+      (e.type === 'emi') ||
+      e.description.toLowerCase().includes('emi') ||
+      e.description.toLowerCase().includes('installment')
     ).reduce((sum, e) => sum + e.amount, 0);
     
     const prepayments = vehicleExpenses.filter(e => 
       (e.paymentType === 'prepayment') || 
-      (e.type === 'prepayment')
+      (e.type === 'prepayment') ||
+      e.description.toLowerCase().includes('prepayment') ||
+      e.description.toLowerCase().includes('principal')
     ).reduce((sum, e) => sum + e.amount, 0);
     
-    const otherExpenses = vehicleExpenses.filter(e => 
-      (e.expenseType === 'general') || 
-      (e.type === 'general')
-    ).reduce((sum, e) => sum + e.amount, 0);
+    // Calculate total expenses excluding prepayments
+    const operationalExpenses = vehicleExpenses.filter(e => 
+      !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
+        e.description.toLowerCase().includes('prepayment') ||
+        e.description.toLowerCase().includes('principal'))
+    );
     
-    const totalExpenses = vehicleExpenses
-      .filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
-                     e.description.toLowerCase().includes('prepayment') ||
-                     e.description.toLowerCase().includes('principal')))
-      .reduce((sum, e) => sum + e.amount, 0); // Include expenses and EMI but exclude prepayments
+    const totalExpenses = operationalExpenses.reduce((sum, e) => sum + e.amount, 0);
+    
+    // All other operational expenses go into "Other Expenses"
+    const categorizedExpenses = fuelExpenses + maintenanceExpenses + insuranceExpenses + 
+                               penaltyExpenses + emiPayments;
+    const otherExpenses = totalExpenses - categorizedExpenses;
     
     // Calculate monthly average (last 12 months) - exclude prepayments
     const currentDate = new Date();
@@ -818,7 +843,13 @@ const VehicleDetails: React.FC = () => {
         companyId: '',
         createdAt: '',
         updatedAt: '',
-        paymentType: 'expenses'
+        paymentType: 'expenses',
+        // Proration fields for advance payments
+        isAdvance: newExpense.isAdvance,
+        coverageStartDate: newExpense.isAdvance ? newExpense.coverageStartDate : undefined,
+        coverageEndDate: newExpense.isAdvance ? newExpense.coverageEndDate : undefined,
+        coverageMonths: newExpense.isAdvance ? newExpense.coverageMonths : undefined,
+        proratedMonthly: newExpense.isAdvance ? amount / newExpense.coverageMonths : undefined
       });
 
       toast({
@@ -830,7 +861,12 @@ const VehicleDetails: React.FC = () => {
       setNewExpense({
         amount: '',
         description: '',
-        type: 'fuel'
+        type: 'fuel',
+        // Reset proration fields
+        isAdvance: false,
+        coverageStartDate: '',
+        coverageEndDate: '',
+        coverageMonths: 0
       });
       setSelectedExpenseType('fuel');
       setShowExpenseForm(false);
@@ -964,79 +1000,70 @@ const VehicleDetails: React.FC = () => {
   const exportToExcel = async () => {
     try {
       // Dynamic import to avoid bundle size issues
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
 
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
 
       // Vehicle Overview Sheet
-      const overviewData = [
-        ['Vehicle Details'],
-        ['Vehicle Name', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`],
-        ['Registration Number', vehicle.registrationNumber],
-        ['Make', vehicle.make],
-        ['Model', vehicle.model],
-        ['Year', vehicle.year],
-        ['Status', vehicle.status],
-        ['Financial Status', vehicle.financialStatus || 'cash'],
-        ['Odometer Reading', vehicle.odometer || 'N/A'],
-        [''],
-        ['Current Assignment'],
-        ['Assigned Driver', vehicle.assignedDriverId ? getDriverName(vehicle.assignedDriverId) : 'Not Assigned'],
-        ['Current Status', financialData.isCurrentlyRented ? 'Rented' : 'Available'],
-        ['Monthly Rent', financialData.isCurrentlyRented ? `₹${financialData.monthlyRent.toLocaleString()}` : 'N/A'],
-        [''],
-        ['Financial Summary'],
-        ['Total Return', `₹${financialData.totalReturn.toLocaleString()}`],
-        ['Total Expenses', `₹${expenseData.totalExpenses.toLocaleString()}`],
-        ['Profit/Loss', `₹${(financialData.totalReturn - financialData.totalInvestment).toLocaleString()}`],
-        ['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`],
-        ['Outstanding Loan', vehicle.financingType === 'loan' ? `₹${financialData.outstandingLoan.toLocaleString()}` : 'N/A']
-      ];
-
-      const overviewSheet = XLSX.utils.aoa_to_sheet(overviewData);
-      XLSX.utils.book_append_sheet(workbook, overviewSheet, 'Overview');
+      const overviewSheet = workbook.addWorksheet('Overview');
+      overviewSheet.addRow(['Vehicle Details']);
+      overviewSheet.addRow(['Vehicle Name', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      overviewSheet.addRow(['Registration Number', vehicle.registrationNumber]);
+      overviewSheet.addRow(['Make', vehicle.make]);
+      overviewSheet.addRow(['Model', vehicle.model]);
+      overviewSheet.addRow(['Year', vehicle.year]);
+      overviewSheet.addRow(['Status', vehicle.status]);
+      overviewSheet.addRow(['Financial Status', vehicle.financialStatus || 'cash']);
+      overviewSheet.addRow(['Odometer Reading', vehicle.odometer || 'N/A']);
+      overviewSheet.addRow(['']);
+      overviewSheet.addRow(['Current Assignment']);
+      overviewSheet.addRow(['Assigned Driver', vehicle.assignedDriverId ? getDriverName(vehicle.assignedDriverId) : 'Not Assigned']);
+      overviewSheet.addRow(['Current Status', financialData.isCurrentlyRented ? 'Rented' : 'Available']);
+      overviewSheet.addRow(['Monthly Rent', financialData.isCurrentlyRented ? `₹${financialData.monthlyRent.toLocaleString()}` : 'N/A']);
+      overviewSheet.addRow(['']);
+      overviewSheet.addRow(['Financial Summary']);
+      overviewSheet.addRow(['Total Return', `₹${financialData.totalReturn.toLocaleString()}`]);
+      overviewSheet.addRow(['Total Expenses', `₹${expenseData.totalExpenses.toLocaleString()}`]);
+      overviewSheet.addRow(['Profit/Loss', `₹${(financialData.totalReturn - financialData.totalInvestment).toLocaleString()}`]);
+      overviewSheet.addRow(['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`]);
+      overviewSheet.addRow(['Outstanding Loan', vehicle.financingType === 'loan' ? `₹${financialData.outstandingLoan.toLocaleString()}` : 'N/A']);
 
       // Financials Sheet
-      const financialsData = [
-        ['Financial Performance'],
-        ['Metric', 'Amount'],
-        ['Total Return', financialData.totalReturn],
-        ['Total Expenses', expenseData.totalExpenses],
-        ['Profit/Loss', financialData.totalReturn - financialData.totalInvestment],
-        ['Monthly Profit', calculateMonthlyProfit()],
-        ['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`],
-        ['Outstanding Loan', vehicle.financingType === 'loan' ? financialData.outstandingLoan : 0],
-        ['Total Investment', getTotalInvestment()],
-        [''],
-        ['Expense Breakdown'],
-        ['Category', 'Amount', 'Percentage'],
-        ['Fuel', expenseData.fuelExpenses, expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
-        ['Maintenance', expenseData.maintenanceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
-        ['Insurance', expenseData.insuranceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
-        ['Penalties', expenseData.penaltyExpenses, expenseData.totalExpenses > 0 ? ((expenseData.penaltyExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%'],
-        ['EMI Payments', expenseData.emiPayments, 'Separate loan payment'],
-        ['Prepayments', expenseData.prepayments, 'Principal reduction'],
-        ['Other', expenseData.otherExpenses, expenseData.totalExpenses > 0 ? ((expenseData.otherExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']
-      ];
-
-      const financialsSheet = XLSX.utils.aoa_to_sheet(financialsData);
-      XLSX.utils.book_append_sheet(workbook, financialsSheet, 'Financials');
+      const financialsSheet = workbook.addWorksheet('Financials');
+      financialsSheet.addRow(['Financial Performance']);
+      financialsSheet.addRow(['Metric', 'Amount']);
+      financialsSheet.addRow(['Total Return', financialData.totalReturn]);
+      financialsSheet.addRow(['Total Expenses', expenseData.totalExpenses]);
+      financialsSheet.addRow(['Profit/Loss', financialData.totalReturn - financialData.totalInvestment]);
+      financialsSheet.addRow(['Monthly Profit', calculateMonthlyProfit()]);
+      financialsSheet.addRow(['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(1)}%`]);
+      financialsSheet.addRow(['Outstanding Loan', vehicle.financingType === 'loan' ? financialData.outstandingLoan : 0]);
+      financialsSheet.addRow(['Total Investment', getTotalInvestment()]);
+      financialsSheet.addRow(['']);
+      financialsSheet.addRow(['Expense Breakdown']);
+      financialsSheet.addRow(['Category', 'Amount', 'Percentage']);
+      financialsSheet.addRow(['Fuel', expenseData.fuelExpenses, expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']);
+      financialsSheet.addRow(['Maintenance', expenseData.maintenanceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']);
+      financialsSheet.addRow(['Insurance', expenseData.insuranceExpenses, expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']);
+      financialsSheet.addRow(['Penalties', expenseData.penaltyExpenses, expenseData.totalExpenses > 0 ? ((expenseData.penaltyExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']);
+      financialsSheet.addRow(['EMI Payments', expenseData.emiPayments, 'Separate loan payment']);
+      financialsSheet.addRow(['Prepayments', expenseData.prepayments, 'Principal reduction']);
+      financialsSheet.addRow(['Other', expenseData.otherExpenses, expenseData.totalExpenses > 0 ? ((expenseData.otherExpenses / expenseData.totalExpenses) * 100).toFixed(2) + '%' : '0%']);
 
       // EMI Tracking Sheet
-      const emiData = [
-        ['EMI Tracking Details'],
-        ['Loan Amount', vehicle.loanDetails?.totalLoan ? `₹${vehicle.loanDetails.totalLoan.toLocaleString()}` : 'N/A'],
-        ['Interest Rate', vehicle.loanDetails?.interestRate ? `${vehicle.loanDetails.interestRate}%` : 'N/A'],
-        ['EMI Amount', vehicle.loanDetails?.emiPerMonth ? `₹${vehicle.loanDetails.emiPerMonth.toLocaleString()}` : 'N/A'],
-        ['Outstanding Loan', `₹${financialData.outstandingLoan.toLocaleString()}`],
-        [''],
-        ['EMI Schedule'],
-        ['Month', 'Due Date', 'Interest', 'Principal', 'Outstanding', 'Status', 'Paid Date']
-      ];
+      const emiSheet = workbook.addWorksheet('EMI Tracking');
+      emiSheet.addRow(['EMI Tracking Details']);
+      emiSheet.addRow(['Loan Amount', vehicle.loanDetails?.totalLoan ? `₹${vehicle.loanDetails.totalLoan.toLocaleString()}` : 'N/A']);
+      emiSheet.addRow(['Interest Rate', vehicle.loanDetails?.interestRate ? `${vehicle.loanDetails.interestRate}%` : 'N/A']);
+      emiSheet.addRow(['EMI Amount', vehicle.loanDetails?.emiPerMonth ? `₹${vehicle.loanDetails.emiPerMonth.toLocaleString()}` : 'N/A']);
+      emiSheet.addRow(['Outstanding Loan', `₹${financialData.outstandingLoan.toLocaleString()}`]);
+      emiSheet.addRow(['']);
+      emiSheet.addRow(['EMI Schedule']);
+      emiSheet.addRow(['Month', 'Due Date', 'Interest', 'Principal', 'Outstanding', 'Status', 'Paid Date']);
 
       if (vehicle.loanDetails?.amortizationSchedule) {
         vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
-          emiData.push([
+          emiSheet.addRow([
             (index + 1).toString(),
             emi.dueDate,
             emi.interest.toString(),
@@ -1048,17 +1075,13 @@ const VehicleDetails: React.FC = () => {
         });
       }
 
-      const emiSheet = XLSX.utils.aoa_to_sheet(emiData);
-      XLSX.utils.book_append_sheet(workbook, emiSheet, 'EMI Tracking');
-
       // Payment History Sheet
-      const paymentHistoryData = [
-        ['Payment History'],
-        ['Date', 'Type', 'Payment Type', 'Expense Type', 'Amount', 'Description', 'Status']
-      ];
+      const paymentHistorySheet = workbook.addWorksheet('Payment History');
+      paymentHistorySheet.addRow(['Payment History']);
+      paymentHistorySheet.addRow(['Date', 'Type', 'Payment Type', 'Expense Type', 'Amount', 'Description', 'Status']);
 
       allPayments.forEach(payment => {
-        paymentHistoryData.push([
+        paymentHistorySheet.addRow([
           payment.date,
           payment.type,
           payment.paymentType,
@@ -1069,17 +1092,13 @@ const VehicleDetails: React.FC = () => {
         ]);
       });
 
-      const paymentHistorySheet = XLSX.utils.aoa_to_sheet(paymentHistoryData);
-      XLSX.utils.book_append_sheet(workbook, paymentHistorySheet, 'Payment History');
-
       // Expenses Sheet
-      const expensesData = [
-        ['Expense Details'],
-        ['Date', 'Type', 'Category', 'Amount', 'Description', 'Status']
-      ];
+      const expensesSheet = workbook.addWorksheet('Expenses');
+      expensesSheet.addRow(['Expense Details']);
+      expensesSheet.addRow(['Date', 'Type', 'Category', 'Amount', 'Description', 'Status']);
 
       expenseData.recentExpenses.forEach(expense => {
-        expensesData.push([
+        expensesSheet.addRow([
           expense.createdAt,
           expense.expenseType || expense.type,
           expense.expenseType || expense.type,
@@ -1089,23 +1108,19 @@ const VehicleDetails: React.FC = () => {
         ]);
       });
 
-      const expensesSheet = XLSX.utils.aoa_to_sheet(expensesData);
-      XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Expenses');
-
       // Assignments Sheet
       const vehicleAssignments = allAssignments.filter(a => a.vehicleId === vehicleId);
 
-      const assignmentsData = [
-        ['Assignment History'],
-        ['Start Date', 'End Date', 'Driver', 'Weekly Rent', 'Daily Rent', 'Status', 'Total Weeks']
-      ];
+      const assignmentsSheet = workbook.addWorksheet('Assignments');
+      assignmentsSheet.addRow(['Assignment History']);
+      assignmentsSheet.addRow(['Start Date', 'End Date', 'Driver', 'Weekly Rent', 'Daily Rent', 'Status', 'Total Weeks']);
 
       vehicleAssignments.forEach(assignment => {
         const startDate = new Date(assignment.startDate);
         const endDate = assignment.endDate ? new Date(assignment.endDate) : new Date();
         const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
         
-        assignmentsData.push([
+        assignmentsSheet.addRow([
           assignment.startDate,
           assignment.endDate || 'Ongoing',
           getDriverName(assignment.driverId),
@@ -1116,42 +1131,41 @@ const VehicleDetails: React.FC = () => {
         ]);
       });
 
-      const assignmentsSheet = XLSX.utils.aoa_to_sheet(assignmentsData);
-      XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Assignments');
-
       // Analytics Sheet
-      const analyticsData = [
-        ['Analytics Summary'],
-        ['Metric', 'Value'],
-        ['Total Distance Travelled', `${vehicle.odometer?.toLocaleString() || 'N/A'} km`],
-        ['Average Monthly Expenses', `₹${expenseData.monthlyAverage.toFixed(0)}`],
-        ['Expense to Earnings Ratio', `${expenseData.expenseRatio.toFixed(2)}%`],
-        ['Total Assignments', vehicleAssignments.length.toString()],
-        ['Completed Assignments', vehicleAssignments.filter(a => a.status === 'ended').length.toString()],
-        ['Active Assignments', vehicleAssignments.filter(a => a.status === 'active').length.toString()],
-        ['Average Assignment Duration', vehicleAssignments.length > 0 ? `${(vehicleAssignments.reduce((sum, a) => {
-          const startDate = new Date(a.startDate);
-          const endDate = a.endDate ? new Date(a.endDate) : new Date();
-          const weeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-          return sum + weeks;
-        }, 0) / vehicleAssignments.length).toFixed(1)} weeks` : 'N/A'],
-        [''],
-        ['Performance Metrics'],
-        ['Utilization Rate', vehicleAssignments.length > 0 ? `${((vehicleAssignments.filter(a => a.status === 'ended').length / vehicleAssignments.length) * 100).toFixed(1)}%` : '0%'],
-        ['Revenue per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(financialData.totalEarnings / vehicle.odometer).toFixed(2)}` : 'N/A'],
-        ['Expense per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(expenseData.totalExpenses / vehicle.odometer).toFixed(2)}` : 'N/A']
-      ];
-
-      const analyticsSheet = XLSX.utils.aoa_to_sheet(analyticsData);
-      XLSX.utils.book_append_sheet(workbook, analyticsSheet, 'Analytics');
+      const analyticsSheet = workbook.addWorksheet('Analytics');
+      analyticsSheet.addRow(['Analytics Summary']);
+      analyticsSheet.addRow(['Metric', 'Value']);
+      analyticsSheet.addRow(['Total Distance Travelled', `${vehicle.odometer?.toLocaleString() || 'N/A'} km`]);
+      analyticsSheet.addRow(['Average Monthly Expenses', `₹${expenseData.monthlyAverage.toFixed(0)}`]);
+      analyticsSheet.addRow(['Expense to Earnings Ratio', `${expenseData.expenseRatio.toFixed(2)}%`]);
+      analyticsSheet.addRow(['Total Assignments', vehicleAssignments.length.toString()]);
+      analyticsSheet.addRow(['Completed Assignments', vehicleAssignments.filter(a => a.status === 'ended').length.toString()]);
+      analyticsSheet.addRow(['Active Assignments', vehicleAssignments.filter(a => a.status === 'active').length.toString()]);
+      analyticsSheet.addRow(['Average Assignment Duration', vehicleAssignments.length > 0 ? `${(vehicleAssignments.reduce((sum, a) => {
+        const startDate = new Date(a.startDate);
+        const endDate = a.endDate ? new Date(a.endDate) : new Date();
+        const weeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        return sum + weeks;
+      }, 0) / vehicleAssignments.length).toFixed(1)} weeks` : 'N/A']);
+      analyticsSheet.addRow(['']);
+      analyticsSheet.addRow(['Performance Metrics']);
+      analyticsSheet.addRow(['Utilization Rate', vehicleAssignments.length > 0 ? `${((vehicleAssignments.filter(a => a.status === 'ended').length / vehicleAssignments.length) * 100).toFixed(1)}%` : '0%']);
+      analyticsSheet.addRow(['Revenue per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(financialData.totalEarnings / vehicle.odometer).toFixed(2)}` : 'N/A']);
+      analyticsSheet.addRow(['Expense per Kilometer', vehicle.odometer && vehicle.odometer > 0 ? `₹${(expenseData.totalExpenses / vehicle.odometer).toFixed(2)}` : 'N/A']);
 
       // Generate and download file
-      const fileName = `${vehicle.registrationNumber}_Vehicle_Details_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Vehicle_Details_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
 
       toast({
         title: "Excel Export Successful",
-        description: `Vehicle details exported to ${fileName}`,
+        description: `Vehicle details exported to ${vehicle.registrationNumber}_Vehicle_Details_${new Date().toISOString().split('T')[0]}.xlsx`,
       });
 
     } catch (error) {
@@ -1601,7 +1615,12 @@ const VehicleDetails: React.FC = () => {
           setNewExpense({
             amount: '',
             description: '',
-            type: 'fuel'
+            type: 'fuel',
+            // Reset proration fields
+            isAdvance: false,
+            coverageStartDate: '',
+            coverageEndDate: '',
+            coverageMonths: 0
           });
         }
       }}>
@@ -1647,6 +1666,91 @@ const VehicleDetails: React.FC = () => {
                 placeholder="Brief description of the expense"
               />
             </div>
+
+            {/* Proration fields for advance payments */}
+            {(selectedExpenseType === 'insurance' || selectedExpenseType === 'prepayment') && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="isAdvance"
+                    checked={newExpense.isAdvance}
+                    onChange={(e) => setNewExpense(prev => ({
+                      ...prev,
+                      isAdvance: e.target.checked,
+                      // Reset dates if unchecked
+                      coverageStartDate: e.target.checked ? prev.coverageStartDate : '',
+                      coverageEndDate: e.target.checked ? prev.coverageEndDate : '',
+                      coverageMonths: e.target.checked ? prev.coverageMonths : 0
+                    }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="isAdvance" className="text-sm">
+                    This is an advance payment covering multiple months
+                  </Label>
+                </div>
+
+                {newExpense.isAdvance && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="coverageStartDate" className="text-sm">Coverage Start Date</Label>
+                        <Input
+                          id="coverageStartDate"
+                          type="date"
+                          value={newExpense.coverageStartDate}
+                          onChange={(e) => {
+                            const startDate = e.target.value;
+                            const start = new Date(startDate);
+                            const end = new Date(start);
+                            end.setMonth(end.getMonth() + 12); // Default 1 year
+                            const endDateStr = end.toISOString().split('T')[0];
+                            const months = 12;
+
+                            setNewExpense(prev => ({
+                              ...prev,
+                              coverageStartDate: startDate,
+                              coverageEndDate: endDateStr,
+                              coverageMonths: months
+                            }));
+                          }}
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="coverageEndDate" className="text-sm">Coverage End Date</Label>
+                        <Input
+                          id="coverageEndDate"
+                          type="date"
+                          value={newExpense.coverageEndDate}
+                          onChange={(e) => {
+                            const endDate = e.target.value;
+                            const start = new Date(newExpense.coverageStartDate);
+                            const end = new Date(endDate);
+                            const months = start && end ? Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30))) : 0;
+
+                            setNewExpense(prev => ({
+                              ...prev,
+                              coverageEndDate: endDate,
+                              coverageMonths: months
+                            }));
+                          }}
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    {newExpense.amount && newExpense.coverageMonths > 0 && (
+                      <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                        <strong>Proration Preview:</strong> ₹{parseFloat(newExpense.amount).toLocaleString()} total payment will be prorated as
+                        ₹{Math.round(parseFloat(newExpense.amount) / newExpense.coverageMonths).toLocaleString()}/month for {newExpense.coverageMonths} months
+                        in statistical calculations.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAddExpenseDialogOpen(false)}>
                 Cancel
@@ -1800,7 +1904,12 @@ const VehicleDetails: React.FC = () => {
           setNewExpense({
             amount: '',
             description: '',
-            type: 'fuel'
+            type: 'fuel',
+            // Reset proration fields
+            isAdvance: false,
+            coverageStartDate: '',
+            coverageEndDate: '',
+            coverageMonths: 0
           });
         }
         // Remove state reset when dialog closes - let handleAddExpense handle it after successful save

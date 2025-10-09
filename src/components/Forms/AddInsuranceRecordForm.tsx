@@ -58,6 +58,10 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     additional: [] as any[],
   });
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [prorationValues, setProrationValues] = useState({
+    coverageMonths: 0,
+    proratedMonthly: 0,
+  });
 
   // Define schema inside component to access isCorrection prop and editingRecord
   const insuranceRecordSchema = z.object({
@@ -72,6 +76,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     endDate: z.string().min(1, 'Insurance end date is required'),
     receiptNumber: z.string().optional(),
     notes: z.string().optional(),
+    // Proration field
+    isAdvance: z.boolean().optional(),
     // Correction fields - required when isCorrection is true
     originalTransactionRef: z.string().optional(),
   }).superRefine((data, ctx) => {
@@ -86,9 +92,22 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   });
 
   type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
+
   const { vehicles, drivers, addExpense, updateExpense, updateVehicle } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
+
+  // Calculate proration values
+  const calculateProration = (startDate: string, endDate: string, amount: number) => {
+    if (!startDate || !endDate || !amount) return { coverageMonths: 0, proratedMonthly: 0 };
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const months = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+    const proratedMonthly = amount / months;
+
+    return { coverageMonths: months, proratedMonthly };
+  };
 
   const form = useForm<InsuranceRecordFormData>({
     resolver: zodResolver(insuranceRecordSchema),
@@ -104,6 +123,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
       endDate: '',
       receiptNumber: '',
       notes: '',
+      // Proration default
+      isAdvance: false,
       originalTransactionRef: '',
     },
   });
@@ -153,6 +174,8 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         endDate: formatDateForInput(editingRecord.insuranceDetails?.endDate || editingRecord.endDate),
         receiptNumber: editingRecord.receiptNumber || '',
         notes: editingRecord.notes || '',
+        // Proration field
+        isAdvance: editingRecord.isAdvance || false,
         originalTransactionRef: '',
       });
 
@@ -195,6 +218,24 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
       });
     }
   }, [editingRecord, form]);
+
+  // Recalculate proration when insurance dates or amount change
+  React.useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if ((name === 'startDate' || name === 'endDate' || name === 'amount') && value.isAdvance) {
+        const startDate = value.startDate;
+        const endDate = value.endDate;
+        const amount = parseFloat(value.amount || '0');
+        
+        if (startDate && endDate && amount > 0) {
+          const proration = calculateProration(startDate, endDate, amount);
+          setProrationValues(proration);
+        }
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
@@ -261,6 +302,12 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             endDate: data.endDate,
           },
           insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
+          // Proration fields - use insurance dates for coverage period
+          isAdvance: data.isAdvance || false,
+          coverageStartDate: data.isAdvance ? data.startDate : undefined,
+          coverageEndDate: data.isAdvance ? data.endDate : undefined,
+          coverageMonths: prorationValues.coverageMonths || undefined,
+          proratedMonthly: prorationValues.proratedMonthly || undefined,
           isCorrection: isCorrection,
           originalTransactionRef: data.originalTransactionRef,
         };
@@ -461,6 +508,62 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Proration Section */}
+        <div className="space-y-4 border-t pt-4">
+          <FormField
+            control={form.control}
+            name="isAdvance"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      if (checked) {
+                        // When checked, calculate proration using insurance start/end dates
+                        const startDate = form.getValues('startDate');
+                        const endDate = form.getValues('endDate');
+                        const amount = parseFloat(form.getValues('amount') || '0');
+                        if (startDate && endDate && amount > 0) {
+                          const proration = calculateProration(startDate, endDate, amount);
+                          setProrationValues(proration);
+                        }
+                      } else {
+                        setProrationValues({ coverageMonths: 0, proratedMonthly: 0 });
+                      }
+                    }}
+                    disabled={!!editingRecord}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-medium">
+                    This is a periodic payment
+                  </FormLabel>
+                  <p className="text-xs text-gray-500">
+                    Check if this insurance premium should be prorated over the policy period
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          {form.watch('isAdvance') && prorationValues.coverageMonths > 0 && (
+            <div className="pl-6 border-l-2 border-gray-200">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <div className="text-sm text-blue-700 font-medium">Coverage Period</div>
+                  <div className="text-lg font-bold text-blue-900">{prorationValues.coverageMonths} months</div>
+                </div>
+                <div>
+                  <div className="text-sm text-blue-700 font-medium">Monthly Prorated Amount</div>
+                  <div className="text-lg font-bold text-blue-900">₹{prorationValues.proratedMonthly.toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <FormField

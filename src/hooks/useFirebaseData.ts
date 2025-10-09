@@ -89,6 +89,12 @@ export interface Expense {
   expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
   // Additional fields for specific expense types
   odometerReading?: number;
+  // Proration fields for advance payments
+  isAdvance?: boolean;
+  coverageStartDate?: string;
+  coverageEndDate?: string;
+  coverageMonths?: number;
+  proratedMonthly?: number;
   [key: string]: any; // Allow additional fields
 }
 
@@ -737,14 +743,20 @@ const calculateVehicleFinancials = (
     operationalMonths = Math.max(1, monthsDiff + 1);
   }
 
-  // 5. Calculate total operating expenses (excluding prepayments and EMI)
+  // 5. Calculate total operating expenses (excluding prepayments and EMI, using proration for advance payments)
   const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
   const totalOperatingExpenses = vehicleExpenses
     .filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' ||
                    e.description.toLowerCase().includes('prepayment') ||
                    e.description.toLowerCase().includes('principal') ||
                    e.paymentType === 'emi' || e.type === 'emi'))
-    .reduce((sum, e) => sum + e.amount, 0) +
+    .reduce((sum, e) => {
+      // For advance payments, use prorated monthly amount instead of full amount
+      if (e.isAdvance && e.proratedMonthly) {
+        return sum + e.proratedMonthly;
+      }
+      return sum + e.amount;
+    }, 0) +
     (vehicle.previousData?.expenses || 0);
 
   // 5b. Calculate TOTAL expenses (including EMI and prepayments for display)

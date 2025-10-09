@@ -48,10 +48,6 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
           <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Total Expenses:</span>
-          <span className="font-medium text-red-600">-₹{financialData.totalExpenses.toLocaleString()}</span>
-        </div>
-        <div className="flex justify-between">
           <span className="text-gray-600">Outstanding Loan:</span>
           <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
         </div>
