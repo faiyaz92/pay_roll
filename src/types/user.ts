@@ -1,7 +1,8 @@
 import { DocumentUpload } from "@/hooks/useFirebaseData";
 
 export enum Role {
-  COMPANY_ADMIN = 'company_admin'
+  COMPANY_ADMIN = 'company_admin',
+  PARTNER = 'partner'
   // Future roles can be added here as needed
 }
 
@@ -98,6 +99,9 @@ export interface Vehicle {
   depreciationRate: number;
   initialInvestment: number;
   financingType: 'cash' | 'loan';
+  ownershipType?: 'owned' | 'partner'; // For accounting - owned by company or partner
+  partnerShare?: number; // Partner share percentage (e.g., 50 for 50-50 partnership)
+  serviceChargeRate?: number; // Service charge rate for partner taxis (default 10%)
   odometer: number;
   status: 'available' | 'rented' | 'maintenance'; // Operational status
   financialStatus: 'cash' | 'loan_active' | 'loan_cleared'; // Financial/loan status

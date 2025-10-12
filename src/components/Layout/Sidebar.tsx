@@ -10,7 +10,8 @@ import {
   LogOut,
   DollarSign,
   FileText,
-  Shield
+  Shield,
+  UserPlus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Vehicles', href: '/vehicles', icon: Car },
   { name: 'Drivers', href: '/drivers', icon: Users },
+  { name: 'Partners', href: '/partners', icon: UserPlus },
   { name: 'Assignments', href: '/assignments', icon: FileText },
   { name: 'Insurance', href: '/insurance', icon: Shield },
   { name: 'Payments', href: '/payments', icon: DollarSign },

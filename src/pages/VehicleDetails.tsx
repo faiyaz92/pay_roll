@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { Vehicle, Assignment } from '@/types/user';
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
@@ -29,6 +29,7 @@ import { ExpensesTab } from '@/components/VehicleDetails/ExpensesTab';
 import { PaymentsTab } from '@/components/VehicleDetails/PaymentsTab';
 import { DocumentsTab } from '@/components/VehicleDetails/DocumentsTab';
 import { AssignmentsTab } from '@/components/VehicleDetails/AssignmentsTab';
+import AccountsTab from '@/components/VehicleDetails/AccountsTab';
 
 // Define EMI schedule item type
 type EMIScheduleItem = {
@@ -828,7 +829,8 @@ const VehicleDetails: React.FC = () => {
         return;
       }
 
-      await addExpense({
+      // Build the expense object conditionally
+      const expenseData: any = {
         vehicleId: vehicleId!,
         amount: amount,
         description: newExpense.description.trim(),
@@ -845,12 +847,18 @@ const VehicleDetails: React.FC = () => {
         updatedAt: '',
         paymentType: 'expenses',
         // Proration fields for advance payments
-        isAdvance: newExpense.isAdvance,
-        coverageStartDate: newExpense.isAdvance ? newExpense.coverageStartDate : undefined,
-        coverageEndDate: newExpense.isAdvance ? newExpense.coverageEndDate : undefined,
-        coverageMonths: newExpense.isAdvance ? newExpense.coverageMonths : undefined,
-        proratedMonthly: newExpense.isAdvance ? amount / newExpense.coverageMonths : undefined
-      });
+        isAdvance: newExpense.isAdvance
+      };
+
+      // Only include proration fields if it's an advance payment
+      if (newExpense.isAdvance) {
+        expenseData.coverageStartDate = newExpense.coverageStartDate;
+        expenseData.coverageEndDate = newExpense.coverageEndDate;
+        expenseData.coverageMonths = newExpense.coverageMonths;
+        expenseData.proratedMonthly = amount / newExpense.coverageMonths;
+      }
+
+      await addExpense(expenseData);
 
       toast({
         title: 'Expense Added',
@@ -975,6 +983,13 @@ const VehicleDetails: React.FC = () => {
       // Add payment record directly to payments collection using correct path
       const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/payments`);
       await addDoc(paymentsRef, paymentData);
+
+      // Update cash in hand - INCREASE when rent is collected
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(assignment.weeklyRent),
+        updatedAt: new Date().toISOString()
+      });
 
       toast({
         title: 'Rent Collected Successfully! 🎉',
@@ -1425,7 +1440,7 @@ const VehicleDetails: React.FC = () => {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="emi">EMI Tracking</TabsTrigger>
@@ -1435,6 +1450,7 @@ const VehicleDetails: React.FC = () => {
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="assignments">Assignments</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -1555,6 +1571,11 @@ const VehicleDetails: React.FC = () => {
         {/* Assignment History Tab */}
         <TabsContent value="assignments" className="space-y-4">
           <AssignmentsTab vehicleId={vehicleId!} getDriverName={getDriverName} />
+        </TabsContent>
+
+        {/* Accounts Tab */}
+        <TabsContent value="accounts" className="space-y-4">
+          <AccountsTab vehicle={vehicle} vehicleId={vehicleId!} />
         </TabsContent>
       </Tabs>
 

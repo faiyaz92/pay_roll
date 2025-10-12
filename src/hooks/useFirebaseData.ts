@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
@@ -491,23 +491,47 @@ export const useExpenses = () => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const expensesRef = collection(firestore, paths.getExpensesPath());
     const now = new Date().toISOString();
-    
-    return await addDoc(expensesRef, { 
-      ...expenseData, 
+
+    const expenseDoc = await addDoc(expensesRef, {
+      ...expenseData,
       companyId: userInfo.companyId,
       createdAt: now,
       updatedAt: now
     });
+
+    // Update cash in hand - DECREASE when expense is approved
+    if (expenseData.status === 'approved' && expenseData.vehicleId) {
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, expenseData.vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(-expenseData.amount),
+        updatedAt: now
+      });
+    }
+
+    return expenseDoc;
   };
 
   const updateExpense = async (expenseId: string, expenseData: Partial<Expense>) => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const expenseRef = doc(firestore, paths.getExpensesPath(), expenseId);
-    
-    return await updateDoc(expenseRef, { 
-      ...expenseData, 
-      updatedAt: new Date().toISOString() 
+    const now = new Date().toISOString();
+
+    // Get current expense data to check status change
+    const currentExpense = expenses.find(e => e.id === expenseId);
+
+    await updateDoc(expenseRef, {
+      ...expenseData,
+      updatedAt: now
     });
+
+    // Update cash in hand if status changed to approved
+    if (expenseData.status === 'approved' && currentExpense && currentExpense.status !== 'approved' && currentExpense.vehicleId) {
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, currentExpense.vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(-currentExpense.amount),
+        updatedAt: now
+      });
+    }
   };
 
   const deleteExpense = async (expenseId: string) => {

@@ -20,7 +20,8 @@ import FuelRecords from "@/pages/FuelRecords";
 import MaintenanceRecords from "@/pages/MaintenanceRecords";
 import FuelPrices from "@/pages/FuelPrices";
 import NotFound from "@/pages/NotFound";
-import Reports from "@/pages/Reports";
+import Partners from "@/pages/Partners";
+import Reports from "./pages/Reports";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="vehicles" element={<Vehicles />} />
               <Route path="vehicles/:vehicleId" element={<VehicleDetails />} />
               <Route path="drivers" element={<Drivers />} />
+              <Route path="partners" element={<Partners />} />
               <Route path="drivers/:driverId" element={<DriverDetails />} />
               <Route path="assignments" element={<Assignments />} />
               <Route path="insurance" element={<Insurance />} />
