@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
+import { BarChart3, PieChart as PieChartIcon, TrendingUp, DollarSign } from 'lucide-react';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
@@ -28,6 +30,7 @@ interface AnalyticsTabProps {
   netCashFlowMode: boolean;
   setNetCashFlowMode: (mode: boolean) => void;
   calculateProjection: (years: number, assumedMonthlyRent?: number, increasedEMIAmount?: number, netCashFlowMode?: boolean) => any;
+  vehicleExpenses?: any[];
 }
 
 const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
@@ -47,10 +50,312 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   setIncreasedEMI,
   netCashFlowMode,
   setNetCashFlowMode,
-  calculateProjection
+  calculateProjection,
+  vehicleExpenses = []
 }) => {
+  // Add time period state
+  const [timePeriod, setTimePeriod] = React.useState<'currentYear' | 'quarterly' | 'previousYear'>('currentYear');
+
+  // Prepare chart data
+  const earningsVsExpensesData = React.useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const previousYear = currentYear - 1;
+
+    let startDate: Date;
+    let endDate: Date;
+    let dataPoints: any[] = [];
+
+    // Set date range based on selected period
+    switch (timePeriod) {
+      case 'currentYear':
+        startDate = new Date(currentYear, 0, 1);
+        endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+        // Monthly data for current year
+        for (let month = 0; month < 12; month++) {
+          const monthStart = new Date(currentYear, month, 1);
+          const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59);
+
+          const monthPayments = firebasePayments.filter(p =>
+            p.vehicleId === vehicleId &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+          );
+
+          const monthEarnings = monthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+          // Calculate actual expenses for this month from expense records
+          const monthExpenses = vehicleExpenses.filter(e => {
+            const expenseDate = new Date(e.date || e.createdAt);
+            return expenseDate >= monthStart && expenseDate <= monthEnd;
+          }).reduce((sum, e) => sum + e.amount, 0);
+
+          dataPoints.push({
+            period: new Date(currentYear, month).toLocaleString('default', { month: 'short' }),
+            earnings: monthEarnings,
+            expenses: monthExpenses,
+            profit: monthEarnings - monthExpenses
+          });
+        }
+        break;
+
+      case 'quarterly':
+        // Quarterly data for current year
+        for (let quarter = 0; quarter < 4; quarter++) {
+          const quarterStart = new Date(currentYear, quarter * 3, 1);
+          const quarterEnd = new Date(currentYear, (quarter + 1) * 3, 0, 23, 59, 59);
+
+          const quarterPayments = firebasePayments.filter(p =>
+            p.vehicleId === vehicleId &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= quarterStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= quarterEnd
+          );
+
+          const quarterEarnings = quarterPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+          // Calculate quarterly expenses
+          const quarterExpenses = vehicleExpenses.filter(e => {
+            const expenseDate = new Date(e.date || e.createdAt);
+            return expenseDate >= quarterStart && expenseDate <= quarterEnd;
+          }).reduce((sum, e) => sum + e.amount, 0);
+
+          dataPoints.push({
+            period: `Q${quarter + 1}`,
+            earnings: quarterEarnings,
+            expenses: quarterExpenses,
+            profit: quarterEarnings - quarterExpenses
+          });
+        }
+        break;
+
+      case 'previousYear':
+        startDate = new Date(previousYear, 0, 1);
+        endDate = new Date(previousYear, 11, 31, 23, 59, 59);
+        // Monthly data for previous year
+        for (let month = 0; month < 12; month++) {
+          const monthStart = new Date(previousYear, month, 1);
+          const monthEnd = new Date(previousYear, month + 1, 0, 23, 59, 59);
+
+          const monthPayments = firebasePayments.filter(p =>
+            p.vehicleId === vehicleId &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+          );
+
+          const monthEarnings = monthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+          // Calculate actual expenses for this month from expense records
+          const monthExpenses = vehicleExpenses.filter(e => {
+            const expenseDate = new Date(e.date || e.createdAt);
+            return expenseDate >= monthStart && expenseDate <= monthEnd;
+          }).reduce((sum, e) => sum + e.amount, 0);
+
+          dataPoints.push({
+            period: new Date(previousYear, month).toLocaleString('default', { month: 'short' }),
+            earnings: monthEarnings,
+            expenses: monthExpenses,
+            profit: monthEarnings - monthExpenses
+          });
+        }
+        break;
+    }
+
+    return dataPoints;
+  }, [firebasePayments, expenseData, vehicleId, timePeriod, vehicleExpenses]);
+
+  // Expense breakdown pie chart data
+  const expenseBreakdownData = React.useMemo(() => {
+    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff0000'];
+    const breakdown = [
+      { name: 'Fuel', value: expenseData.fuelExpenses, color: colors[0] },
+      { name: 'Maintenance', value: expenseData.maintenanceExpenses, color: colors[1] },
+      { name: 'Insurance', value: expenseData.insuranceExpenses, color: colors[2] },
+      { name: 'EMI', value: expenseData.emiExpenses, color: colors[3] },
+      { name: 'Other', value: expenseData.otherExpenses, color: colors[4] }
+    ].filter(item => item.value > 0);
+
+    return breakdown;
+  }, [expenseData]);
+
+  // 5-year projection with partner earnings - Now dependent on projection settings
+  const partnerProjectionData = React.useMemo(() => {
+    const projectionData = [];
+    const isPartnerTaxi = vehicle?.ownershipType === 'partner';
+    const partnerSharePercentage = vehicle?.partnerShare || 0.50;
+    const serviceChargeRate = vehicle?.serviceChargeRate || 0.10;
+
+    // Use current projection settings
+    const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ?
+      parseFloat(assumedMonthlyRent) : undefined;
+    const increasedEMIAmt = increasedEMI ? parseFloat(increasedEMI) : undefined;
+
+    for (let year = 1; year <= projectionYear; year++) {
+      const projection = calculateProjection(year, assumedRent, increasedEMIAmt, netCashFlowMode);
+      const monthlyEarnings = projection.monthlyEarnings;
+      const monthlyOperatingExpenses = projection.monthlyOperatingExpenses;
+      const monthlyProfit = monthlyEarnings - monthlyOperatingExpenses;
+
+      // GST calculation (4%)
+      const gstAmount = monthlyProfit > 0 ? monthlyProfit * 0.04 : 0;
+
+      // Service charge (10% for partner taxis)
+      const serviceCharge = isPartnerTaxi && monthlyProfit > 0 ? monthlyProfit * serviceChargeRate : 0;
+
+      // Partner share calculation
+      const remainingProfitAfterDeductions = monthlyProfit - gstAmount - serviceCharge;
+      const partnerMonthlyShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+        remainingProfitAfterDeductions * partnerSharePercentage : 0;
+
+      // Owner's share
+      const ownerMonthlyShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+        remainingProfitAfterDeductions * (1 - partnerSharePercentage) : (monthlyProfit - gstAmount);
+
+      projectionData.push({
+        year: `Year ${year}`,
+        totalEarnings: projection.projectedEarnings,
+        totalExpenses: projection.projectedTotalExpenses || projection.projectedOperatingExpenses,
+        totalProfit: projection.projectedEarnings - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses),
+        partnerEarnings: partnerMonthlyShare * 12 * year,
+        ownerEarnings: ownerMonthlyShare * 12 * year,
+        monthlyPartnerShare: partnerMonthlyShare,
+        monthlyOwnerShare: ownerMonthlyShare
+      });
+    }
+
+    return projectionData;
+  }, [calculateProjection, vehicle, projectionYear, projectionMode, assumedMonthlyRent, increasedEMI, netCashFlowMode]);
+
+  // Gross margin utilization data
+  const grossMarginData = React.useMemo(() => {
+    const totalEarnings = financialData.totalEarnings;
+    const totalExpenses = expenseData.totalExpenses;
+    const grossProfit = totalEarnings - totalExpenses;
+    const grossMargin = totalEarnings > 0 ? (grossProfit / totalEarnings) * 100 : 0;
+
+    return [
+      { name: 'Earnings', value: totalEarnings, color: '#22c55e' },
+      { name: 'Expenses', value: totalExpenses, color: '#ef4444' },
+      { name: 'Gross Profit', value: grossProfit, color: '#3b82f6' }
+    ].filter(item => item.value > 0);
+  }, [financialData.totalEarnings, expenseData.totalExpenses]);
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Earnings vs Expenses Chart */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Earnings vs Expenses ({timePeriod === 'currentYear' ? 'Current Year' : timePeriod === 'quarterly' ? 'Quarterly' : 'Previous Year'})
+                </CardTitle>
+                <CardDescription>
+                  {timePeriod === 'currentYear' ? 'Monthly comparison for current year' : 
+                   timePeriod === 'quarterly' ? 'Quarterly comparison for current year' : 
+                   'Monthly comparison for previous year'}
+                </CardDescription>
+              </div>
+              <div className="w-40">
+                <Label htmlFor="time-period" className="text-xs text-gray-600">Time Period</Label>
+                <Select value={timePeriod} onValueChange={(value: 'currentYear' | 'quarterly' | 'previousYear') => setTimePeriod(value)}>
+                  <SelectTrigger className="mt-1 h-8">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="currentYear">Current Year</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="previousYear">Previous Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={earningsVsExpensesData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="period" />
+                <YAxis tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`} />
+                <Tooltip
+                  formatter={(value: number) => [`₹${value.toLocaleString()}`, '']}
+                  labelStyle={{ color: '#000' }}
+                />
+                <Legend />
+                <Bar dataKey="earnings" fill="#22c55e" name="Earnings" />
+                <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Expense Breakdown Pie Chart */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PieChartIcon className="h-5 w-5" />
+              Expense Breakdown
+            </CardTitle>
+            <CardDescription>Distribution of expenses by category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={expenseBreakdownData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {expenseBreakdownData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gross Margin Utilization */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Gross Margin Utilization
+          </CardTitle>
+          <CardDescription>Overall profitability breakdown showing earnings, expenses, and profit</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={grossMarginData} layout="horizontal">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`} />
+              <YAxis dataKey="name" type="category" width={100} />
+              <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, '']} />
+              <Bar dataKey="value" fill="#3b82f6" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="mt-4 text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {financialData.totalEarnings > 0 ?
+                (((financialData.totalEarnings - expenseData.totalExpenses) / financialData.totalEarnings) * 100).toFixed(1) : 0
+              }% Gross Margin
+            </div>
+            <p className="text-sm text-gray-600">Profit margin from total earnings</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Original Analytics Content */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Financial Performance - Dynamic Data */}
         <InvestmentReturnsCard
@@ -466,6 +771,79 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* Partner Earnings Projection - Now dependent on projection settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Partner Earnings Projection ({projectionYear} Year{projectionYear > 1 ? 's' : ''})
+          </CardTitle>
+          <CardDescription>
+            Projected earnings for owner and partner over {projectionYear} year{projectionYear > 1 ? 's' : ''} based on {vehicle?.partnerShare ? (vehicle.partnerShare * 100) : 50}% profit sharing
+            {vehicle?.ownershipType === 'partner' && (
+              <span className="block mt-1 text-blue-600 font-medium">
+                Partner will earn ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()} in {projectionYear} year{projectionYear > 1 ? 's' : ''}!
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={400}>
+            <AreaChart data={partnerProjectionData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`} />
+              <Tooltip
+                formatter={(value: number, name: string) => [
+                  `₹${value.toLocaleString()}`,
+                  name === 'ownerEarnings' ? 'Owner Earnings' : 'Partner Earnings'
+                ]}
+                labelStyle={{ color: '#000' }}
+              />
+              <Legend />
+              <Area
+                type="monotone"
+                dataKey="ownerEarnings"
+                stackId="1"
+                stroke="#22c55e"
+                fill="#22c55e"
+                fillOpacity={0.6}
+                name="Owner Earnings"
+              />
+              <Area
+                type="monotone"
+                dataKey="partnerEarnings"
+                stackId="1"
+                stroke="#3b82f6"
+                fill="#3b82f6"
+                fillOpacity={0.6}
+                name="Partner Earnings"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <div className="text-lg font-bold text-green-600">
+                ₹{(partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0).toLocaleString()}
+              </div>
+              <p className="text-sm text-gray-600">Owner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
+            </div>
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-lg font-bold text-blue-600">
+                ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()}
+              </div>
+              <p className="text-sm text-gray-600">Partner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
+            </div>
+            <div className="text-center p-3 bg-purple-50 rounded-lg">
+              <div className="text-lg font-bold text-purple-600">
+                ₹{((partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0) + (partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0)).toLocaleString()}
+              </div>
+              <p className="text-sm text-gray-600">Total Profit ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

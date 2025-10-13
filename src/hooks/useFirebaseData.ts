@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment, setDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
@@ -502,10 +502,10 @@ export const useExpenses = () => {
     // Update cash in hand - DECREASE when expense is approved
     if (expenseData.status === 'approved' && expenseData.vehicleId) {
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, expenseData.vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: increment(-expenseData.amount),
         updatedAt: now
-      });
+      }, { merge: true });
     }
 
     return expenseDoc;

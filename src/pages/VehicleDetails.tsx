@@ -147,6 +147,12 @@ const VehicleDetails: React.FC = () => {
   // Get real-time financial data
   const financialData = vehicle ? getVehicleFinancialData(vehicleId!) : null;
 
+  // Filter expenses for this vehicle
+  const vehicleExpenses = React.useMemo(() => 
+    expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved'),
+    [expenses, vehicleId]
+  );
+
   // Calculate historical monthly net cash flow (average)
   const historicalMonthlyNetCashFlow = useMemo(() => {
     if (!financialData || !vehicle) return 0;
@@ -173,8 +179,7 @@ const VehicleDetails: React.FC = () => {
 
   // Helper function to get vehicle expense data
   const getVehicleExpenseData = () => {
-    // Filter expenses for this vehicle
-    const vehicleExpenses = expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved');
+    // Use the already filtered vehicleExpenses
     
     // Calculate totals by category using new hierarchical structure
     // For backward compatibility, also check old 'type' field
@@ -1564,6 +1569,7 @@ const VehicleDetails: React.FC = () => {
             netCashFlowMode={netCashFlowMode}
             setNetCashFlowMode={setNetCashFlowMode}
             calculateProjection={calculateProjection}
+            vehicleExpenses={vehicleExpenses}
           />
         </TabsContent>
 
