@@ -35,7 +35,7 @@ interface InsuranceRecordData {
   receiptNumber?: string;
   notes?: string;
   insuranceDetails: {
-    insuranceType: 'third_party' | 'zero_dept' | 'comprehensive' | 'topup';
+    insuranceType: 'fix_insurance' | 'rego' | 'green_slip' | 'pink_slip';
     policyNumber: string;
     startDate: string;
     endDate: string;
@@ -63,11 +63,14 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     proratedMonthly: 0,
   });
 
+  // Current month checkbox state
+  const [useCurrentMonth, setUseCurrentMonth] = useState(false);
+
   // Define schema inside component to access isCorrection prop and editingRecord
   const insuranceRecordSchema = z.object({
     vehicleId: editingRecord ? z.string().optional() : z.string().min(1, 'Vehicle is required'),
     driverId: z.string().optional(),
-    insuranceType: editingRecord ? z.string().optional() : z.enum(['third_party', 'zero_dept', 'comprehensive', 'topup']),
+    insuranceType: editingRecord ? z.string().optional() : z.enum(['fix_insurance', 'rego', 'green_slip', 'pink_slip']),
     policyNumber: editingRecord ? z.string().optional() : z.string().min(1, 'Policy number is required'),
     description: editingRecord ? z.string().optional() : z.string().min(1, 'Description is required'),
     amount: editingRecord ? z.string().optional() : z.string().min(1, 'Amount is required'),
@@ -114,7 +117,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     defaultValues: {
       vehicleId: '',
       driverId: '',
-      insuranceType: 'third_party',
+      insuranceType: 'fix_insurance',
       policyNumber: '',
       description: isCorrection ? 'Insurance correction' : '',
       amount: '',
@@ -237,6 +240,26 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     return () => subscription.unsubscribe();
   }, [form]);
 
+  // Auto-set insurance dates for current month
+  useEffect(() => {
+    if (useCurrentMonth) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      // First day of current month
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const firstDayString = firstDay.toISOString().split('T')[0];
+
+      // Last day of current month
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const lastDayString = lastDay.toISOString().split('T')[0];
+
+      form.setValue('startDate', firstDayString);
+      form.setValue('endDate', lastDayString);
+    }
+  }, [useCurrentMonth, form]);
+
   const onSubmit = async (data: InsuranceRecordFormData) => {
     try {
       setIsUploadingDocuments(true);
@@ -336,6 +359,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
       // Reset form on successful submission
       form.reset();
+      setUseCurrentMonth(false);
       setInsuranceDocuments({
         policyCopy: null,
         rcCopy: null,
@@ -424,10 +448,10 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="third_party">Third Party</SelectItem>
-                    <SelectItem value="zero_dept">Zero Dept</SelectItem>
-                    <SelectItem value="comprehensive">Comprehensive</SelectItem>
-                    <SelectItem value="topup">Topup</SelectItem>
+                    <SelectItem value="fix_insurance">Fix Insurance</SelectItem>
+                    <SelectItem value="rego">REGO</SelectItem>
+                    <SelectItem value="green_slip">Green Slip</SelectItem>
+                    <SelectItem value="pink_slip">Pink Slip</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -450,6 +474,32 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           />
         </div>
 
+        {/* Current Month Checkbox */}
+        <FormField
+          control={form.control}
+          name="startDate"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+              <FormControl>
+                <input
+                  type="checkbox"
+                  checked={useCurrentMonth}
+                  onChange={(e) => setUseCurrentMonth(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel className="text-sm font-medium">
+                  Use Current Month Dates
+                </FormLabel>
+                <p className="text-xs text-gray-500">
+                  Check this to automatically set insurance dates from 1st to last day of current month
+                </p>
+              </div>
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -458,7 +508,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Insurance Start Date</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" {...field} disabled={useCurrentMonth} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -472,7 +522,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Insurance End Date</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" {...field} disabled={useCurrentMonth} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

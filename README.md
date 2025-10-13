@@ -8,6 +8,15 @@
 5. [Financial Formulas & Calculations](#financial-formulas--calculations)
 6. [Cash In Hand Tracking System](#cash-in-hand-tracking-system)
 7. [Partner Management System](#partner-management-system)
+   - [8.1 Overview](#81-overview)
+   - [8.2 Partner Roles & Responsibilities](#82-partner-roles--responsibilities)
+   - [8.3 Partner Data Storage](#83-partner-data-storage)
+   - [8.4 Partner Authentication & Login](#84-partner-authentication--login)
+   - [8.5 Vehicle-Partner Linking](#85-vehicle-partner-linking)
+   - [8.6 Partner Management Interface](#86-partner-management-interface)
+   - [8.6.1 Partner Add Form Implementation](#861-partner-add-form-implementation)
+   - [8.7 Profit Sharing & Service Charges](#87-profit-sharing--service-charges)
+   - [8.8 Business Benefits](#88-business-benefits)
 8. [Firestore Database Structure](#firestore-database-structure)
 9. [Technical Implementation Details](#technical-implementation-details)
 10. [Development & Deployment](#development--deployment)
@@ -42,6 +51,26 @@
 - **Expense Transactions**: All approved expenses decrease cash
 - **Accounting Adjustments**: GST, service charges, profit distributions
 - **Real-time Synchronization**: Instant updates across the application
+
+### ✅ Complete Partner Management System
+**Implemented comprehensive partner registration and management functionality:**
+
+- **✅ Partner Registration Form**: Complete partner onboarding with Firebase Auth integration
+- **✅ Form Validation**: Zod schema validation with password confirmation and email uniqueness
+- **✅ Password Security**: Password visibility toggle and secure authentication
+- **✅ Partner-Vehicle Linking**: Automatic association of partner-owned vehicles
+- **✅ Partnership Fields**: Added partnership tracking in vehicle forms (ownership percentage, payment amounts)
+- **✅ Profit/Loss Sharing**: Automatic calculation of 50/50 profit sharing with idle vehicle EMI loss bearing
+- **✅ Real-time Updates**: Live synchronization of partner data and financial calculations
+
+### ✅ Enhanced Vehicle Management
+**Added comprehensive vehicle ownership and partnership tracking:**
+
+- **Previous Owner Information**: Name and mobile number fields for used vehicles
+- **Partnership Integration**: Complete partnership workflow in vehicle forms
+- **Financial Calculations**: Automatic percentage calculations based on financing type
+- **Real-time Validation**: Instant form validation and error feedback
+- **Type Safety**: Full TypeScript integration with proper interfaces
 
 ### ✅ Business Benefits
 - **Perfect Financial Accountability**: Zero discrepancies in cash tracking
@@ -850,9 +879,11 @@ The Partner Management System enables business partnerships where external partn
 - **Profit Sharing**: 50/50 profit split with the company after all expenses
 - **Service Charges**: Partners pay 10% service charge on their earnings as additional income for the company
 - **Independent Operations**: Partners manage their own drivers and daily operations
+- **Login Access**: Partners can login with email/password to access their account
 
 #### Company Responsibilities
 - **Platform Access**: Provide management system access to partners
+- **Account Creation**: Create Firebase Auth accounts for partners during registration
 - **Financial Tracking**: Monitor vehicle performance and profit calculations
 - **Support Services**: Assist with vehicle assignments and financial reporting
 - **Profit Distribution**: Ensure fair 50/50 profit sharing after service charges
@@ -878,9 +909,40 @@ Partners are stored as users with `role: "partner"` in the company users collect
 }
 ```
 
-**Storage Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/users`
+**Storage Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/users/{firebaseAuthUid}`
 
-### 8.4 Vehicle-Partner Linking
+### 8.4 Partner Authentication & Login
+
+#### Account Creation Process
+1. **Admin Registration**: Company admin creates partner account with email/password
+2. **Firebase Auth Account**: System creates Firebase Authentication account for partner
+3. **Firestore Storage**: Partner data stored using Firebase Auth UID as document ID
+4. **Company Association**: Partner automatically associated with admin's company
+
+#### Login Process
+```typescript
+// Partner logs in with email/password
+await signInWithEmailAndPassword(auth, email, password);
+
+// System fetches user info from company's users collection
+// Path: tenantCompanies/{companyId}/users/{firebaseAuthUid}
+// Role validation ensures partner gets correct access level
+```
+
+#### Authentication Flow
+```
+Partner Login
+    ↓
+Firebase Auth (email/password)
+    ↓
+fetchUserInfo() → Check company users collection
+    ↓
+Validate role: "partner"
+    ↓
+Load partner dashboard with company context
+```
+
+### 8.5 Vehicle-Partner Linking
 
 #### Vehicle Assignment to Partners
 Vehicles are linked to partners through the `assignedDriverId` field in the vehicle document:
@@ -901,7 +963,35 @@ Vehicles are linked to partners through the `assignedDriverId` field in the vehi
 - **Profit Attribution**: All profits from partner vehicles are attributed to the partner
 - **Service Charge Collection**: 10% service charge collected from partner earnings
 
-### 8.5 Partner Management Interface
+#### Partnership Percentage Calculation
+The partnership percentage is automatically calculated based on the partner's financial contribution and the financing type:
+
+**For Cash Purchases:**
+```
+Partnership Percentage = (Partner Payment Amount / Vehicle Cost) × 100
+```
+- **Example**: If vehicle costs ₹10,00,000 and partner pays ₹5,00,000, partnership = 50%
+
+**For Loan Purchases:**
+```
+Partnership Percentage = (Partner Payment Amount / Down Payment) × 100
+```
+- **Example**: If down payment is ₹3,00,000 and partner pays ₹1,50,000, partnership = 50%
+
+**Calculation Logic:**
+```typescript
+if (financingType === 'cash') {
+  percentage = (partnerPayment / vehicleCost) * 100;
+} else if (financingType === 'loan') {
+  percentage = (partnerPayment / downPayment) * 100;
+}
+```
+
+- **Auto-calculation**: Percentage is calculated automatically when partner payment amount is entered
+- **Validation**: Maximum percentage capped at 100%
+- **Precision**: Rounded to 2 decimal places for accuracy
+
+### 8.6 Partner Management Interface
 
 #### Partners Page (`/partners`)
 **Features**:
@@ -917,7 +1007,74 @@ Vehicles are linked to partners through the `assignedDriverId` field in the vehi
 - **Validation**: Comprehensive form validation for partner registration
 - **Audit Trail**: Track all partner-related changes
 
-### 8.6 Profit Sharing & Service Charges
+### 8.6.1 Partner Add Form Implementation
+
+#### Form Schema & Validation
+The partner registration form uses Zod schema validation for comprehensive data validation:
+
+```typescript
+const partnerSchema = z.object({
+  name: z.string().min(2, 'Partner name is required'),
+  email: z.string().email('Valid email is required'),
+  userName: z.string().min(3, 'Username must be at least 3 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string(),
+  mobileNumber: z.string().min(10, 'Valid mobile number is required'),
+  address: z.string().min(10, 'Complete address is required'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+```
+
+#### Firebase Authentication Integration
+**Account Creation Process**:
+```typescript
+// 1. Create Firebase Auth account
+const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+// 2. Store partner data in Firestore
+const partnerData = {
+  userId: userCredential.user.uid,
+  companyId: currentUserCompanyId,
+  role: 'partner',
+  name,
+  email,
+  userName,
+  mobileNumber,
+  address,
+  isActive: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+// 3. Save to company users collection
+await setDoc(doc(firestore, partnerUsersPath, userCredential.user.uid), partnerData);
+```
+
+#### Form Features
+- **Password Visibility Toggle**: Eye icon to show/hide password input
+- **Real-time Validation**: Instant feedback on form field errors
+- **Duplicate Email Check**: Prevents registration with existing email addresses
+- **Mobile Number Validation**: Ensures proper mobile number format
+- **Address Validation**: Requires complete business address
+- **Username Uniqueness**: Validates unique username across company
+
+#### Security Implementation
+- **Password Requirements**: Minimum 6 characters with confirmation
+- **Email Verification**: Firebase Auth handles email validation
+- **Role Assignment**: Automatic assignment of 'partner' role
+- **Company Isolation**: Partners automatically associated with admin's company
+- **Access Control**: Partners get limited access based on their role
+
+#### User Experience Features
+- **Loading States**: Form shows loading during account creation
+- **Success Feedback**: Toast notifications for successful registration
+- **Error Handling**: Comprehensive error messages for failed registrations
+- **Form Reset**: Automatic form clearing after successful submission
+- **Responsive Design**: Mobile-friendly form layout
+
+### 8.7 Profit Sharing & Service Charges
 
 #### Profit Calculation Flow for Partners
 ```
@@ -940,7 +1097,7 @@ Net Profit = Earnings - Service Charge - Expenses
 - **Accounting**: Treated as additional income, not an expense
 - **Profit Sharing**: Calculated after service charge deduction
 
-### 8.7 Business Benefits
+### 8.8 Business Benefits
 
 #### Partnership Model
 - **Risk Distribution**: Partners bear vehicle ownership costs and risks
@@ -953,6 +1110,64 @@ Net Profit = Earnings - Service Charge - Expenses
 - **Partner Motivation**: Profit-sharing incentivizes partner performance
 - **Cost Efficiency**: Partners manage their own maintenance and operations
 - **Scalability**: Easy to onboard new partners and expand operations
+
+---
+
+## Insurance Management System
+
+### 9.1 Insurance Types & Categories
+
+The system supports multiple insurance types that can be active simultaneously for a single vehicle:
+
+#### Primary Insurance Types
+- **Fix Insurance**: Fixed insurance coverage for vehicle protection
+- **REGO**: Registration and government compliance insurance
+- **Green Slip**: Compulsory third-party personal injury insurance
+- **Pink Slip**: Vehicle ownership and title insurance
+
+### 9.2 Insurance Policy Rules
+
+#### Multi-Insurance Support
+- **Multiple Types Allowed**: A vehicle can have up to 3 different insurance types active simultaneously
+- **Same Period Coverage**: Different insurance types can cover the same time period (e.g., Jan 1 - Dec 31)
+- **No Duplicate Types**: Cannot have two policies of the same type overlapping in time
+- **Flexible Coverage**: Each insurance type maintains independent coverage periods
+
+#### Example Valid Combinations
+```
+Vehicle XYZ can have:
+✅ Fix Insurance (Jan 1 - Dec 31) + REGO (Jan 1 - Dec 31) + Green Slip (Jan 1 - Dec 31)
+❌ Fix Insurance (Jan 1 - Dec 31) + Fix Insurance (Jun 1 - Dec 31) [Duplicate type]
+```
+
+### 9.3 Insurance Expense Tracking
+
+#### Periodic Payments
+- **Proration Support**: Insurance premiums can be prorated over policy coverage period
+- **Monthly Recognition**: Expenses distributed evenly across coverage months
+- **Advance Payments**: Support for upfront annual payments with monthly allocation
+
+#### Expense Calculation
+```typescript
+// For prorated insurance payments
+const monthlyExpense = totalPremium / coverageMonths;
+
+// Example: ₹12,000 annual premium over 12 months = ₹1,000/month
+const monthlyExpense = 12000 / 12; // = ₹1,000
+```
+
+### 9.4 Insurance Document Management
+
+#### Required Documents
+- **Policy Copy**: Original insurance policy document
+- **RC Copy**: Registration certificate with insurance details
+- **Previous Year Policy**: Historical policy for reference
+- **Additional Documents**: Claim papers, amendments, etc.
+
+#### Document Storage
+- **Cloudinary Integration**: Secure cloud storage for all insurance documents
+- **Organized Structure**: Documents categorized by insurance type and vehicle
+- **Easy Retrieval**: Quick access for policy verification and claims
 
 ---
 

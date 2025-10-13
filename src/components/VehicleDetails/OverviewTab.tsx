@@ -181,6 +181,68 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </CardContent>
         </Card>
       )}
+
+      {/* Partnership Information Card */}
+      {financialData.isPartnership && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Partnership Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Partnership Share:</span>
+              <Badge variant="default" className="bg-blue-100 text-blue-800">
+                {financialData.partnershipPercentage}%
+              </Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Partner Payment:</span>
+              <span className="font-medium">₹{vehicle.partnerPaymentAmount?.toLocaleString() || 'N/A'}</span>
+            </div>
+            
+            {/* Monthly Profit/Loss Sharing */}
+            <div className="border-t pt-3 mt-3">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Monthly Profit/Loss Sharing</h4>
+              <div className="space-y-2">
+                {financialData.isCurrentlyRented ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Partner's share (Profit):</span>
+                      <span className={`font-medium ${financialData.partnerShareMonthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.abs(financialData.partnerShareMonthlyProfit).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Owner's share (Profit):</span>
+                      <span className={`font-medium ${financialData.ownerShareMonthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.abs(financialData.ownerShareMonthlyProfit).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Partner's share (EMI Loss):</span>
+                      <span className="font-medium text-red-600">
+                        -₹{financialData.partnerShareMonthlyLoss.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Owner's share (EMI Loss):</span>
+                      <span className="font-medium text-red-600">
+                        -₹{financialData.ownerShareMonthlyLoss.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2 p-2 bg-red-50 rounded">
+                      Vehicle is idle. Partner bears {financialData.partnershipPercentage}% of EMI payments.
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

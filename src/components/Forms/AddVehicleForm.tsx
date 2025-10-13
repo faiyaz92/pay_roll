@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Vehicle } from '@/types/user';
 import { Camera, Upload, X } from 'lucide-react';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Enhanced Fleet Rental Vehicle Schema
 const vehicleSchema = z.object({
@@ -45,6 +46,8 @@ const vehicleSchema = z.object({
   lastPaidInstallmentDate: z.string().optional(),
   previousExpenses: z.number().optional(),
   previousRentEarnings: z.number().optional(),
+  previousOwnerName: z.string().optional(),
+  previousOwnerMobile: z.string().optional(),
   
   // Maintenance
   odometer: z.number().min(0, 'Odometer reading is required'),
@@ -56,6 +59,12 @@ const vehicleSchema = z.object({
   insuranceStartDate: z.string().min(1, 'Insurance start date is required'),
   insuranceExpiryDate: z.string().min(1, 'Insurance expiry date is required'),
   insurancePremium: z.number().min(0, 'Insurance premium must be positive'),
+
+  // Partnership Information (optional)
+  isPartnership: z.boolean().optional(),
+  partnerId: z.string().optional(),
+  partnerPaymentAmount: z.number().min(0, 'Partner payment must be positive').optional(),
+  partnershipPercentage: z.number().min(0).max(100, 'Partnership percentage must be between 0 and 100').optional(),
 });
 
 type VehicleFormData = z.infer<typeof vehicleSchema>;
@@ -69,7 +78,15 @@ interface AddVehicleFormProps {
 const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = null, mode = 'add' }) => {
   const { addVehicle, updateVehicle } = useFirebaseData();
   const { toast } = useToast();
+  const { userInfo } = useAuth();
   const [activeTab, setActiveTab] = useState('basic');
+
+  // Current month checkbox state
+  const [useCurrentMonth, setUseCurrentMonth] = useState(false);
+
+  // Partners state
+  const [partners, setPartners] = useState<any[]>([]);
+  const [loadingPartners, setLoadingPartners] = useState(false);
 
   // Vehicle Images State
   const [vehicleImages, setVehicleImages] = useState<{
@@ -121,6 +138,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       lastPaidInstallmentDate: vehicle?.lastPaidInstallmentDate || '',
       previousExpenses: vehicle?.previousData?.expenses || 0,
       previousRentEarnings: vehicle?.previousData?.rentEarnings || 0,
+      previousOwnerName: vehicle?.previousOwnerName || '',
+      previousOwnerMobile: vehicle?.previousOwnerMobile || '',
       odometer: vehicle?.odometer || 0,
       lastMaintenanceKm: vehicle?.lastMaintenanceKm || 0,
       insuranceProvider: vehicle?.insuranceProvider || '',
@@ -128,6 +147,10 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       insuranceStartDate: vehicle?.insuranceStartDate || '',
       insuranceExpiryDate: vehicle?.insuranceExpiryDate || '',
       insurancePremium: vehicle?.insurancePremium || 0,
+      isPartnership: vehicle?.isPartnership || false,
+      partnerId: vehicle?.partnerId || '',
+      partnerPaymentAmount: vehicle?.partnerPaymentAmount || 0,
+      partnershipPercentage: vehicle?.partnershipPercentage || 0,
     },
   });
 
@@ -138,6 +161,8 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
   const watchLoanAmount = form.watch('loanAmount');
   const watchInterestRate = form.watch('interestRate');
   const watchTenureMonths = form.watch('tenureMonths');
+  const watchIsPartnership = form.watch('isPartnership');
+  const watchPartnerPaymentAmount = form.watch('partnerPaymentAmount');
 
   // Auto-calculate loan amount when purchase price and down payment change
   useEffect(() => {
@@ -163,6 +188,87 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       }
     }
   }, [watchLoanAmount, watchInterestRate, watchTenureMonths, watchFinancingType, form]);
+
+  // Auto-calculate partnership percentage when partner payment amount changes
+  useEffect(() => {
+    if (watchIsPartnership && watchPartnerPaymentAmount && watchPartnerPaymentAmount > 0) {
+      let percentage = 0;
+      
+      if (watchFinancingType === 'cash') {
+        // For cash vehicles: partnership % = (partner payment / vehicle cost) * 100
+        if (watchPurchasePrice > 0) {
+          percentage = (watchPartnerPaymentAmount / watchPurchasePrice) * 100;
+        }
+      } else if (watchFinancingType === 'loan') {
+        // For loan vehicles: partnership % = (partner payment / down payment) * 100
+        if (watchDownPayment > 0) {
+          percentage = (watchPartnerPaymentAmount / watchDownPayment) * 100;
+        }
+      }
+      
+      // Round to 2 decimal places and ensure it's not more than 100%
+      percentage = Math.min(Math.round(percentage * 100) / 100, 100);
+      form.setValue('partnershipPercentage', percentage);
+    } else {
+      form.setValue('partnershipPercentage', 0);
+    }
+  }, [watchIsPartnership, watchPartnerPaymentAmount, watchPurchasePrice, watchDownPayment, watchFinancingType, form]);
+
+  // Fetch partners for partnership dropdown
+  useEffect(() => {
+    const fetchPartners = async () => {
+      setLoadingPartners(true);
+      try {
+        const { collection, query, where, onSnapshot } = await import('firebase/firestore');
+        const { firestore } = await import('@/config/firebase');
+        
+        if (!userInfo?.companyId) return;
+
+        const partnersRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/users`);
+        const q = query(partnersRef, where('role', '==', 'partner'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const partnersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setPartners(partnersData);
+          setLoadingPartners(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching partners:', error);
+        setLoadingPartners(false);
+      }
+    };
+
+    if (watchIsPartnership) {
+      fetchPartners();
+    } else {
+      setPartners([]);
+    }
+  }, [watchIsPartnership, userInfo?.companyId]);
+
+  // Auto-set insurance dates for current month
+  useEffect(() => {
+    if (useCurrentMonth) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      
+      // First day of current month
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const firstDayString = firstDay.toISOString().split('T')[0];
+      
+      // Last day of current month
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const lastDayString = lastDay.toISOString().split('T')[0];
+      
+      form.setValue('insuranceStartDate', firstDayString);
+      form.setValue('insuranceExpiryDate', lastDayString);
+    }
+  }, [useCurrentMonth, form]);
 
   // Image handling functions
   const handleImageChange = (imageType: 'front' | 'back' | 'interior' | 'documents', file: File | null) => {
@@ -298,6 +404,13 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           model: data.model,
           year: data.year,
           condition: data.condition,
+          
+          // Partnership Information
+          isPartnership: data.isPartnership || false,
+          partnerId: data.partnerId || '',
+          partnerPaymentAmount: data.partnerPaymentAmount || 0,
+          partnershipPercentage: data.partnershipPercentage || 0,
+          
           insuranceProvider: data.insuranceProvider,
           insurancePolicyNumber: data.insurancePolicyNumber,
           insuranceStartDate: data.insuranceStartDate,
@@ -309,6 +422,10 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           financingType: data.financingType,
           odometer: data.odometer,
           lastMaintenanceKm: data.lastMaintenanceKm,
+          
+          // Previous Owner Information
+          previousOwnerName: data.previousOwnerName || '',
+          previousOwnerMobile: data.previousOwnerMobile || '',
           
           // Update loan details if applicable
           loanDetails: data.financingType === 'loan' ? {
@@ -385,6 +502,12 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           year: data.year,
           condition: data.condition,
 
+          // Partnership Information
+          isPartnership: data.isPartnership || false,
+          partnerId: data.partnerId || '',
+          partnerPaymentAmount: data.partnerPaymentAmount || 0,
+          partnershipPercentage: data.partnershipPercentage || 0,
+
           // Insurance Details
           insuranceProvider: data.insuranceProvider,
           insurancePolicyNumber: data.insurancePolicyNumber,
@@ -435,6 +558,10 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           maintenanceHistory: [],
           averageDailyKm: 0,
 
+          // Previous Owner Information (for used vehicles)
+          previousOwnerName: data.previousOwnerName || '',
+          previousOwnerMobile: data.previousOwnerMobile || '',
+
           // System Fields
           companyId: '',
           createdAt: new Date().toISOString(),
@@ -457,6 +584,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       }
       
       form.reset();
+      setUseCurrentMonth(false);
       onSuccess();
     } catch (error: any) {
       console.error('Error adding vehicle:', error);
@@ -474,11 +602,12 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="financial">Financial</TabsTrigger>
             <TabsTrigger value="loan">Loan Details</TabsTrigger>
             <TabsTrigger value="insurance">Insurance</TabsTrigger>
+            <TabsTrigger value="partnership">Partnership</TabsTrigger>
             <TabsTrigger value="history">Historical Data</TabsTrigger>
           </TabsList>
 
@@ -1051,6 +1180,32 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                 <CardTitle>Insurance Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Current Month Checkbox */}
+                <FormField
+                  control={form.control}
+                  name="insuranceStartDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={useCurrentMonth}
+                          onChange={(e) => setUseCurrentMonth(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-sm font-medium">
+                          Use Current Month Dates
+                        </FormLabel>
+                        <p className="text-xs text-gray-500">
+                          Check this to automatically set insurance dates from 1st to last day of current month
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -1089,7 +1244,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                       <FormItem>
                         <FormLabel>Policy Start Date</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input type="date" {...field} disabled={useCurrentMonth} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1103,7 +1258,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                       <FormItem>
                         <FormLabel>Policy Expiry Date</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input type="date" {...field} disabled={useCurrentMonth} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1129,6 +1284,133 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                     </FormItem>
                   )}
                 />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Partnership Tab */}
+          <TabsContent value="partnership" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Partnership Information</CardTitle>
+                <p className="text-sm text-gray-600">
+                  Optional: Set up partnership for profit/loss sharing with a business partner.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="isPartnership"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-sm font-medium">
+                          Enable Partnership
+                        </FormLabel>
+                        <p className="text-xs text-gray-500">
+                          Check this if this vehicle is owned in partnership
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {watchIsPartnership && (
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="partnerId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Select Partner</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose a partner" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {loadingPartners ? (
+                                  <SelectItem value="loading" disabled>
+                                    Loading partners...
+                                  </SelectItem>
+                                ) : partners.length === 0 ? (
+                                  <SelectItem value="no-partners" disabled>
+                                    No partners available
+                                  </SelectItem>
+                                ) : (
+                                  partners.map((partner) => (
+                                    <SelectItem key={partner.id} value={partner.id}>
+                                      {partner.name} - {partner.email}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="partnerPaymentAmount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Partner Payment Amount (₹)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="Amount paid by partner"
+                                {...field}
+                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900">Calculated Partnership Percentage</h4>
+                          <p className="text-xs text-blue-700 mt-1">
+                            {watchFinancingType === 'cash'
+                              ? 'Based on: (Partner Payment / Vehicle Cost) × 100'
+                              : 'Based on: (Partner Payment / Down Payment) × 100'
+                            }
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-900">
+                            {form.watch('partnershipPercentage') || 0}%
+                          </div>
+                          <p className="text-xs text-blue-700">Ownership Share</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Profit/Loss Sharing</h4>
+                      <div className="text-xs text-gray-700 space-y-1">
+                        <p>• Partner will receive {form.watch('partnershipPercentage') || 0}% of monthly profits</p>
+                        <p>• Partner will bear {form.watch('partnershipPercentage') || 0}% of monthly losses (including EMI when idle)</p>
+                        <p>• Monthly settlements will be calculated automatically</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1202,6 +1484,44 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                       )}
                     />
                   </div>
+
+                  {watchCondition === 'used' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="previousOwnerName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Previous Owner Name</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter previous owner's full name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="previousOwnerMobile"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Previous Owner Mobile Number</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="e.g., +91 9876543210"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
 
                   {watchFinancingType === 'loan' && watchCondition === 'new_in_operation' && (
                     <FormField

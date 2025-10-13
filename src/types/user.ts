@@ -99,6 +99,13 @@ export interface Vehicle {
   depreciationRate: number;
   initialInvestment: number;
   financingType: 'cash' | 'loan';
+  
+  // Partnership Information
+  isPartnership?: boolean;
+  partnerId?: string;
+  partnerPaymentAmount?: number;
+  partnershipPercentage?: number;
+  
   ownershipType?: 'owned' | 'partner'; // For accounting - owned by company or partner
   partnerShare?: number; // Partner share percentage (e.g., 50 for 50-50 partnership)
   serviceChargeRate?: number; // Service charge rate for partner taxis (default 10%)
@@ -138,6 +145,8 @@ export interface Vehicle {
   operationStartDate?: string;
   firstInstallmentDate?: string;
   lastPaidInstallmentDate?: string;
+  previousOwnerName?: string;
+  previousOwnerMobile?: string;
 
   // Current rental information (dynamic)
   currentRental?: {

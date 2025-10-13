@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye, UserPlus } from 'lucide-react';
 import AddPartnerForm from '@/components/Forms/AddPartnerForm';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
-import { collection, addDoc, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -15,7 +15,7 @@ import { Role, UserInfo } from '@/types/user';
 
 const Partners: React.FC = () => {
   const navigate = useNavigate();
-  const { userInfo } = useAuth();
+  const { userInfo, createPartnerAccount } = useAuth();
   const { vehicles } = useFirebaseData();
   const [partners, setPartners] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,26 +52,37 @@ const Partners: React.FC = () => {
     try {
       if (!userInfo?.companyId) return;
 
-      const partnersRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/users`);
-      await addDoc(partnersRef, {
-        ...partnerData,
-        role: Role.PARTNER,
+      // Create Firebase Auth account and store partner data
+      await createPartnerAccount(partnerData.email, partnerData.password, {
+        name: partnerData.name,
+        userName: partnerData.userName,
+        mobileNumber: partnerData.mobileNumber,
+        address: partnerData.address,
         companyId: userInfo.companyId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
         isActive: true
       });
 
       toast({
         title: 'Partner Added Successfully',
-        description: `${partnerData.name} has been added as a partner.`,
+        description: `${partnerData.name} can now login with their email and password.`,
       });
 
       setIsModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error creating partner account:', error);
+      let errorMessage = 'Failed to create partner account';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered. Please use a different email.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please choose a stronger password.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address.';
+      }
+      
       toast({
         title: 'Error',
-        description: 'Failed to add partner',
+        description: errorMessage,
         variant: 'destructive'
       });
     }
@@ -228,10 +239,7 @@ const Partners: React.FC = () => {
 
       {/* Add Partner Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Partner</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
           <AddPartnerForm
             onSuccess={handleAddPartner}
             onCancel={() => setIsModalOpen(false)}
@@ -241,10 +249,7 @@ const Partners: React.FC = () => {
 
       {/* Edit Partner Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Partner</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
           {editPartner && (
             <AddPartnerForm
               initialData={editPartner}

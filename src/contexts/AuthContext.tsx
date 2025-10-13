@@ -20,6 +20,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   createDriverAccount: (email: string, password: string, driverData: any) => Promise<void>;
   createCustomerAccount: (email: string, password: string, customerData: any) => Promise<void>;
+  createPartnerAccount: (email: string, password: string, partnerData: any) => Promise<void>;
   loading: boolean;
 }
 
@@ -78,6 +79,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: user.email,
       role: Role.COMPANY_ADMIN,
       ...customerData,
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  const createPartnerAccount = async (email: string, password: string, partnerData: any) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Create user document in the company's users collection
+    const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${partnerData.companyId}/users/${user.uid}`);
+    await setDoc(userDocRef, {
+      userId: user.uid,
+      email: user.email,
+      role: Role.PARTNER,
+      ...partnerData,
       createdAt: new Date().toISOString(),
     });
   };
@@ -228,6 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetPassword,
     createDriverAccount,
     createCustomerAccount,
+    createPartnerAccount,
     loading
   };
 

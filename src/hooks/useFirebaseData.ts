@@ -728,6 +728,13 @@ export interface VehicleFinancialData {
   daysUntilEMI: number;
   totalNetCashFlow: number; // Total earnings - recurring expenses
   currentVehicleValue: number; // Current car value (residual or depreciated)
+  // Partnership-related fields
+  isPartnership: boolean;
+  partnershipPercentage: number;
+  partnerShareMonthlyProfit: number; // Partner's share of monthly profit
+  partnerShareMonthlyLoss: number; // Partner's share of monthly loss (when idle)
+  ownerShareMonthlyProfit: number; // Owner's share of monthly profit
+  ownerShareMonthlyLoss: number; // Owner's share of monthly loss (when idle)
 }
 
 const calculateVehicleFinancials = (
@@ -855,6 +862,35 @@ const calculateVehicleFinancials = (
   const avgMonthlyProfit = monthlyProfit;
   const projectedYearlyProfit = avgMonthlyProfit * 12;
 
+  // ===== PARTNERSHIP CALCULATIONS =====
+  const isPartnership = vehicle.isPartnership || false;
+  const partnershipPercentage = vehicle.partnershipPercentage || 0;
+
+  // Calculate partnership shares
+  let partnerShareMonthlyProfit = 0;
+  let partnerShareMonthlyLoss = 0;
+  let ownerShareMonthlyProfit = 0;
+  let ownerShareMonthlyLoss = 0;
+
+  if (isPartnership && partnershipPercentage > 0) {
+    if (monthlyProfit > 0) {
+      // When there's profit, both share the profit
+      partnerShareMonthlyProfit = (monthlyProfit * partnershipPercentage) / 100;
+      ownerShareMonthlyProfit = monthlyProfit - partnerShareMonthlyProfit;
+    } else if (monthlyProfit < 0) {
+      // When there's loss, both share the loss
+      partnerShareMonthlyLoss = Math.abs(monthlyProfit * partnershipPercentage) / 100;
+      ownerShareMonthlyLoss = Math.abs(monthlyProfit) - partnerShareMonthlyLoss;
+    }
+
+    // Special case: When vehicle is idle (not rented), partner bears their share of EMI
+    if (!currentAssignment && vehicle.financingType === 'loan' && vehicle.loanDetails?.emiPerMonth) {
+      const emiPerMonth = vehicle.loanDetails.emiPerMonth;
+      partnerShareMonthlyLoss = (emiPerMonth * partnershipPercentage) / 100;
+      ownerShareMonthlyLoss = emiPerMonth - partnerShareMonthlyLoss;
+    }
+  }
+
   return {
     monthlyRent,
     monthlyExpenses,
@@ -884,6 +920,13 @@ const calculateVehicleFinancials = (
     totalInvestment,
     totalNetCashFlow, // New field for net cash flow
     currentVehicleValue: vehicle.residualValue || currentDepreciatedCarValue, // Current car value
+    // Partnership-related fields
+    isPartnership,
+    partnershipPercentage,
+    partnerShareMonthlyProfit,
+    partnerShareMonthlyLoss,
+    ownerShareMonthlyProfit,
+    ownerShareMonthlyLoss,
   };
 };
 
