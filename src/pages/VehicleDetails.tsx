@@ -1253,6 +1253,7 @@ const VehicleDetails: React.FC = () => {
     let projectedEmiPaid = currentTotalEmiPaid;
     let projectedOutstandingLoan = currentOutstandingLoan;
     let projectedDepreciatedCarValue = currentDepreciatedCarValue;
+    let projectedTotalExpenses = currentTotalOperatingExpenses; // Initialize with current operating expenses
 
     const monthlyInterestRate = (vehicle.loanDetails?.interestRate || 8.5) / 12 / 100;
 
@@ -1262,11 +1263,13 @@ const VehicleDetails: React.FC = () => {
       projectedEarnings += monthlyEarnings;
       projectedOperatingExpenses += monthlyOperatingExpenses;
 
-      // Process loan payments
+      // Process loan payments and add EMI to total expenses only while loan is outstanding
       if (projectedOutstandingLoan > 0) {
         const monthlyInterest = projectedOutstandingLoan * monthlyInterestRate;
         const monthlyPrincipal = Math.min(monthlyEMI - monthlyInterest, projectedOutstandingLoan);
-        projectedEmiPaid += monthlyInterest + monthlyPrincipal;
+        const monthlyEmiPayment = monthlyInterest + monthlyPrincipal;
+        projectedEmiPaid += monthlyEmiPayment;
+        projectedTotalExpenses += monthlyEmiPayment; // Add EMI to total expenses only while loan is outstanding
         projectedOutstandingLoan -= monthlyPrincipal;
         if (projectedOutstandingLoan < 0) projectedOutstandingLoan = 0;
       }
@@ -1370,6 +1373,7 @@ const VehicleDetails: React.FC = () => {
       // Projected results
       projectedEarnings,
       projectedOperatingExpenses,
+      projectedTotalExpenses, // Total expenses including EMI only while loan is outstanding
       projectedNetCashFlow,
       projectedEmiPaid,
       projectedTotalReturn: projectedTotalReturns,

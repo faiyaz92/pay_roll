@@ -261,7 +261,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span>Total Expenses ({projectionYear} year{projectionYear > 1 ? 's' : ''})</span>
-                      <span className="font-medium text-red-600">₹{projection.projectedOperatingExpenses.toLocaleString()}</span>
+                      <span className="font-medium text-red-600">₹{(projection.projectedTotalExpenses || projection.projectedOperatingExpenses).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between border-t pt-2">
                       <span>Total Investment</span>
