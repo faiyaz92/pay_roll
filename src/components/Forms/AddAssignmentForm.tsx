@@ -52,6 +52,7 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
   const { vehicles, drivers, updateVehicle } = useFirebaseData();
   const { addAssignment } = useAssignments();
+  const { assignments } = useAssignments();
   
   const [activeTab, setActiveTab] = useState('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,8 +110,17 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
     vehicle.status === 'available' && !vehicle.assignedDriverId
   );
 
-  // Get available drivers (not assigned)
-  const availableDrivers = drivers.filter(driver => driver.isActive);
+  // Get available drivers (active and not currently assigned)
+  const availableDrivers = drivers.filter(driver => {
+    if (!driver.isActive) return false;
+    
+    // Check if driver already has an active assignment
+    const hasActiveAssignment = assignments.some(assignment => 
+      assignment.driverId === driver.id && assignment.status === 'active'
+    );
+    
+    return !hasActiveAssignment;
+  });
 
   // Auto-populate driver address when driver is selected
   useEffect(() => {
@@ -480,7 +490,7 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
                           </FormControl>
                           <SelectContent>
                             {availableDrivers.length === 0 ? (
-                              <SelectItem value="no-drivers" disabled>No drivers available</SelectItem>
+                              <SelectItem value="no-drivers" disabled>No available drivers (all drivers are currently assigned)</SelectItem>
                             ) : (
                               availableDrivers.map((driver) => (
                                 <SelectItem key={driver.id} value={driver.id}>
@@ -1063,6 +1073,22 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
                   <div className="font-medium text-yellow-800">No Available Vehicles</div>
                   <div className="text-sm text-yellow-700">
                     All vehicles are currently assigned. Please add new vehicles or end existing assignments.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {availableDrivers.length === 0 && availableVehicles.length > 0 && (
+          <Card className="bg-orange-50 border-orange-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+                <div>
+                  <div className="font-medium text-orange-800">No Available Drivers</div>
+                  <div className="text-sm text-orange-700">
+                    All active drivers are currently assigned to vehicles. Each driver can only have one active assignment at a time.
                   </div>
                 </div>
               </div>
