@@ -53,27 +53,27 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   calculateProjection,
   vehicleExpenses = []
 }) => {
-  // Add time period state
-  const [timePeriod, setTimePeriod] = React.useState<'currentYear' | 'quarterly' | 'previousYear'>('currentYear');
+  // Add time period state with more granular options
+  const [timePeriod, setTimePeriod] = React.useState<'yearly' | 'quarterly' | 'monthly'>('yearly');
+  const [selectedYear, setSelectedYear] = React.useState<number>(new Date().getFullYear());
+  const [selectedQuarter, setSelectedQuarter] = React.useState<number>(1);
+  const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth());
 
   // Prepare chart data
   const earningsVsExpensesData = React.useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const previousYear = currentYear - 1;
-
     let startDate: Date;
     let endDate: Date;
     let dataPoints: any[] = [];
 
     // Set date range based on selected period
     switch (timePeriod) {
-      case 'currentYear':
-        startDate = new Date(currentYear, 0, 1);
-        endDate = new Date(currentYear, 11, 31, 23, 59, 59);
-        // Monthly data for current year
+      case 'yearly':
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
+        // Monthly data for selected year
         for (let month = 0; month < 12; month++) {
-          const monthStart = new Date(currentYear, month, 1);
-          const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59);
+          const monthStart = new Date(selectedYear, month, 1);
+          const monthEnd = new Date(selectedYear, month + 1, 0, 23, 59, 59);
 
           const monthPayments = firebasePayments.filter(p =>
             p.vehicleId === vehicleId &&
@@ -91,7 +91,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           }).reduce((sum, e) => sum + e.amount, 0);
 
           dataPoints.push({
-            period: new Date(currentYear, month).toLocaleString('default', { month: 'short' }),
+            period: new Date(selectedYear, month).toLocaleString('default', { month: 'short' }),
             earnings: monthEarnings,
             expenses: monthExpenses,
             profit: monthEarnings - monthExpenses
@@ -100,42 +100,15 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         break;
 
       case 'quarterly':
-        // Quarterly data for current year
-        for (let quarter = 0; quarter < 4; quarter++) {
-          const quarterStart = new Date(currentYear, quarter * 3, 1);
-          const quarterEnd = new Date(currentYear, (quarter + 1) * 3, 0, 23, 59, 59);
+        // Quarterly data for selected year and quarter
+        const quarterStartMonth = (selectedQuarter - 1) * 3;
+        startDate = new Date(selectedYear, quarterStartMonth, 1);
+        endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
 
-          const quarterPayments = firebasePayments.filter(p =>
-            p.vehicleId === vehicleId &&
-            p.status === 'paid' &&
-            new Date(p.paidAt || p.collectionDate || p.createdAt) >= quarterStart &&
-            new Date(p.paidAt || p.collectionDate || p.createdAt) <= quarterEnd
-          );
-
-          const quarterEarnings = quarterPayments.reduce((sum, p) => sum + p.amountPaid, 0);
-
-          // Calculate quarterly expenses
-          const quarterExpenses = vehicleExpenses.filter(e => {
-            const expenseDate = new Date(e.date || e.createdAt);
-            return expenseDate >= quarterStart && expenseDate <= quarterEnd;
-          }).reduce((sum, e) => sum + e.amount, 0);
-
-          dataPoints.push({
-            period: `Q${quarter + 1}`,
-            earnings: quarterEarnings,
-            expenses: quarterExpenses,
-            profit: quarterEarnings - quarterExpenses
-          });
-        }
-        break;
-
-      case 'previousYear':
-        startDate = new Date(previousYear, 0, 1);
-        endDate = new Date(previousYear, 11, 31, 23, 59, 59);
-        // Monthly data for previous year
-        for (let month = 0; month < 12; month++) {
-          const monthStart = new Date(previousYear, month, 1);
-          const monthEnd = new Date(previousYear, month + 1, 0, 23, 59, 59);
+        // Monthly data for the selected quarter
+        for (let month = quarterStartMonth; month < quarterStartMonth + 3; month++) {
+          const monthStart = new Date(selectedYear, month, 1);
+          const monthEnd = new Date(selectedYear, month + 1, 0, 23, 59, 59);
 
           const monthPayments = firebasePayments.filter(p =>
             p.vehicleId === vehicleId &&
@@ -153,31 +126,161 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           }).reduce((sum, e) => sum + e.amount, 0);
 
           dataPoints.push({
-            period: new Date(previousYear, month).toLocaleString('default', { month: 'short' }),
+            period: new Date(selectedYear, month).toLocaleString('default', { month: 'short' }),
             earnings: monthEarnings,
             expenses: monthExpenses,
             profit: monthEarnings - monthExpenses
           });
         }
         break;
+
+      case 'monthly':
+        // Single month data for selected year and month
+        startDate = new Date(selectedYear, selectedMonth, 1);
+        endDate = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+
+        // Daily data for the selected month (simplified to weekly for readability)
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const weeksInMonth = Math.ceil(daysInMonth / 7);
+
+        for (let week = 0; week < weeksInMonth; week++) {
+          const weekStart = new Date(selectedYear, selectedMonth, week * 7 + 1);
+          const weekEnd = new Date(selectedYear, selectedMonth, Math.min((week + 1) * 7, daysInMonth), 23, 59, 59);
+
+          const weekPayments = firebasePayments.filter(p =>
+            p.vehicleId === vehicleId &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= weekStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= weekEnd
+          );
+
+          const weekEarnings = weekPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+          // Calculate actual expenses for this week from expense records
+          const weekExpenses = vehicleExpenses.filter(e => {
+            const expenseDate = new Date(e.date || e.createdAt);
+            return expenseDate >= weekStart && expenseDate <= weekEnd;
+          }).reduce((sum, e) => sum + e.amount, 0);
+
+          dataPoints.push({
+            period: `Week ${week + 1}`,
+            earnings: weekEarnings,
+            expenses: weekExpenses,
+            profit: weekEarnings - weekExpenses
+          });
+        }
+        break;
     }
 
     return dataPoints;
-  }, [firebasePayments, expenseData, vehicleId, timePeriod, vehicleExpenses]);
+  }, [firebasePayments, expenseData, vehicleId, timePeriod, selectedYear, selectedQuarter, selectedMonth, vehicleExpenses]);
 
-  // Expense breakdown pie chart data
+  // Expense breakdown pie chart data - Now filtered by selected time period
   const expenseBreakdownData = React.useMemo(() => {
-    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff0000'];
-    const breakdown = [
-      { name: 'Fuel', value: expenseData.fuelExpenses, color: colors[0] },
-      { name: 'Maintenance', value: expenseData.maintenanceExpenses, color: colors[1] },
-      { name: 'Insurance', value: expenseData.insuranceExpenses, color: colors[2] },
-      { name: 'EMI', value: expenseData.emiExpenses, color: colors[3] },
-      { name: 'Other', value: expenseData.otherExpenses, color: colors[4] }
-    ].filter(item => item.value > 0);
+    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff0000', '#8b5cf6', '#ff69b4', '#32cd32', '#daa520'];
+
+    // Filter expenses based on selected time period
+    let filteredExpenses = vehicleExpenses;
+
+    if (timePeriod !== 'yearly') {
+      let startDate: Date;
+      let endDate: Date;
+
+      if (timePeriod === 'quarterly') {
+        const quarterStartMonth = (selectedQuarter - 1) * 3;
+        startDate = new Date(selectedYear, quarterStartMonth, 1);
+        endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+      } else { // monthly
+        startDate = new Date(selectedYear, selectedMonth, 1);
+        endDate = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+      }
+
+      filteredExpenses = vehicleExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date || expense.createdAt);
+        return expenseDate >= startDate && expenseDate <= endDate;
+      });
+    } else {
+      // For yearly, filter by selected year
+      filteredExpenses = vehicleExpenses.filter(expense => {
+        const expenseDate = new Date(expense.date || expense.createdAt);
+        return expenseDate.getFullYear() === selectedYear;
+      });
+    }
+
+    // Calculate expenses by type from filtered expense records
+    const categoryTotals: { [key: string]: number } = {};
+
+    filteredExpenses.forEach(expense => {
+      // Use the same categorization logic as expenseData calculation
+      let category = 'general'; // default
+
+      if ((expense.expenseType === 'fuel') ||
+          expense.description.toLowerCase().includes('fuel') ||
+          expense.description.toLowerCase().includes('petrol') ||
+          expense.description.toLowerCase().includes('diesel')) {
+        category = 'fuel';
+      } else if ((expense.expenseType === 'maintenance') ||
+                 (expense.type === 'maintenance') ||
+                 (expense.expenseType as string) === 'repair' ||
+                 (expense.expenseType as string) === 'service' ||
+                 expense.description.toLowerCase().includes('maintenance') ||
+                 expense.description.toLowerCase().includes('repair') ||
+                 expense.description.toLowerCase().includes('service')) {
+        category = 'maintenance';
+      } else if ((expense.expenseType === 'insurance') ||
+                 (expense.type === 'insurance') ||
+                 expense.description.toLowerCase().includes('insurance')) {
+        category = 'insurance';
+      } else if ((expense.expenseType === 'penalties') ||
+                 (expense.type === 'penalties') ||
+                 (expense.expenseType as string) === 'penalty' ||
+                 (expense.expenseType as string) === 'fine' ||
+                 expense.description.toLowerCase().includes('penalty') ||
+                 expense.description.toLowerCase().includes('fine') ||
+                 expense.description.toLowerCase().includes('late fee')) {
+        category = 'penalties';
+      } else if ((expense.paymentType === 'emi') ||
+                 (expense.type === 'emi') ||
+                 expense.description.toLowerCase().includes('emi') ||
+                 expense.description.toLowerCase().includes('installment')) {
+        category = 'emi';
+      } else if ((expense.paymentType === 'prepayment') ||
+                 (expense.type === 'prepayment') ||
+                 expense.description.toLowerCase().includes('prepayment') ||
+                 expense.description.toLowerCase().includes('principal')) {
+        category = 'prepayment';
+      } else if (expense.expenseType) {
+        category = expense.expenseType;
+      } else if (expense.type) {
+        category = expense.type;
+      }
+
+      // Skip only payment status types, not expense types
+      if (category === 'paid' || category === 'due' || category === 'overdue') return;
+
+      categoryTotals[category] = (categoryTotals[category] || 0) + expense.amount;
+    });
+
+    // Convert to array format for pie chart
+    const breakdown = Object.entries(categoryTotals)
+      .map(([name, value], index) => {
+        // Format names nicely
+        let displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        if (name === 'emi') displayName = 'EMI';
+        if (name === 'prepayment') displayName = 'Prepayment';
+        if (name === 'penalties') displayName = 'Penalties';
+
+        return {
+          name: displayName,
+          value,
+          color: colors[index % colors.length]
+        };
+      })
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value); // Sort by value descending
 
     return breakdown;
-  }, [expenseData]);
+  }, [vehicleExpenses, timePeriod, selectedYear, selectedQuarter, selectedMonth]);
 
   // 5-year projection with partner earnings - Now dependent on projection settings
   const partnerProjectionData = React.useMemo(() => {
@@ -227,19 +330,85 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
     return projectionData;
   }, [calculateProjection, vehicle, projectionYear, projectionMode, assumedMonthlyRent, increasedEMI, netCashFlowMode]);
 
-  // Gross margin utilization data
+  // Gross margin utilization data - Now filtered by selected time period
   const grossMarginData = React.useMemo(() => {
-    const totalEarnings = financialData.totalEarnings;
-    const totalExpenses = expenseData.totalExpenses;
-    const grossProfit = totalEarnings - totalExpenses;
-    const grossMargin = totalEarnings > 0 ? (grossProfit / totalEarnings) * 100 : 0;
+    let filteredEarnings = 0;
+    let filteredExpenses = 0;
+
+    // Calculate earnings and expenses based on selected time period
+    if (timePeriod === 'yearly') {
+      // For yearly, sum all payments and expenses for the selected year
+      const yearStart = new Date(selectedYear, 0, 1);
+      const yearEnd = new Date(selectedYear, 11, 31, 23, 59, 59);
+
+      filteredEarnings = firebasePayments
+        .filter(p =>
+          p.vehicleId === vehicleId &&
+          p.status === 'paid' &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) >= yearStart &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) <= yearEnd
+        )
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+
+      filteredExpenses = vehicleExpenses
+        .filter(e => {
+          const expenseDate = new Date(e.date || e.createdAt);
+          return expenseDate >= yearStart && expenseDate <= yearEnd;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+
+    } else if (timePeriod === 'quarterly') {
+      // For quarterly, sum payments and expenses for the selected quarter
+      const quarterStartMonth = (selectedQuarter - 1) * 3;
+      const quarterStart = new Date(selectedYear, quarterStartMonth, 1);
+      const quarterEnd = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+
+      filteredEarnings = firebasePayments
+        .filter(p =>
+          p.vehicleId === vehicleId &&
+          p.status === 'paid' &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) >= quarterStart &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) <= quarterEnd
+        )
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+
+      filteredExpenses = vehicleExpenses
+        .filter(e => {
+          const expenseDate = new Date(e.date || e.createdAt);
+          return expenseDate >= quarterStart && expenseDate <= quarterEnd;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+
+    } else { // monthly
+      // For monthly, sum payments and expenses for the selected month
+      const monthStart = new Date(selectedYear, selectedMonth, 1);
+      const monthEnd = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+
+      filteredEarnings = firebasePayments
+        .filter(p =>
+          p.vehicleId === vehicleId &&
+          p.status === 'paid' &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+        )
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+
+      filteredExpenses = vehicleExpenses
+        .filter(e => {
+          const expenseDate = new Date(e.date || e.createdAt);
+          return expenseDate >= monthStart && expenseDate <= monthEnd;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+    }
+
+    const grossProfit = filteredEarnings - filteredExpenses;
 
     return [
-      { name: 'Earnings', value: totalEarnings, color: '#22c55e' },
-      { name: 'Expenses', value: totalExpenses, color: '#ef4444' },
+      { name: 'Earnings', value: filteredEarnings, color: '#22c55e' },
+      { name: 'Expenses', value: filteredExpenses, color: '#ef4444' },
       { name: 'Gross Profit', value: grossProfit, color: '#3b82f6' }
     ].filter(item => item.value > 0);
-  }, [financialData.totalEarnings, expenseData.totalExpenses]);
+  }, [firebasePayments, vehicleExpenses, vehicleId, timePeriod, selectedYear, selectedQuarter, selectedMonth]);
   return (
     <div className="space-y-6">
       {/* Charts Section */}
@@ -247,30 +416,85 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Earnings vs Expenses Chart */}
         <Card className="col-span-1">
           <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
-                  Earnings vs Expenses ({timePeriod === 'currentYear' ? 'Current Year' : timePeriod === 'quarterly' ? 'Quarterly' : 'Previous Year'})
+                  Earnings vs Expenses ({timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`})
                 </CardTitle>
+              </div>
+              <div className="flex items-center justify-between">
                 <CardDescription>
-                  {timePeriod === 'currentYear' ? 'Monthly comparison for current year' : 
-                   timePeriod === 'quarterly' ? 'Quarterly comparison for current year' : 
-                   'Monthly comparison for previous year'}
+                  {timePeriod === 'yearly' ? `Monthly comparison for ${selectedYear}` :
+                   timePeriod === 'quarterly' ? `Monthly breakdown for Q${selectedQuarter} ${selectedYear}` :
+                   `Weekly breakdown for ${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`}
                 </CardDescription>
               </div>
-              <div className="w-40">
-                <Label htmlFor="time-period" className="text-xs text-gray-600">Time Period</Label>
-                <Select value={timePeriod} onValueChange={(value: 'currentYear' | 'quarterly' | 'previousYear') => setTimePeriod(value)}>
-                  <SelectTrigger className="mt-1 h-8">
-                    <SelectValue placeholder="Select period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="currentYear">Current Year</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
-                    <SelectItem value="previousYear">Previous Year</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex gap-2 flex-wrap">
+                <div className="w-32">
+                  <Label htmlFor="time-period" className="text-xs text-gray-600">Time Period</Label>
+                  <Select value={timePeriod} onValueChange={(value: 'yearly' | 'quarterly' | 'monthly') => setTimePeriod(value)}>
+                    <SelectTrigger className="mt-1 h-8">
+                      <SelectValue placeholder="Select period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-24">
+                  <Label htmlFor="year" className="text-xs text-gray-600">Year</Label>
+                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                    <SelectTrigger className="mt-1 h-8">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {timePeriod === 'quarterly' && (
+                  <div className="w-32">
+                    <Label htmlFor="quarter" className="text-xs text-gray-600">Quarter</Label>
+                    <Select value={selectedQuarter.toString()} onValueChange={(value) => setSelectedQuarter(parseInt(value))}>
+                      <SelectTrigger className="mt-1 h-8">
+                        <SelectValue placeholder="Select quarter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Q1 (Jan-Mar)</SelectItem>
+                        <SelectItem value="2">Q2 (Apr-Jun)</SelectItem>
+                        <SelectItem value="3">Q3 (Jul-Sep)</SelectItem>
+                        <SelectItem value="4">Q4 (Oct-Dec)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {timePeriod === 'monthly' && (
+                  <div className="w-28">
+                    <Label htmlFor="month" className="text-xs text-gray-600">Month</Label>
+                    <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                      <SelectTrigger className="mt-1 h-8">
+                        <SelectValue placeholder="Select month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {new Date(2024, i).toLocaleString('default', { month: 'short' })}
+                        </SelectItem>
+                      ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
           </CardHeader>

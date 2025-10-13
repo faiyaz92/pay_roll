@@ -845,7 +845,7 @@ const VehicleDetails: React.FC = () => {
         approvedAt: new Date().toISOString(),
         adjustmentWeeks: 0,
         expenseType: selectedExpenseType,
-        type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel'),
+        type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel' | 'emi' | 'prepayment'),
         verifiedKm: 0,
         companyId: '',
         createdAt: '',
