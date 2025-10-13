@@ -7,8 +7,11 @@
 4. [Hooks Logic & Data Management](#hooks-logic--data-management)
 5. [Financial Formulas & Calculations](#financial-formulas--calculations)
 6. [Cash In Hand Tracking System](#cash-in-hand-tracking-system)
-7. [Firestore Database Structure](#firestore-database-structure)
-8. [Technical Implementation Details](#technical-implementation-details)
+7. [Partner Management System](#partner-management-system)
+8. [Firestore Database Structure](#firestore-database-structure)
+9. [Technical Implementation Details](#technical-implementation-details)
+10. [Development & Deployment](#development--deployment)
+11. [Future Roadmap](#future-roadmap)
 
 ---
 
@@ -71,6 +74,7 @@ The Car Rental Management System is a comprehensive web-based application design
 
 ### 1.4 User Roles & Permissions
 - **Company Admin**: Full access to all features within their company
+- **Partner**: Business partners who own and operate vehicles, with profit-sharing arrangements
 - **Super Admin**: System-wide access for managing multiple companies
 
 ### 1.5 Technical Requirements
@@ -834,9 +838,127 @@ Ending Cash: ₹0 (Perfect Accounting!)
 
 ---
 
+## Partner Management System
+
+### 8.1 Overview
+The Partner Management System enables business partnerships where external partners own and operate vehicles while sharing profits with the company. Partners are treated as independent business owners with dedicated management interfaces and profit-sharing arrangements.
+
+### 8.2 Partner Roles & Responsibilities
+
+#### Partner User Role
+- **Vehicle Ownership**: Partners own their vehicles and bear the financial responsibility
+- **Profit Sharing**: 50/50 profit split with the company after all expenses
+- **Service Charges**: Partners pay 10% service charge on their earnings as additional income for the company
+- **Independent Operations**: Partners manage their own drivers and daily operations
+
+#### Company Responsibilities
+- **Platform Access**: Provide management system access to partners
+- **Financial Tracking**: Monitor vehicle performance and profit calculations
+- **Support Services**: Assist with vehicle assignments and financial reporting
+- **Profit Distribution**: Ensure fair 50/50 profit sharing after service charges
+
+### 8.3 Partner Data Storage
+
+#### Partner User Document Structure
+Partners are stored as users with `role: "partner"` in the company users collection:
+
+```json
+{
+  "userId": "firebase-auth-uid",
+  "companyId": "company-id",
+  "role": "partner",
+  "name": "Partner Name",
+  "email": "partner@example.com",
+  "userName": "partner_username",
+  "mobileNumber": "+91XXXXXXXXXX",
+  "address": "Full business address",
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+```
+
+**Storage Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/users`
+
+### 8.4 Vehicle-Partner Linking
+
+#### Vehicle Assignment to Partners
+Vehicles are linked to partners through the `assignedDriverId` field in the vehicle document:
+
+```json
+{
+  "id": "vehicle-id",
+  "vehicleName": "Partner's Toyota Innova",
+  "assignedDriverId": "partner-user-id",
+  "status": "rented",
+  "companyId": "company-id"
+}
+```
+
+#### Partner-Vehicle Relationship Logic
+- **One-to-Many**: One partner can have multiple vehicles assigned
+- **Assignment Tracking**: Vehicles are assigned to partners through the assignment system
+- **Profit Attribution**: All profits from partner vehicles are attributed to the partner
+- **Service Charge Collection**: 10% service charge collected from partner earnings
+
+### 8.5 Partner Management Interface
+
+#### Partners Page (`/partners`)
+**Features**:
+- **Partner List**: Grid view of all active partners with contact information
+- **Add Partner**: Form to register new business partners
+- **Edit Partner**: Update partner information and status
+- **Vehicle Tracking**: Display number of vehicles assigned to each partner
+- **Status Management**: Activate/deactivate partner accounts
+
+#### Partner Operations
+- **CRUD Operations**: Full create, read, update, delete functionality
+- **Real-time Updates**: Live synchronization of partner data
+- **Validation**: Comprehensive form validation for partner registration
+- **Audit Trail**: Track all partner-related changes
+
+### 8.6 Profit Sharing & Service Charges
+
+#### Profit Calculation Flow for Partners
+```
+Partner Vehicle Earnings
+        ↓
+1. Rent Collection (+cash)
+2. Service Charge (10% of earnings) → Company Income (+cash)
+3. Operating Expenses (-cash)
+        ↓
+Net Profit = Earnings - Service Charge - Expenses
+        ↓
+50/50 Profit Sharing:
+- Partner Share: Net Profit × 0.5
+- Company Share: Net Profit × 0.5
+```
+
+#### Service Charge as Company Income
+- **Collection**: 10% of partner earnings collected as service charge
+- **Cash Impact**: Increases company cash balance (+service charge)
+- **Accounting**: Treated as additional income, not an expense
+- **Profit Sharing**: Calculated after service charge deduction
+
+### 8.7 Business Benefits
+
+#### Partnership Model
+- **Risk Distribution**: Partners bear vehicle ownership costs and risks
+- **Revenue Expansion**: Access to partner-owned vehicles increases fleet size
+- **Profit Sharing**: Fair 50/50 split ensures mutual benefits
+- **Service Income**: 10% service charge provides additional revenue stream
+
+#### Operational Advantages
+- **Fleet Expansion**: Rapid fleet growth without capital investment
+- **Partner Motivation**: Profit-sharing incentivizes partner performance
+- **Cost Efficiency**: Partners manage their own maintenance and operations
+- **Scalability**: Easy to onboard new partners and expand operations
+
+---
+
 ## Firestore Database Structure
 
-### 7.1 Root Structure
+### 9.1 Root Structure
 ```
 Easy2Solutions/
 ├── companyDirectory/
@@ -846,7 +968,22 @@ Easy2Solutions/
 │   └── companyDirectory/       # Legacy path (deprecated)
 ```
 
-### 7.2 Tenant Company Structure
+### 9.2 Tenant Company Structure
+```
+tenantCompanies/{companyId}/
+├── users/                      # Company users (admins, partners, drivers)
+├── vehicles/                   # Fleet vehicles (company + partner owned)
+├── assignments/                # Rental assignments (all vehicles)
+├── expenses/                   # All expense records (all vehicles)
+├── payments/                   # Payment records (all vehicles)
+├── fuelRecords/                # Fuel expense tracking (all vehicles)
+├── fuelPrices/                 # Fuel price management by type
+├── maintenanceRecords/         # Maintenance history (all vehicles)
+├── reports/                    # Generated reports
+├── settings/                   # Company settings
+├── auditLogs/                  # System audit logs
+└── documents/                  # File storage references
+```
 ```
 tenantCompanies/{companyId}/
 ├── users/                      # Company users (admins, drivers)
@@ -863,28 +1000,34 @@ tenantCompanies/{companyId}/
 └── documents/                  # File storage references
 ```
 
-### 7.3 Document Schemas
+### 9.3 Document Schemas
 
 #### User Document
 ```json
 {
   "userId": "firebase-auth-uid",
   "companyId": "company-id",
-  "role": "company_admin",
+  "role": "company_admin|partner",
   "name": "User Name",
   "email": "user@example.com",
+  "userName": "username",
   "mobileNumber": "+91XXXXXXXXXX",
   "address": "Full address",
   "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z",
+  "isActive": true,
   "drivingLicense": {
     "number": "DL123456",
     "expiry": "2025-12-31",
     "photoUrl": "cloudinary-url"
   },
-  "assignedTaxis": ["vehicle-id-1", "vehicle-id-2"],
-  "isActive": true
+  "assignedTaxis": ["vehicle-id-1", "vehicle-id-2"]
 }
 ```
+
+**Role Types**:
+- `company_admin`: Full company access and management
+- `partner`: Business partner with vehicle ownership and profit sharing
 
 #### Vehicle Document
 ```json
@@ -904,7 +1047,7 @@ tenantCompanies/{companyId}/
   "odometer": 25000,
   "status": "rented",
   "financialStatus": "loan_active",
-  "assignedDriverId": "driver-id",
+  "assignedDriverId": "partner-user-id",
   "loanDetails": {
     "totalLoan": 1200000,
     "outstandingLoan": 800000,
@@ -916,6 +1059,8 @@ tenantCompanies/{companyId}/
   "createdAt": "2024-01-01T00:00:00Z"
 }
 ```
+
+**Partner Linking**: The `assignedDriverId` field links vehicles to partners when the vehicle is owned by a business partner.
 
 #### Assignment Document
 ```json
@@ -991,37 +1136,37 @@ tenantCompanies/{companyId}/
 
 ## Technical Implementation Details
 
-### 8.1 Real-time Data Synchronization
+### 10.1 Real-time Data Synchronization
 - **Firestore Listeners**: All data changes propagate instantly via `onSnapshot`
 - **Optimistic Updates**: UI updates immediately, with error handling for rollbacks
 - **Connection Resilience**: Automatic reconnection and offline data queuing
 
-### 8.2 Financial Calculation Engine
+### 10.2 Financial Calculation Engine
 - **Client-side Processing**: All ROI calculations happen in the browser for real-time updates
 - **Data Consistency**: Calculations use current Firestore data to ensure accuracy
 - **Performance Optimization**: Memoized calculations to prevent unnecessary re-computations
 
-### 8.3 Form Validation & Error Handling
+### 10.3 Form Validation & Error Handling
 - **Zod Schemas**: Type-safe form validation with detailed error messages
 - **React Hook Form**: Efficient form state management with validation integration
 - **User Feedback**: Toast notifications for all user actions with success/error states
 
-### 8.4 File Upload & Storage
+### 10.4 File Upload & Storage
 - **Cloudinary Integration**: Secure cloud storage for documents and images
 - **File Type Validation**: Restricted to allowed file types with size limits
 - **Progress Tracking**: Upload progress indicators for large files
 
-### 8.5 Export Functionality
+### 10.5 Export Functionality
 - **ExcelJS Integration**: Client-side Excel generation for reports
 - **Data Formatting**: Proper currency formatting and date handling
 - **Multiple Export Types**: Vehicle reports, financial summaries, payment histories
 
-### 8.6 Responsive Design
+### 10.6 Responsive Design
 - **Mobile-first Approach**: Optimized for mobile devices with progressive enhancement
 - **Adaptive Layouts**: Grid systems that adjust to screen size
 - **Touch-friendly UI**: Appropriate button sizes and spacing for mobile interaction
 
-### 8.7 Performance Optimizations
+### 10.7 Performance Optimizations
 - **Code Splitting**: Lazy loading of routes and heavy components
 - **Memoization**: React.memo and useMemo for expensive calculations
 - **Virtual Scrolling**: For large lists (planned implementation)
@@ -1031,7 +1176,7 @@ tenantCompanies/{companyId}/
 
 ## Development & Deployment
 
-### 9.1 Local Development Setup
+### 11.1 Local Development Setup
 ```bash
 # Install dependencies
 npm install
@@ -1046,17 +1191,17 @@ npm run build
 npm run preview
 ```
 
-### 9.2 Environment Configuration
+### 11.2 Environment Configuration
 - **Firebase Config**: Separate config files for development and production
 - **Environment Variables**: API keys and configuration stored securely
 - **Build Optimization**: Tree shaking and minification for production bundles
 
-### 9.3 Testing Strategy
+### 11.3 Testing Strategy
 - **Unit Tests**: Component and hook testing with React Testing Library
 - **Integration Tests**: End-to-end user workflows
 - **Financial Calculation Tests**: Comprehensive test coverage for ROI formulas
 
-### 9.4 Deployment Pipeline
+### 11.4 Deployment Pipeline
 - **Vercel Integration**: Automatic deployments from main branch
 - **Build Optimization**: Optimized bundles for fast loading
 - **CDN Integration**: Global content delivery for static assets
@@ -1065,14 +1210,14 @@ npm run preview
 
 ## Future Enhancements
 
-### 9.1 Planned Features
+### 12.1 Planned Features
 - **Advanced Analytics**: Charts and graphs for financial trends
 - **Mobile App**: React Native companion app for drivers
 - **GPS Integration**: Real-time vehicle tracking
 - **Automated Insurance**: Integration with insurance providers
 - **Maintenance Scheduling**: Predictive maintenance based on usage patterns
 
-### 9.2 Technical Improvements
+### 12.2 Technical Improvements
 - **GraphQL Migration**: More efficient data fetching
 - **Offline Support**: Service worker implementation
 - **Real-time Notifications**: Push notifications for important events
