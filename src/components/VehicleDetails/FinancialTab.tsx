@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calculator } from 'lucide-react';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
@@ -43,6 +44,48 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
   prepaymentResults,
   processPrepayment
 }) => {
+  // State for month/year selection
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+
+  // Calculate current month earnings and expenses
+  const currentMonthData = useMemo(() => {
+    const monthStart = new Date(selectedYear, selectedMonth, 1);
+    const monthEnd = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+
+    // Calculate earnings for selected month
+    const monthlyEarnings = (firebasePayments || [])
+      .filter(p =>
+        p.vehicleId === vehicleId &&
+        p.status === 'paid' &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+      )
+      .reduce((sum, p) => sum + p.amountPaid, 0);
+
+    // Calculate expenses for selected month
+    const monthlyExpenses = (expenseData?.vehicleExpenses || [])
+      .filter((e: any) => {
+        // Filter by vehicleId and status first, then by date
+        if (e.vehicleId !== vehicleId || e.status !== 'approved') return false;
+        const expenseDate = new Date(e.date || e.createdAt);
+        return expenseDate >= monthStart && expenseDate <= monthEnd;
+      })
+      .reduce((sum: number, e: any) => sum + e.amount, 0);
+
+    const netOperatingProfit = monthlyEarnings - monthlyExpenses;
+    const afterEMIDeduction = netOperatingProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0);
+    const yearlyProfitEst = netOperatingProfit * 12;
+
+    return {
+      earnings: monthlyEarnings,
+      expenses: monthlyExpenses,
+      netOperatingProfit,
+      afterEMIDeduction,
+      yearlyProfitEst
+    };
+  }, [firebasePayments, expenseData?.vehicleExpenses, vehicleId, selectedYear, selectedMonth, vehicle.financingType, vehicle.loanDetails]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -64,49 +107,157 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
         <Card className="flex flex-col h-full">
           <CardHeader>
             <CardTitle>Monthly Breakdown</CardTitle>
+            <div className="flex gap-2 mt-2">
+              <div className="flex-1">
+                <Label htmlFor="month-select" className="text-sm">Month</Label>
+                <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                  <SelectTrigger id="month-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {new Date(2024, i).toLocaleString('default', { month: 'long' })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <Label htmlFor="year-select" className="text-sm">Year</Label>
+                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                  <SelectTrigger id="year-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const year = new Date().getFullYear() - i;
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4 flex-1 flex flex-col">
-            <div className="space-y-3 flex-1">
-              <div className="flex justify-between">
-                <span>Monthly Earnings</span>
-                <span className="font-medium text-green-600">₹{Math.round(financialData.isCurrentlyRented ? financialData.monthlyRent : 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Monthly Expenses (Avg.)</span>
-                <span className="font-medium text-red-600">₹{Math.round(financialData.monthlyExpenses).toLocaleString()}</span>
-              </div>
-              {vehicle.financingType === 'loan' && vehicle.loanDetails && (
+            {/* Current Month Data */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-blue-600 border-b pb-1">Current Month ({new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })})</h4>
+              <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span>Monthly EMI</span>
-                  <span className="font-medium text-blue-600">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
+                  <span className="text-sm">Monthly Earnings</span>
+                  <span className="font-medium text-green-600 text-sm">₹{Math.round(currentMonthData.earnings).toLocaleString()}</span>
                 </div>
-              )}
-              {financialData.isCurrentlyRented && (
-                <>
+                <div className="flex justify-between">
+                  <span className="text-sm">Monthly Expenses</span>
+                  <span className="font-medium text-red-600 text-sm">₹{Math.round(currentMonthData.expenses).toLocaleString()}</span>
+                </div>
+                {vehicle.financingType === 'loan' && vehicle.loanDetails && (
                   <div className="flex justify-between">
-                    <span className="font-medium">Net Operating Profit</span>
-                    <span className={`font-bold ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{Math.round(financialData.monthlyProfit).toLocaleString()}
-                    </span>
+                    <span className="text-sm">Monthly EMI</span>
+                    <span className="font-medium text-blue-600 text-sm">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">After EMI Deduction</span>
-                    <span className={`font-bold ${(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{Math.round(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Yearly Profit (Est.)</span>
-                    <span className={`font-bold ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{(Math.round(financialData.monthlyProfit) * 12).toLocaleString()}
-                    </span>
-                  </div>
-                </>
-              )}
+                )}
+                {financialData.isCurrentlyRented && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Net Operating Profit</span>
+                      <span className={`font-bold text-sm ${currentMonthData.netOperatingProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.round(currentMonthData.netOperatingProfit).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">After EMI Deduction</span>
+                      <span className={`font-bold text-sm ${currentMonthData.afterEMIDeduction >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.round(currentMonthData.afterEMIDeduction).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Yearly Profit (Est.)</span>
+                      <span className={`font-bold text-sm ${currentMonthData.netOperatingProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{(Math.round(currentMonthData.netOperatingProfit) * 12).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Historical Average Data */}
+            <div className="space-y-3 border-t pt-3">
+              <h4 className="font-semibold text-sm text-gray-600 border-b pb-1">Historical Averages</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm">Monthly Earnings</span>
+                  <span className="font-medium text-green-600 text-sm">₹{Math.round(financialData.isCurrentlyRented ? financialData.monthlyRent : 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm">Monthly Expenses (Avg.)</span>
+                  <span className="font-medium text-red-600 text-sm">₹{Math.round(financialData.monthlyExpenses).toLocaleString()}</span>
+                </div>
+                {vehicle.financingType === 'loan' && vehicle.loanDetails && (
+                  <div className="flex justify-between">
+                    <span className="text-sm">Monthly EMI</span>
+                    <span className="font-medium text-blue-600 text-sm">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</span>
+                  </div>
+                )}
+                {financialData.isCurrentlyRented && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Net Operating Profit</span>
+                      <span className={`font-bold text-sm ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.round(financialData.monthlyProfit).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">After EMI Deduction</span>
+                      <span className={`font-bold text-sm ${(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.round(financialData.monthlyProfit - (vehicle.financingType === 'loan' ? (vehicle.loanDetails?.emiPerMonth || 0) : 0)).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Yearly Profit (Est.)</span>
+                      <span className={`font-bold text-sm ${financialData.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{(Math.round(financialData.monthlyProfit) * 12).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Performance Comparison */}
+            <div className="space-y-2 border-t pt-3">
+              <h4 className="font-semibold text-sm text-purple-600 border-b pb-1">Performance vs Average</h4>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span>Earnings:</span>
+                  <span className={`${currentMonthData.earnings >= (financialData.isCurrentlyRented ? financialData.monthlyRent : 0) ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentMonthData.earnings >= (financialData.isCurrentlyRented ? financialData.monthlyRent : 0) ? '↑ Above Avg' : '↓ Below Avg'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span>Expenses:</span>
+                  <span className={`${currentMonthData.expenses <= financialData.monthlyExpenses ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentMonthData.expenses <= financialData.monthlyExpenses ? '↓ Below Avg' : '↑ Above Avg'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span>Profit:</span>
+                  <span className={`${currentMonthData.netOperatingProfit >= financialData.monthlyProfit ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentMonthData.netOperatingProfit >= financialData.monthlyProfit ? '↑ Above Avg' : '↓ Below Avg'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-between border-t pt-2 mt-auto">
-              <span className="font-medium">Monthly Net Cash Flow</span>
-              <span className={`font-bold ${historicalMonthlyNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className="font-medium text-sm">Monthly Net Cash Flow</span>
+              <span className={`font-bold text-sm ${historicalMonthlyNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 ₹{Math.round(historicalMonthlyNetCashFlow).toLocaleString()}
               </span>
             </div>

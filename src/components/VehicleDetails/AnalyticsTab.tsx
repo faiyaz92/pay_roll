@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
-import { BarChart3, PieChart as PieChartIcon, TrendingUp, DollarSign } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, TrendingUp, DollarSign, CreditCard } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
@@ -677,40 +678,36 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Financial Projections Card - Shows all metrics like Financial Performance */}
         <Card className="flex flex-col h-full">
           <CardHeader className="flex-shrink-0">
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
-                <CardDescription>
-                  {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}
-                </CardDescription>
+            <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
+            <CardDescription>
+              {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}
+            </CardDescription>
+            <div className="flex gap-2 mt-3">
+              <div className="w-32">
+                <Label htmlFor="projection-year" className="text-xs text-gray-600">Projection Period</Label>
+                <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
+                  <SelectTrigger className="mt-1 h-8">
+                    <SelectValue placeholder="Select years" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 Year</SelectItem>
+                    <SelectItem value="2">2 Years</SelectItem>
+                    <SelectItem value="3">3 Years</SelectItem>
+                    <SelectItem value="5">5 Years</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex flex-col gap-2">
-                <div className="w-32">
-                  <Label htmlFor="projection-year" className="text-xs text-gray-600">Projection Period</Label>
-                  <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
-                    <SelectTrigger className="mt-1 h-8">
-                      <SelectValue placeholder="Select years" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 Year</SelectItem>
-                      <SelectItem value="2">2 Years</SelectItem>
-                      <SelectItem value="3">3 Years</SelectItem>
-                      <SelectItem value="5">5 Years</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-32">
-                  <Label htmlFor="projection-mode" className="text-xs text-gray-600">Projection Mode</Label>
-                  <Select value={projectionMode} onValueChange={(value: 'current' | 'assumed') => setProjectionMode(value)}>
-                    <SelectTrigger className="mt-1 h-8">
-                      <SelectValue placeholder="Select mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="current">Current Trends</SelectItem>
-                      <SelectItem value="assumed">Assumed Rent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="w-32">
+                <Label htmlFor="projection-mode" className="text-xs text-gray-600">Projection Mode</Label>
+                <Select value={projectionMode} onValueChange={(value: 'current' | 'assumed') => setProjectionMode(value)}>
+                  <SelectTrigger className="mt-1 h-8">
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current">Current Trends</SelectItem>
+                    <SelectItem value="assumed">Assumed Rent</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             {projectionMode === 'assumed' && (
@@ -997,77 +994,265 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       </div>
 
       {/* Partner Earnings Projection - Now dependent on projection settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Partner Earnings Projection ({projectionYear} Year{projectionYear > 1 ? 's' : ''})
-          </CardTitle>
-          <CardDescription>
-            Projected earnings for owner and partner over {projectionYear} year{projectionYear > 1 ? 's' : ''} based on {vehicle?.partnerShare ? (vehicle.partnerShare * 100) : 50}% profit sharing
-            {vehicle?.ownershipType === 'partner' && (
-              <span className="block mt-1 text-blue-600 font-medium">
-                Partner will earn ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()} in {projectionYear} year{projectionYear > 1 ? 's' : ''}!
-              </span>
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={partnerProjectionData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`} />
-              <Tooltip
-                formatter={(value: number, name: string) => [
-                  `₹${value.toLocaleString()}`,
-                  name === 'ownerEarnings' ? 'Owner Earnings' : 'Partner Earnings'
-                ]}
-                labelStyle={{ color: '#000' }}
-              />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="ownerEarnings"
-                stackId="1"
-                stroke="#22c55e"
-                fill="#22c55e"
-                fillOpacity={0.6}
-                name="Owner Earnings"
-              />
-              <Area
-                type="monotone"
-                dataKey="partnerEarnings"
-                stackId="1"
-                stroke="#3b82f6"
-                fill="#3b82f6"
-                fillOpacity={0.6}
-                name="Partner Earnings"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-lg font-bold text-green-600">
-                ₹{(partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0).toLocaleString()}
+      {vehicle?.ownershipType === 'partner' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Partner Earnings Projection ({projectionYear} Year{projectionYear > 1 ? 's' : ''})
+            </CardTitle>
+            <CardDescription>
+              Projected earnings for owner and partner over {projectionYear} year{projectionYear > 1 ? 's' : ''} based on {vehicle?.partnerShare ? (vehicle.partnerShare * 100) : 50}% profit sharing
+              {vehicle?.ownershipType === 'partner' && (
+                <span className="block mt-1 text-blue-600 font-medium">
+                  Partner will earn ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()} in {projectionYear} year{projectionYear > 1 ? 's' : ''}!
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={partnerProjectionData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    `₹${value.toLocaleString()}`,
+                    name === 'ownerEarnings' ? 'Owner Earnings' : 'Partner Earnings'
+                  ]}
+                  labelStyle={{ color: '#000' }}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="ownerEarnings"
+                  stackId="1"
+                  stroke="#22c55e"
+                  fill="#22c55e"
+                  fillOpacity={0.6}
+                  name="Owner Earnings"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="partnerEarnings"
+                  stackId="1"
+                  stroke="#3b82f6"
+                  fill="#3b82f6"
+                  fillOpacity={0.6}
+                  name="Partner Earnings"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-lg font-bold text-green-600">
+                  ₹{(partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0).toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Owner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
               </div>
-              <p className="text-sm text-gray-600">Owner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
-            </div>
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-lg font-bold text-blue-600">
-                ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()}
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-lg font-bold text-blue-600">
+                  ₹{(partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0).toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Partner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
               </div>
-              <p className="text-sm text-gray-600">Partner Earnings ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
-            </div>
-            <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-lg font-bold text-purple-600">
-                ₹{((partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0) + (partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0)).toLocaleString()}
+              <div className="text-center p-3 bg-purple-50 rounded-lg">
+                <div className="text-lg font-bold text-purple-600">
+                  ₹{((partnerProjectionData[projectionYear - 1]?.ownerEarnings || 0) + (partnerProjectionData[projectionYear - 1]?.partnerEarnings || 0)).toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Total Profit ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
               </div>
-              <p className="text-sm text-gray-600">Total Profit ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loan Projection - Only show for vehicles with loans */}
+      {vehicle?.financingType === 'loan' && vehicle?.loanDetails && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Loan Projection Calculator
+                </CardTitle>
+                <CardDescription>
+                  Principal and interest breakdown till date vs after 1 year
+                </CardDescription>
+              </div>
+              <div className="w-32">
+                <Label htmlFor="loan-projection-year" className="text-xs text-gray-600">Projection Year</Label>
+                <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
+                  <SelectTrigger className="mt-1 h-8">
+                    <SelectValue placeholder="Select years" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 Year</SelectItem>
+                    <SelectItem value="2">2 Years</SelectItem>
+                    <SelectItem value="3">3 Years</SelectItem>
+                    <SelectItem value="5">5 Years</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Till Date Payment Breakdown - Based on actual payments made */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">Till Date Payment Breakdown</h4>
+                {(() => {
+                  const totalLoanAmount = vehicle.loanDetails?.totalLoan || 0;
+                  const outstandingLoan = financialData.outstandingLoan || 0;
+                  const interestRate = vehicle.loanDetails?.interestRate || 0;
+                  const monthlyRate = interestRate / 100 / 12;
+
+                  // Principal paid till date = Total loan - Outstanding loan
+                  const principalPaidTillDate = totalLoanAmount - outstandingLoan;
+
+                  // Calculate interest paid till date using proper amortization
+                  let interestPaidTillDate = 0;
+                  let balance = totalLoanAmount;
+
+                  // Work backwards from current outstanding balance to calculate interest paid
+                  while (balance > outstandingLoan && interestPaidTillDate < principalPaidTillDate * 2) { // safety check
+                    const interestPayment = balance * monthlyRate;
+                    const principalPayment = Math.min(vehicle.loanDetails?.emiPerMonth || 0, balance) - interestPayment;
+
+                    if (balance - principalPayment >= outstandingLoan) {
+                      interestPaidTillDate += interestPayment;
+                      balance -= principalPayment;
+                    } else {
+                      // Last partial payment
+                      const remainingPrincipal = balance - outstandingLoan;
+                      const proportionalInterest = (remainingPrincipal / (vehicle.loanDetails?.emiPerMonth || 1)) * interestPayment;
+                      interestPaidTillDate += proportionalInterest;
+                      break;
+                    }
+                  }
+
+                  const tillDateData = [
+                    { name: 'Principal Paid', value: principalPaidTillDate, color: '#22c55e' },
+                    { name: 'Interest Paid', value: interestPaidTillDate, color: '#ef4444' }
+                  ].filter(item => item.value > 0);
+
+                  return (
+                    <>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie
+                            data={tillDateData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {tillDateData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="flex justify-between p-3 bg-green-50 rounded-lg">
+                          <span className="text-sm font-medium">Principal Paid Till Date</span>
+                          <span className="font-bold text-green-600">₹{principalPaidTillDate.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-red-50 rounded-lg">
+                          <span className="text-sm font-medium">Interest Paid Till Date</span>
+                          <span className="font-bold text-red-600">₹{interestPaidTillDate.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
+                          <span className="text-sm font-medium">Total Loan Paid Till Date</span>
+                          <span className="font-bold text-blue-600">₹{(principalPaidTillDate + interestPaidTillDate).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* After 1 Year Projection */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">After 1 Year</h4>
+                {(() => {
+                  const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
+                  const interestRate = vehicle.loanDetails?.interestRate || 0;
+                  const monthlyRate = interestRate / 100 / 12;
+
+                  // Calculate principal and interest paid in 1 year based on EMI payments only
+                  let principalPaidIn1Year = 0;
+                  let interestPaidIn1Year = 0;
+                  let remainingBalance = financialData.outstandingLoan || 0;
+
+                  // Calculate for 12 months of EMI payments
+                  for (let month = 0; month < 12; month++) {
+                    if (remainingBalance <= 0) break;
+
+                    const interestPayment = remainingBalance * monthlyRate;
+                    const principalPayment = Math.min(emiPerMonth - interestPayment, remainingBalance);
+
+                    interestPaidIn1Year += interestPayment;
+                    principalPaidIn1Year += principalPayment;
+                    remainingBalance -= principalPayment;
+                  }
+
+                  const oneYearData = [
+                    { name: 'Principal to Pay', value: principalPaidIn1Year, color: '#22c55e' },
+                    { name: 'Interest to Pay', value: interestPaidIn1Year, color: '#ef4444' }
+                  ].filter(item => item.value > 0);
+
+                  return (
+                    <>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie
+                            data={oneYearData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {oneYearData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="flex justify-between p-3 bg-green-50 rounded-lg">
+                          <span className="text-sm font-medium">Principal to Pay</span>
+                          <span className="font-bold text-green-600">₹{principalPaidIn1Year.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-red-50 rounded-lg">
+                          <span className="text-sm font-medium">Interest to Pay</span>
+                          <span className="font-bold text-red-600">₹{interestPaidIn1Year.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
+                          <span className="text-sm font-medium">Total EMI (1 Year)</span>
+                          <span className="font-bold text-blue-600">₹{(emiPerMonth * 12).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

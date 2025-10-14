@@ -271,7 +271,8 @@ const VehicleDetails: React.FC = () => {
       prepayments,
       otherExpenses,
       recentExpenses: recentExpensesList,
-      expenseRatio: financialData?.totalEarnings ? (totalExpenses / financialData.totalEarnings) * 100 : 0
+      expenseRatio: financialData?.totalEarnings ? (totalExpenses / financialData.totalEarnings) * 100 : 0,
+      vehicleExpenses // Add the filtered vehicle expenses array
     };
   };
   

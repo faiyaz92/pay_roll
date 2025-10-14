@@ -312,6 +312,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           </CardContent>
         </Card>
 
+        <div className="mt-6"></div>
+
         {/* Expense Analysis */}
         <Card>
           <CardHeader>

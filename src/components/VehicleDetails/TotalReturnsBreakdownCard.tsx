@@ -53,6 +53,7 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
         </div>
         <div className="h-6"></div>
         <div className="h-6"></div>
+        <div className="h-6"></div>
         <div className="flex justify-between border-t pt-2 font-semibold">
           <span>Total Returns:</span>
           <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
