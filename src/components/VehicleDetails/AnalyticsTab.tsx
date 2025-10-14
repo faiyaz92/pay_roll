@@ -60,6 +60,9 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   const [selectedQuarter, setSelectedQuarter] = React.useState<number>(1);
   const [selectedMonth, setSelectedMonth] = React.useState<number>(new Date().getMonth());
 
+  // Separate state for loan projection year
+  const [loanProjectionYear, setLoanProjectionYear] = React.useState<number>(1);
+
   // Prepare chart data
   const earningsVsExpensesData = React.useMemo(() => {
     let startDate: Date;
@@ -1068,74 +1071,65 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         </Card>
       )}
 
-      {/* Loan Projection - Only show for vehicles with loans */}
+      {/* Loan Cards - Grid Layout */}
       {vehicle?.financingType === 'loan' && vehicle?.loanDetails && (
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Loan Projection Calculator
-                </CardTitle>
-                <CardDescription>
-                  Principal and interest breakdown till date vs after 1 year
-                </CardDescription>
-              </div>
-              <div className="w-32">
-                <Label htmlFor="loan-projection-year" className="text-xs text-gray-600">Projection Year</Label>
-                <Select value={projectionYear.toString()} onValueChange={(value) => setProjectionYear(parseInt(value))}>
-                  <SelectTrigger className="mt-1 h-8">
-                    <SelectValue placeholder="Select years" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 Year</SelectItem>
-                    <SelectItem value="2">2 Years</SelectItem>
-                    <SelectItem value="3">3 Years</SelectItem>
-                    <SelectItem value="5">5 Years</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Till Date Payment Breakdown - Based on actual payments made */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Current Loan Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Current Loan Status
+              </CardTitle>
+              <CardDescription>
+                Payment breakdown till date including prepayments and EMIs
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-4">
-                <h4 className="font-semibold text-lg">Till Date Payment Breakdown</h4>
                 {(() => {
                   const totalLoanAmount = vehicle.loanDetails?.totalLoan || 0;
                   const outstandingLoan = financialData.outstandingLoan || 0;
                   const interestRate = vehicle.loanDetails?.interestRate || 0;
                   const monthlyRate = interestRate / 100 / 12;
+                  const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
+                  const emisPaid = vehicle.loanDetails?.paidInstallments?.length || 0;
 
-                  // Principal paid till date = Total loan - Outstanding loan
-                  const principalPaidTillDate = totalLoanAmount - outstandingLoan;
+                  // Calculate prepayments (principal payments made upfront)
+                  const prepayments = vehicleExpenses
+                    .filter(e => e.description.toLowerCase().includes('prepayment') ||
+                                 e.description.toLowerCase().includes('principal') ||
+                                 e.paymentType === 'prepayment' ||
+                                 e.type === 'prepayment')
+                    .reduce((sum, e) => sum + e.amount, 0);
 
-                  // Calculate interest paid till date using proper amortization
+                  // Calculate principal and interest paid by simulating amortization for paid EMIs
+                  let principalPaidFromEMI = 0;
                   let interestPaidTillDate = 0;
-                  let balance = totalLoanAmount;
+                  let remainingBalance = totalLoanAmount;
 
-                  // Work backwards from current outstanding balance to calculate interest paid
-                  while (balance > outstandingLoan && interestPaidTillDate < principalPaidTillDate * 2) { // safety check
-                    const interestPayment = balance * monthlyRate;
-                    const principalPayment = Math.min(vehicle.loanDetails?.emiPerMonth || 0, balance) - interestPayment;
+                  // Simulate the amortization for each paid EMI
+                  for (let emi = 0; emi < emisPaid; emi++) {
+                    if (remainingBalance <= 0) break;
 
-                    if (balance - principalPayment >= outstandingLoan) {
-                      interestPaidTillDate += interestPayment;
-                      balance -= principalPayment;
-                    } else {
-                      // Last partial payment
-                      const remainingPrincipal = balance - outstandingLoan;
-                      const proportionalInterest = (remainingPrincipal / (vehicle.loanDetails?.emiPerMonth || 1)) * interestPayment;
-                      interestPaidTillDate += proportionalInterest;
-                      break;
-                    }
+                    const interestPayment = remainingBalance * monthlyRate;
+                    const principalPayment = Math.min(emiPerMonth - interestPayment, remainingBalance);
+
+                    interestPaidTillDate += interestPayment;
+                    principalPaidFromEMI += principalPayment;
+                    remainingBalance -= principalPayment;
                   }
 
+                  // Total principal paid = Prepayments + Principal from EMIs
+                  const totalPrincipalPaid = prepayments + principalPaidFromEMI;
+
+                  // Total loan paid till date = Total Principal + Interest
+                  const totalLoanPaidTillDate = totalPrincipalPaid + interestPaidTillDate;
+
                   const tillDateData = [
-                    { name: 'Principal Paid', value: principalPaidTillDate, color: '#22c55e' },
-                    { name: 'Interest Paid', value: interestPaidTillDate, color: '#ef4444' }
+                    { name: 'Prepayment', value: prepayments, color: '#8b5cf6' },
+                    { name: 'Principal (EMI)', value: principalPaidFromEMI, color: '#22c55e' },
+                    { name: 'Interest (EMI)', value: interestPaidTillDate, color: '#ef4444' }
                   ].filter(item => item.value > 0);
 
                   return (
@@ -1161,52 +1155,90 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       </ResponsiveContainer>
 
                       <div className="grid grid-cols-1 gap-3">
+                        <div className="flex justify-between p-3 bg-purple-50 rounded-lg">
+                          <span className="text-sm font-medium">Prepayment</span>
+                          <span className="font-bold text-purple-600">₹{prepayments.toLocaleString()}</span>
+                        </div>
                         <div className="flex justify-between p-3 bg-green-50 rounded-lg">
-                          <span className="text-sm font-medium">Principal Paid Till Date</span>
-                          <span className="font-bold text-green-600">₹{principalPaidTillDate.toLocaleString()}</span>
+                          <span className="text-sm font-medium">Principal (EMI)</span>
+                          <span className="font-bold text-green-600">₹{principalPaidFromEMI.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded-lg">
-                          <span className="text-sm font-medium">Interest Paid Till Date</span>
+                          <span className="text-sm font-medium">Interest (EMI)</span>
                           <span className="font-bold text-red-600">₹{interestPaidTillDate.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
                           <span className="text-sm font-medium">Total Loan Paid Till Date</span>
-                          <span className="font-bold text-blue-600">₹{(principalPaidTillDate + interestPaidTillDate).toLocaleString()}</span>
+                          <span className="font-bold text-blue-600">₹{totalLoanPaidTillDate.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-orange-50 rounded-lg border-t-2 border-orange-200">
+                          <span className="text-sm font-medium">Outstanding Loan Amount</span>
+                          <span className="font-bold text-orange-600">₹{outstandingLoan.toLocaleString()}</span>
                         </div>
                       </div>
                     </>
                   );
                 })()}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* After 1 Year Projection */}
+          {/* Loan Projection (1 Year) */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Loan Projection ({loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''})
+                  </CardTitle>
+                  <CardDescription>
+                    Projected principal and interest breakdown after {loanProjectionYear} year{loanProjectionYear > 1 ? 's' : ''}
+                  </CardDescription>
+                </div>
+                <div className="w-32">
+                  <Label htmlFor="loan-projection-year" className="text-xs text-gray-600">Projection Year</Label>
+                  <Select value={loanProjectionYear.toString()} onValueChange={(value) => setLoanProjectionYear(parseInt(value))}>
+                    <SelectTrigger className="mt-1 h-8">
+                      <SelectValue placeholder="Select years" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 Year</SelectItem>
+                      <SelectItem value="2">2 Years</SelectItem>
+                      <SelectItem value="3">3 Years</SelectItem>
+                      <SelectItem value="5">5 Years</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-4">
-                <h4 className="font-semibold text-lg">After 1 Year</h4>
                 {(() => {
                   const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
                   const interestRate = vehicle.loanDetails?.interestRate || 0;
                   const monthlyRate = interestRate / 100 / 12;
 
-                  // Calculate principal and interest paid in 1 year based on EMI payments only
-                  let principalPaidIn1Year = 0;
-                  let interestPaidIn1Year = 0;
+                  // Calculate principal and interest paid in projection period (EMI only)
+                  let principalPaidFromEMI = 0;
+                  let interestPaidInPeriod = 0;
                   let remainingBalance = financialData.outstandingLoan || 0;
 
-                  // Calculate for 12 months of EMI payments
-                  for (let month = 0; month < 12; month++) {
+                  // Calculate for the selected number of years of EMI payments
+                  for (let month = 0; month < loanProjectionYear * 12; month++) {
                     if (remainingBalance <= 0) break;
 
                     const interestPayment = remainingBalance * monthlyRate;
                     const principalPayment = Math.min(emiPerMonth - interestPayment, remainingBalance);
 
-                    interestPaidIn1Year += interestPayment;
-                    principalPaidIn1Year += principalPayment;
+                    interestPaidInPeriod += interestPayment;
+                    principalPaidFromEMI += principalPayment;
                     remainingBalance -= principalPayment;
                   }
 
-                  const oneYearData = [
-                    { name: 'Principal to Pay', value: principalPaidIn1Year, color: '#22c55e' },
-                    { name: 'Interest to Pay', value: interestPaidIn1Year, color: '#ef4444' }
+                  const projectionData = [
+                    { name: 'Principal (EMI)', value: principalPaidFromEMI, color: '#22c55e' },
+                    { name: 'Interest (EMI)', value: interestPaidInPeriod, color: '#ef4444' }
                   ].filter(item => item.value > 0);
 
                   return (
@@ -1214,7 +1246,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                           <Pie
-                            data={oneYearData}
+                            data={projectionData}
                             cx="50%"
                             cy="50%"
                             labelLine={false}
@@ -1223,7 +1255,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                             fill="#8884d8"
                             dataKey="value"
                           >
-                            {oneYearData.map((entry, index) => (
+                            {projectionData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
@@ -1233,25 +1265,29 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
                       <div className="grid grid-cols-1 gap-3">
                         <div className="flex justify-between p-3 bg-green-50 rounded-lg">
-                          <span className="text-sm font-medium">Principal to Pay</span>
-                          <span className="font-bold text-green-600">₹{principalPaidIn1Year.toLocaleString()}</span>
+                          <span className="text-sm font-medium">Principal (EMI)</span>
+                          <span className="font-bold text-green-600">₹{principalPaidFromEMI.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded-lg">
-                          <span className="text-sm font-medium">Interest to Pay</span>
-                          <span className="font-bold text-red-600">₹{interestPaidIn1Year.toLocaleString()}</span>
+                          <span className="text-sm font-medium">Interest (EMI)</span>
+                          <span className="font-bold text-red-600">₹{interestPaidInPeriod.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
-                          <span className="text-sm font-medium">Total EMI (1 Year)</span>
-                          <span className="font-bold text-blue-600">₹{(emiPerMonth * 12).toLocaleString()}</span>
+                          <span className="text-sm font-medium">Total EMI ({loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''})</span>
+                          <span className="font-bold text-blue-600">₹{(principalPaidFromEMI + interestPaidInPeriod).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-orange-50 rounded-lg border-t-2 border-orange-200">
+                          <span className="text-sm font-medium">Outstanding After {loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''}</span>
+                          <span className="font-bold text-orange-600">₹{Math.max(0, remainingBalance).toLocaleString()}</span>
                         </div>
                       </div>
                     </>
                   );
                 })()}
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
