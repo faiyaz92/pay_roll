@@ -1156,20 +1156,28 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
                       <div className="grid grid-cols-1 gap-3">
                         <div className="flex justify-between p-3 bg-purple-50 rounded-lg">
-                          <span className="text-sm font-medium">Prepayment</span>
+                          <span className="text-sm font-medium">Prepayment (Principal)</span>
                           <span className="font-bold text-purple-600">₹{prepayments.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-green-50 rounded-lg">
                           <span className="text-sm font-medium">Principal (EMI)</span>
                           <span className="font-bold text-green-600">₹{principalPaidFromEMI.toLocaleString()}</span>
                         </div>
+                        <div className="flex justify-between p-3 bg-indigo-50 rounded-lg border-t-2 border-indigo-200">
+                          <span className="text-sm font-medium">Total Principal Paid</span>
+                          <span className="font-bold text-indigo-600">₹{totalPrincipalPaid.toLocaleString()}</span>
+                        </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded-lg">
                           <span className="text-sm font-medium">Interest (EMI)</span>
                           <span className="font-bold text-red-600">₹{interestPaidTillDate.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
-                          <span className="text-sm font-medium">Total Loan Paid Till Date</span>
+                        <div className="flex justify-between p-3 bg-blue-50 rounded-lg border-t-2 border-blue-200">
+                          <span className="text-sm font-medium">Total Loan Paid Till Date (with interest)</span>
                           <span className="font-bold text-blue-600">₹{totalLoanPaidTillDate.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-cyan-50 rounded-lg">
+                          <span className="text-sm font-medium">Total EMI Paid Till Date</span>
+                          <span className="font-bold text-cyan-600">₹{(principalPaidFromEMI + interestPaidTillDate).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-orange-50 rounded-lg border-t-2 border-orange-200">
                           <span className="text-sm font-medium">Outstanding Loan Amount</span>
@@ -1219,6 +1227,14 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                   const interestRate = vehicle.loanDetails?.interestRate || 0;
                   const monthlyRate = interestRate / 100 / 12;
 
+                  // Calculate prepayments (principal payments made upfront)
+                  const prepayments = vehicleExpenses
+                    .filter(e => e.description.toLowerCase().includes('prepayment') ||
+                                 e.description.toLowerCase().includes('principal') ||
+                                 e.paymentType === 'prepayment' ||
+                                 e.type === 'prepayment')
+                    .reduce((sum, e) => sum + e.amount, 0);
+
                   // Calculate principal and interest paid in projection period (EMI only)
                   let principalPaidFromEMI = 0;
                   let interestPaidInPeriod = 0;
@@ -1236,7 +1252,11 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                     remainingBalance -= principalPayment;
                   }
 
+                  // Total paid after projection period = Prepayments + Principal from EMIs + Interest from EMIs
+                  const totalPaidAfterPeriod = prepayments + principalPaidFromEMI + interestPaidInPeriod;
+
                   const projectionData = [
+                    { name: 'Prepayment', value: prepayments, color: '#8b5cf6' },
                     { name: 'Principal (EMI)', value: principalPaidFromEMI, color: '#22c55e' },
                     { name: 'Interest (EMI)', value: interestPaidInPeriod, color: '#ef4444' }
                   ].filter(item => item.value > 0);
@@ -1264,19 +1284,31 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       </ResponsiveContainer>
 
                       <div className="grid grid-cols-1 gap-3">
+                        <div className="flex justify-between p-3 bg-purple-50 rounded-lg">
+                          <span className="text-sm font-medium">Prepayment</span>
+                          <span className="font-bold text-purple-600">₹{prepayments.toLocaleString()}</span>
+                        </div>
                         <div className="flex justify-between p-3 bg-green-50 rounded-lg">
                           <span className="text-sm font-medium">Principal (EMI)</span>
                           <span className="font-bold text-green-600">₹{principalPaidFromEMI.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-indigo-50 rounded-lg border-t-2 border-indigo-200">
+                          <span className="text-sm font-medium">Total Principal Paid</span>
+                          <span className="font-bold text-indigo-600">₹{(prepayments + principalPaidFromEMI).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded-lg">
                           <span className="text-sm font-medium">Interest (EMI)</span>
                           <span className="font-bold text-red-600">₹{interestPaidInPeriod.toLocaleString()}</span>
                         </div>
+                        <div className="flex justify-between p-3 bg-cyan-50 rounded-lg border-t-2 border-cyan-200">
+                          <span className="text-sm font-medium">Total Loan Paid After {loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''} (with interest)</span>
+                          <span className="font-bold text-cyan-600">₹{totalPaidAfterPeriod.toLocaleString()}</span>
+                        </div>
                         <div className="flex justify-between p-3 bg-blue-50 rounded-lg">
                           <span className="text-sm font-medium">Total EMI ({loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''})</span>
                           <span className="font-bold text-blue-600">₹{(principalPaidFromEMI + interestPaidInPeriod).toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between p-3 bg-orange-50 rounded-lg border-t-2 border-orange-200">
+                        <div className="flex justify-between p-3 bg-orange-50 rounded-lg">
                           <span className="text-sm font-medium">Outstanding After {loanProjectionYear} Year{loanProjectionYear > 1 ? 's' : ''}</span>
                           <span className="font-bold text-orange-600">₹{Math.max(0, remainingBalance).toLocaleString()}</span>
                         </div>
