@@ -2,25 +2,79 @@
 
 ## Table of Contents
 1. [Business Requirements Document (BRD)](#business-requirements-document-brd)
+   - 1.1 [Executive Summary](#11-executive-summary)
+   - 1.2 [Business Objectives](#12-business-objectives)
+   - 1.3 [Key Features](#13-key-features)
+   - 1.4 [User Roles & Permissions](#14-user-roles--permissions)
+   - 1.5 [Technical Requirements](#15-technical-requirements)
 2. [System Architecture](#system-architecture)
+   - 2.1 [Technology Stack](#21-technology-stack)
+   - 2.2 [Application Structure](#22-application-structure)
+   - 2.3 [Data Flow Architecture](#23-data-flow-architecture)
 3. [Screen Logic & User Interfaces](#screen-logic--user-interfaces)
+   - 3.1 [Dashboard Page](#31-dashboard-page-dashboard)
+   - 3.2 [Vehicles Page](#32-vehicles-page-vehicles)
+   - 3.3 [Vehicle Details Page](#33-vehicle-details-page-vehiclesvehicleid)
+   - 3.4 [Drivers Page](#34-drivers-page-drivers)
+   - 3.5 [Assignments Page](#35-assignments-page-assignments)
+   - 3.6 [Payments Page](#36-payments-page-payments)
+   - 3.7 [Fuel Records Page](#37-fuel-records-page-fuel-records)
+   - 3.8 [Authentication System](#38-authentication-system)
 4. [Hooks Logic & Data Management](#hooks-logic--data-management)
+   - 4.1 [Core Data Management Hook](#41-core-data-management-hook-usefirebasedata)
+   - 4.2 [Individual Entity Hooks](#42-individual-entity-hooks)
+   - 4.3 [Firestore Path Management](#43-firestore-path-management-usefirestorepaths)
+   - 4.4 [Authentication Context](#44-authentication-context-authcontext)
 5. [Financial Formulas & Calculations](#financial-formulas--calculations)
+   - 5.1 [Data Sources & Field Documentation](#51-data-sources--field-documentation)
+   - 5.2 [Core Financial Calculations](#52-core-financial-calculations)
 6. [Cash In Hand Tracking System](#cash-in-hand-tracking-system)
+   - 6.1 [Overview](#61-overview)
+   - 6.2 [Cash Balance Updates](#62-cash-balance-updates)
+   - 6.3 [Transaction Types & Cash Impact](#63-transaction-types--cash-impact)
+   - 6.4 [Zero-Balance Accounting Flow](#64-zero-balance-accounting-flow)
+   - 6.5 [Real-time Cash Balance Display](#65-real-time-cash-balance-display)
+   - 6.6 [Cash Balance Storage Structure](#66-cash-balance-storage-structure)
+   - 6.7 [Business Benefits](#67-business-benefits)
 7. [Partner Management System](#partner-management-system)
-   - [8.1 Overview](#81-overview)
-   - [8.2 Partner Roles & Responsibilities](#82-partner-roles--responsibilities)
-   - [8.3 Partner Data Storage](#83-partner-data-storage)
-   - [8.4 Partner Authentication & Login](#84-partner-authentication--login)
-   - [8.5 Vehicle-Partner Linking](#85-vehicle-partner-linking)
-   - [8.6 Partner Management Interface](#86-partner-management-interface)
-   - [8.6.1 Partner Add Form Implementation](#861-partner-add-form-implementation)
-   - [8.7 Profit Sharing & Service Charges](#87-profit-sharing--service-charges)
-   - [8.8 Business Benefits](#88-business-benefits)
-8. [Firestore Database Structure](#firestore-database-structure)
-9. [Technical Implementation Details](#technical-implementation-details)
-10. [Development & Deployment](#development--deployment)
-11. [Future Roadmap](#future-roadmap)
+   - 7.1 [Overview](#71-overview)
+   - 7.2 [Partner Roles & Responsibilities](#72-partner-roles--responsibilities)
+   - 7.3 [Partner Data Storage](#73-partner-data-storage)
+   - 7.4 [Partner Authentication & Login](#74-partner-authentication--login)
+   - 7.5 [Vehicle-Partner Linking](#75-vehicle-partner-linking)
+   - 7.6 [Partner Management Interface](#76-partner-management-interface)
+   - 7.6.1 [Partner Add Form Implementation](#761-partner-add-form-implementation)
+   - 7.7 [Profit Sharing & Service Charges](#77-profit-sharing--service-charges)
+   - 7.8 [Business Benefits](#78-business-benefits)
+8. [Insurance Management System](#insurance-management-system)
+   - 8.1 [Insurance Types & Categories](#81-insurance-types--categories)
+   - 8.2 [Insurance Policy Rules](#82-insurance-policy-rules)
+   - 8.3 [Insurance Expense Tracking](#83-insurance-expense-tracking)
+   - 8.4 [Insurance Document Management](#84-insurance-document-management)
+9. [Firestore Database Structure](#firestore-database-structure)
+   - 9.1 [Root Structure](#91-root-structure)
+   - 9.2 [Tenant Company Structure](#92-tenant-company-structure)
+   - 9.3 [Document Schemas](#93-document-schemas)
+10. [Technical Implementation Details](#technical-implementation-details)
+    - 10.1 [Real-time Data Synchronization](#101-real-time-data-synchronization)
+    - 10.2 [Financial Calculation Engine](#102-financial-calculation-engine)
+    - 10.3 [Form Validation & Error Handling](#103-form-validation--error-handling)
+    - 10.4 [File Upload & Storage](#104-file-upload--storage)
+    - 10.5 [Export Functionality](#105-export-functionality)
+    - 10.6 [Responsive Design](#106-responsive-design)
+    - 10.7 [Performance Optimizations](#107-performance-optimizations)
+11. [Development & Deployment](#development--deployment)
+    - 11.1 [Local Development Setup](#111-local-development-setup)
+    - 11.2 [Environment Configuration](#112-environment-configuration)
+    - 11.3 [Testing Strategy](#113-testing-strategy)
+    - 11.4 [Deployment Pipeline](#114-deployment-pipeline)
+12. [Future Enhancements](#future-enhancements)
+    - 12.1 [Planned Features](#121-planned-features)
+    - 12.2 [Technical Improvements](#122-technical-improvements)
+13. [Analysis Templates](#analysis-templates)
+    - 13.1 [Component Data Source Tracing Template](#131-component-data-source-tracing-template)
+    - 13.2 [Component UI/UX Analysis Template](#132-component-uiux-analysis-template)
+    - 13.3 [Component Navigation Analysis Template](#133-component-navigation-analysis-template)
 
 ---
 
@@ -1583,10 +1637,10 @@ Ending Cash: ₹0 (Perfect Accounting!)
 
 ## Partner Management System
 
-### 8.1 Overview
+### 7.1 Overview
 The Partner Management System enables business partnerships where external partners own and operate vehicles while sharing profits with the company. Partners are treated as independent business owners with dedicated management interfaces and profit-sharing arrangements.
 
-### 8.2 Partner Roles & Responsibilities
+### 7.2 Partner Roles & Responsibilities
 
 #### Partner User Role
 - **Vehicle Ownership**: Partners own their vehicles and bear the financial responsibility
@@ -1602,7 +1656,7 @@ The Partner Management System enables business partnerships where external partn
 - **Support Services**: Assist with vehicle assignments and financial reporting
 - **Profit Distribution**: Ensure fair 50/50 profit sharing after service charges
 
-### 8.3 Partner Data Storage
+### 7.3 Partner Data Storage
 
 #### Partner User Document Structure
 Partners are stored as users with `role: "partner"` in the company users collection:
@@ -1625,7 +1679,7 @@ Partners are stored as users with `role: "partner"` in the company users collect
 
 **Storage Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/users/{firebaseAuthUid}`
 
-### 8.4 Partner Authentication & Login
+### 7.4 Partner Authentication & Login
 
 #### Account Creation Process
 1. **Admin Registration**: Company admin creates partner account with email/password
@@ -1656,7 +1710,7 @@ Validate role: "partner"
 Load partner dashboard with company context
 ```
 
-### 8.5 Vehicle-Partner Linking
+### 7.5 Vehicle-Partner Linking
 
 #### Vehicle Assignment to Partners
 Vehicles are linked to partners through the `assignedDriverId` field in the vehicle document:
@@ -1705,7 +1759,7 @@ if (financingType === 'cash') {
 - **Validation**: Maximum percentage capped at 100%
 - **Precision**: Rounded to 2 decimal places for accuracy
 
-### 8.6 Partner Management Interface
+### 7.6 Partner Management Interface
 
 #### Partners Page (`/partners`)
 **Features**:
@@ -1721,7 +1775,7 @@ if (financingType === 'cash') {
 - **Validation**: Comprehensive form validation for partner registration
 - **Audit Trail**: Track all partner-related changes
 
-### 8.6.1 Partner Add Form Implementation
+### 7.6.1 Partner Add Form Implementation
 
 #### Form Schema & Validation
 The partner registration form uses Zod schema validation for comprehensive data validation:
@@ -1788,7 +1842,7 @@ await setDoc(doc(firestore, partnerUsersPath, userCredential.user.uid), partnerD
 - **Form Reset**: Automatic form clearing after successful submission
 - **Responsive Design**: Mobile-friendly form layout
 
-### 8.7 Profit Sharing & Service Charges
+### 7.7 Profit Sharing & Service Charges
 
 #### Profit Calculation Flow for Partners
 ```
@@ -1811,7 +1865,7 @@ Net Profit = Earnings - Service Charge - Expenses
 - **Accounting**: Treated as additional income, not an expense
 - **Profit Sharing**: Calculated after service charge deduction
 
-### 8.8 Business Benefits
+### 7.8 Business Benefits
 
 #### Partnership Model
 - **Risk Distribution**: Partners bear vehicle ownership costs and risks
@@ -1829,7 +1883,7 @@ Net Profit = Earnings - Service Charge - Expenses
 
 ## Insurance Management System
 
-### 9.1 Insurance Types & Categories
+### 8.1 Insurance Types & Categories
 
 The system supports multiple insurance types that can be active simultaneously for a single vehicle:
 
@@ -1839,7 +1893,7 @@ The system supports multiple insurance types that can be active simultaneously f
 - **Green Slip**: Compulsory third-party personal injury insurance
 - **Pink Slip**: Vehicle ownership and title insurance
 
-### 9.2 Insurance Policy Rules
+### 8.2 Insurance Policy Rules
 
 #### Multi-Insurance Support
 - **Multiple Types Allowed**: A vehicle can have up to 3 different insurance types active simultaneously
@@ -1854,7 +1908,7 @@ Vehicle XYZ can have:
 ❌ Fix Insurance (Jan 1 - Dec 31) + Fix Insurance (Jun 1 - Dec 31) [Duplicate type]
 ```
 
-### 9.3 Insurance Expense Tracking
+### 8.3 Insurance Expense Tracking
 
 #### Periodic Payments
 - **Proration Support**: Insurance premiums can be prorated over policy coverage period
@@ -1870,7 +1924,7 @@ const monthlyExpense = totalPremium / coverageMonths;
 const monthlyExpense = 12000 / 12; // = ₹1,000
 ```
 
-### 9.4 Insurance Document Management
+### 8.4 Insurance Document Management
 
 #### Required Documents
 - **Policy Copy**: Original insurance policy document
@@ -2179,3 +2233,741 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Deep Data Source Tracing Analysis for InvestmentReturnsCard.tsx
+
+### Overview
+This section provides a comprehensive trace of every data field displayed in the InvestmentReturnsCard component, mapping each label and value back to its origin data source, including all intermediate calculations and transformations.
+
+### Investment Breakdown Section
+
+#### Initial Investment
+**Label**: "Initial investment"
+**Value**: `₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}`
+**Data Source**: `vehicle.initialInvestment` or `vehicle.initialCost`
+**Origin**: `vehicles` collection field (direct database value)
+**Formula**: Direct field value from vehicle record
+
+#### Prepayment
+**Label**: "Prepayment"
+**Value**: `₹{expenseData.prepayments.toLocaleString()}`
+**Data Source**: `expenseData.prepayments`
+**Origin**: `expenses` collection filtered by prepayment criteria
+**Formula Chain**:
+- `vehicleExpenses` = `expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved')`
+- `prepayments` = `vehicleExpenses.filter(e => e.paymentType === 'prepayment' || e.type === 'prepayment' || e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal')).reduce((sum, e) => sum + e.amount, 0)`
+
+#### Total Expenses
+**Label**: "Total expenses"
+**Value**: `₹{expenseData.totalExpenses.toLocaleString()}`
+**Data Source**: `expenseData.totalExpenses`
+**Origin**: `expenses` collection filtered by vehicle and operational expenses
+**Formula Chain**:
+- `operationalExpenses` = `vehicleExpenses.filter(e => !(e.paymentType === 'prepayment' || e.type === 'prepayment' || e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal')))`
+- `totalExpenses` = `operationalExpenses.reduce((sum, e) => sum + e.amount, 0)`
+
+#### Total Investment
+**Label**: "Total investment"
+**Value**: `₹{getTotalInvestment().toLocaleString()}`
+**Data Source**: `getTotalInvestment()` function
+**Origin**: Calculated from vehicle and expense data
+**Formula**: `(vehicle.initialInvestment || vehicle.initialCost || 0) + expenseData.prepayments + expenseData.totalExpenses`
+
+### Returns & Performance Section
+
+#### Total Earnings
+**Label**: "Total Earnings"
+**Value**: `₹{financialData.totalEarnings.toLocaleString()}`
+**Data Source**: `financialData.totalEarnings`
+**Origin**: `payments` collection + `calculateVehicleFinancials` function
+**Formula Chain**:
+- `vehiclePayments` = `payments.filter(p => p.vehicleId === vehicleId && p.status === 'paid')`
+- `totalEarnings` = `vehiclePayments.reduce((sum, p) => sum + p.amountPaid, 0) + (vehicle.previousData?.rentEarnings || 0)`
+
+#### Current Vehicle Value
+**Label**: "Current Vehicle Value"
+**Value**: `₹{vehicle.residualValue?.toLocaleString() || 'N/A'}`
+**Data Source**: `vehicle.residualValue`
+**Origin**: `vehicles` collection field (manual entry or calculated)
+**Formula**: Direct field value from vehicle record
+
+#### Outstanding Loan
+**Label**: "Outstanding Loan"
+**Value**: `₹{financialData.outstandingLoan.toLocaleString()}`
+**Data Source**: `financialData.outstandingLoan`
+**Origin**: `calculateVehicleFinancials` function + amortization schedule
+**Formula Chain**:
+- `amortizationSchedule` = `vehicle.loanDetails?.amortizationSchedule || []`
+- `unpaidSchedules` = `amortizationSchedule.filter(s => !s.isPaid)`
+- `outstandingLoan` = `unpaidSchedules.reduce((sum, emi) => sum + (emi.principal || 0), 0)` OR fallback to `vehicle.loanDetails?.outstandingLoan`
+
+#### Total Return
+**Label**: "Total Return (Earnings + Current Car Value - Outstanding Loan)"
+**Value**: `₹{financialData.totalReturn.toLocaleString()}`
+**Data Source**: `financialData.totalReturn`
+**Origin**: `calculateVehicleFinancials` function
+**Formula**: `(vehicle.residualValue || currentDepreciatedCarValue) + totalEarnings - outstandingLoan`
+
+#### Investment Status Badge
+**Label**: "Investment Status"
+**Value**: Badge "Investment Covered" (conditional display)
+**Data Source**: `financialData.isInvestmentCovered`
+**Origin**: `calculateVehicleFinancials` function
+**Formula**: `profitLoss >= 0` where `profitLoss = totalReturn - totalInvestment`
+
+#### ROI
+**Label**: "ROI"
+**Value**: `{financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%`
+**Data Source**: `financialData.roiPercentage`
+**Origin**: `calculateVehicleFinancials` function
+**Formula**: `totalInvestment > 0 ? (profitLoss / totalInvestment) * 100 : 0`
+
+#### Total Net Cash Flow
+**Label**: "Total Net Cash Flow"
+**Value**: `₹{(financialData.totalEarnings - financialData.totalExpenses).toLocaleString()}`
+**Data Source**: `financialData.totalEarnings - financialData.totalExpenses`
+**Origin**: `calculateVehicleFinancials` function
+**Formula**: `totalEarnings - totalExpensesForDisplay` where `totalExpensesForDisplay = totalOperatingExpenses + totalEmiPaid`
+
+### Profit/Loss Section
+
+#### Profit/Loss
+**Label**: "Profit/Loss"
+**Value**: `₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)`
+**Data Source**: `financialData.totalReturn - financialData.totalInvestment` and `financialData.grossProfitLossPercentage`
+**Origin**: `calculateVehicleFinancials` function
+**Formula Chain**:
+- `profitLoss` = `totalReturn - totalInvestment`
+- `grossProfitLossPercentage` = `totalInvestment > 0 ? Math.abs(profitLoss / totalInvestment) * 100 : 0`
+
+## Deep Data Source Tracing Analysis for TotalReturnsBreakdownCard.tsx
+
+### Overview
+This section provides a comprehensive trace of every data field displayed in the TotalReturnsBreakdownCard component, mapping each label and value back to its origin data source, including all intermediate calculations and transformations.
+
+### Current Car Value Calculation
+**Label**: "Current Car Value:"
+**Value**: `+₹{(() => { ... })()}`
+**Data Source**: Complex inline calculation
+**Origin**: `vehicles` collection + depreciation calculation
+**Formula Chain**:
+- `initialValue` = `vehicle.initialInvestment || vehicle.initialCost || 0`
+- `depreciationRate` = `vehicle.depreciationRate ?? 10`
+- `depreciationPerYear` = `depreciationRate / 100`
+- `purchaseYear` = `vehicle.year || new Date().getFullYear()`
+- `currentYear` = `new Date().getFullYear()`
+- `operationalYears` = `Math.max(1, currentYear - purchaseYear + 1)`
+- `depreciatedValue` = `initialValue * Math.pow((1 - depreciationPerYear), operationalYears)`
+- Display: `Math.round(depreciatedValue).toLocaleString()`
+
+### Total Earnings
+**Label**: "Total Earnings:"
+**Value**: `+₹{financialData.totalEarnings.toLocaleString()}`
+**Data Source**: `financialData.totalEarnings`
+**Origin**: Same as InvestmentReturnsCard total earnings
+**Formula**: Same calculation as InvestmentReturnsCard
+
+### Outstanding Loan
+**Label**: "Outstanding Loan:"
+**Value**: `-₹{financialData.outstandingLoan.toLocaleString()}`
+**Data Source**: `financialData.outstandingLoan`
+**Origin**: Same as InvestmentReturnsCard outstanding loan
+**Formula**: Same calculation as InvestmentReturnsCard
+
+### Total Returns
+**Label**: "Total Returns:"
+**Value**: `₹{financialData.totalReturn.toLocaleString()}`
+**Data Source**: `financialData.totalReturn`
+**Origin**: Same as InvestmentReturnsCard total return
+**Formula**: Same calculation as InvestmentReturnsCard
+
+### Data Source Summary for Investment Components
+- **Primary Collections**: `vehicles`, `payments`, `expenses`
+- **Calculated Props**: `financialData` (from `calculateVehicleFinancials`), `expenseData` (from `getVehicleExpenseData`)
+- **Key Functions**: `calculateVehicleFinancials`, `getVehicleExpenseData`, `getTotalInvestment`
+- **Depreciation Logic**: Manual calculation in component vs. `calculateVehicleFinancials`
+- **Note**: TotalReturnsBreakdownCard uses its own depreciation calculation rather than `financialData.currentVehicleValue`
+
+This analysis ensures complete traceability from every displayed value back to its fundamental data source, enabling accurate debugging and maintenance of the investment and returns components.
+
+---
+
+## Deep Data Source Tracing Analysis for AnalyticsTab.tsx
+
+### Overview
+The AnalyticsTab component is a comprehensive analytics dashboard that displays vehicle financial performance through multiple charts, cards, and projections. It receives vehicle data, financial calculations, and raw payment/expense records as props, then processes this data through multiple useMemo calculations to generate chart data and filtered views. The component supports time-based filtering (yearly/quarterly/monthly) and renders child components for detailed breakdowns.
+
+### Component Props & Data Sources
+
+#### Primary Props
+**vehicle**: `any` - Complete vehicle document from Firestore
+- **Origin**: `vehicles` collection document
+- **Usage**: Vehicle metadata, ownership type, loan details, partnership info
+- **Key Fields Used**: `ownershipType`, `partnerShare`, `serviceChargeRate`, `financingType`, `loanDetails`
+
+**financialData**: `any` - Pre-calculated financial metrics from `calculateVehicleFinancials`
+- **Origin**: `calculateVehicleFinancials()` function processing payments, expenses, and vehicle data
+- **Usage**: ROI calculations, total earnings, outstanding loans, profit/loss metrics
+- **Key Fields Used**: `totalEarnings`, `outstandingLoan`, `totalReturn`, `roiPercentage`
+
+**expenseData**: `any` - Categorized expense totals from `getVehicleExpenseData`
+- **Origin**: `expenses` collection filtered and categorized by vehicle
+- **Usage**: Prepayment amounts, total operational expenses
+- **Key Fields Used**: `prepayments`, `totalExpenses`
+
+**firebasePayments**: `any[]` - Raw payment records array
+- **Origin**: `payments` collection filtered by vehicleId and status='paid'
+- **Usage**: Earnings calculations, time-filtered data aggregation
+- **Formula Chain**: `firebasePayments.filter(p => p.vehicleId === vehicleId && p.status === 'paid')`
+
+**vehicleId**: `string` - Current vehicle identifier
+- **Origin**: URL parameter or parent component
+- **Usage**: Filtering payments and expenses for current vehicle
+
+**getTotalInvestment**: `() => number` - Function calculating total investment
+- **Origin**: `(vehicle.initialInvestment || vehicle.initialCost || 0) + expenseData.prepayments + expenseData.totalExpenses`
+- **Usage**: Investment amount display and ROI calculations
+
+**calculateProjection**: Function for financial projections
+- **Origin**: Complex projection algorithm using vehicle data and assumptions
+- **Usage**: Multi-year financial projections with partner earnings
+
+**vehicleExpenses**: `any[]` - Raw expense records array
+- **Origin**: `expenses` collection filtered by vehicleId and status='approved'
+- **Usage**: Time-filtered expense aggregation and categorization
+
+### Internal State & Controls
+
+#### Time Period Filtering State
+**timePeriod**: `'yearly' | 'quarterly' | 'monthly'` (default: 'yearly')
+- **Origin**: Component useState
+- **Usage**: Controls data aggregation granularity for charts
+
+**selectedYear**: `number` (default: current year)
+- **Origin**: Component useState
+- **Usage**: Year filter for all time-based calculations
+
+**selectedQuarter**: `number` (default: 1)
+- **Origin**: Component useState
+- **Usage**: Quarter filter when timePeriod='quarterly'
+
+**selectedMonth**: `number` (default: current month)
+- **Origin**: Component useState
+- **Usage**: Month filter when timePeriod='monthly'
+
+**loanProjectionYear**: `number` (default: 1)
+- **Origin**: Component useState
+- **Usage**: Separate year control for loan projections
+
+### Computed Data (useMemo Calculations)
+
+#### earningsVsExpensesData
+**Purpose**: Time-filtered earnings vs expenses chart data
+**Data Source**: `firebasePayments`, `vehicleExpenses`, time period state
+**Origin**: Real-time calculation from raw payment and expense records
+**Formula Chain**:
+- `filteredPayments` = `firebasePayments.filter(p => p.vehicleId === vehicleId && p.status === 'paid' && dateRangeMatch)`
+- `filteredExpenses` = `vehicleExpenses.filter(e => dateRangeMatch)`
+- `monthlyEarnings` = `filteredPayments.reduce((sum, p) => sum + p.amountPaid, 0)`
+- `monthlyExpenses` = `filteredExpenses.reduce((sum, e) => sum + e.amount, 0)`
+- `dataPoints` = `[{period, earnings: monthlyEarnings, expenses: monthlyExpenses, profit: monthlyEarnings - monthlyExpenses}]`
+
+#### expenseBreakdownData
+**Purpose**: Pie chart data showing expense categories
+**Data Source**: `vehicleExpenses`, time period state
+**Origin**: Categorized expense aggregation from raw records
+**Formula Chain**:
+- `filteredExpenses` = `vehicleExpenses.filter(e => dateRangeMatch)`
+- `categoryTotals[category]` = `filteredExpenses.reduce((sum, e) => sum + e.amount, 0)` by category
+- **Category Logic**: Complex categorization based on `expenseType`, `type`, `paymentType`, and description patterns
+- `breakdown` = `Object.entries(categoryTotals).map(([name, value]) => ({name: displayName, value, color}))`
+
+#### partnerProjectionData
+**Purpose**: Multi-year projection data with partner earnings
+**Data Source**: `calculateProjection`, `vehicle`, projection settings
+**Origin**: Complex financial projection with partner profit sharing
+**Formula Chain**:
+- `projection` = `calculateProjection(year, assumedRent, increasedEMIAmt, netCashFlowMode)`
+- `monthlyProfit` = `projection.monthlyEarnings - projection.monthlyOperatingExpenses`
+- `gstAmount` = `monthlyProfit > 0 ? monthlyProfit * 0.04 : 0`
+- `serviceCharge` = `isPartnerTaxi ? monthlyProfit * serviceChargeRate : 0`
+- `partnerMonthlyShare` = `remainingProfitAfterDeductions * partnerSharePercentage`
+- `ownerMonthlyShare` = `remainingProfitAfterDeductions * (1 - partnerSharePercentage)`
+
+#### grossMarginData
+**Purpose**: Gross margin utilization bar chart data
+**Data Source**: `firebasePayments`, `vehicleExpenses`, time period state
+**Origin**: Time-filtered earnings and expenses for margin calculation
+**Formula Chain**:
+- `filteredEarnings` = `firebasePayments.filter(p => dateRangeMatch).reduce((sum, p) => sum + p.amountPaid, 0)`
+- `filteredExpenses` = `vehicleExpenses.filter(e => dateRangeMatch).reduce((sum, e) => sum + e.amount, 0)`
+- `grossProfit` = `filteredEarnings - filteredExpenses`
+- `chartData` = `[{name: 'Earnings', value: filteredEarnings}, {name: 'Expenses', value: filteredExpenses}, {name: 'Gross Profit', value: grossProfit}]`
+
+### Rendered Components & Data Flow
+
+#### InvestmentReturnsCard Component
+**Props Passed**:
+- `vehicle={vehicle}` - Complete vehicle data
+- `financialData={financialData}` - Pre-calculated financial metrics
+- `expenseData={expenseData}` - Categorized expense totals
+- `getTotalInvestment={getTotalInvestment}` - Investment calculation function
+
+#### TotalReturnsBreakdownCard Component
+**Props Passed**:
+- `vehicle={vehicle}` - Vehicle data for depreciation calculations
+- `financialData={financialData}` - Financial metrics
+- `firebasePayments={firebasePayments}` - Raw payment records
+
+#### TotalExpensesBreakdownCard Component
+**Props Passed**:
+- `expenseData={expenseData}` - Categorized expense data
+
+### Chart Components & Data Visualization
+
+#### Earnings vs Expenses Bar Chart
+**Data Source**: `earningsVsExpensesData`
+**Display Fields**:
+- **X-Axis**: `period` (Month names, Week numbers)
+- **Bars**: `earnings`, `expenses`
+- **Line**: `profit` (earnings - expenses)
+- **Title**: Dynamic based on `timePeriod` and selected filters
+
+#### Expense Breakdown Pie Chart
+**Data Source**: `expenseBreakdownData`
+**Display Fields**:
+- **Slices**: `name` (category), `value` (amount), `color`
+- **Categories**: fuel, maintenance, insurance, penalties, emi, prepayment, general
+- **Sorting**: Descending by value
+
+#### Gross Margin Utilization Bar Chart
+**Data Source**: `grossMarginData`
+**Display Fields**:
+- **Bars**: Earnings (green), Expenses (red), Gross Profit (blue)
+- **Values**: Time-filtered totals with currency formatting
+
+### Partner Earnings Projection Chart (Conditional)
+**Condition**: `vehicle?.ownershipType === 'partner'`
+**Data Source**: `partnerProjectionData`
+**Display Fields**:
+- **X-Axis**: `year` (Year 1, Year 2, etc.)
+- **Lines**: `partnerEarnings`, `ownerEarnings`
+- **Calculations**: Partner share with GST and service charge deductions
+
+### Loan Projection Cards (Conditional)
+**Condition**: `vehicle?.financingType === 'loan' && vehicle?.loanDetails`
+**Data Source**: `calculateProjection` function with loan-specific parameters
+**Display Fields**:
+- EMI schedule visualization
+- Outstanding loan tracking
+- Prepayment impact analysis
+
+### UI Control Elements
+
+#### Time Period Selector
+**Label**: "Time Period"
+**Options**: Yearly, Quarterly, Monthly
+**State**: `timePeriod` → `setTimePeriod`
+**Impact**: Controls all chart data filtering and aggregation
+
+#### Year Selector
+**Label**: "Year"
+**Options**: Current year to 10 years back
+**State**: `selectedYear` → `setSelectedYear`
+**Impact**: Year filter for all time-based calculations
+
+#### Quarter Selector (Conditional)
+**Condition**: `timePeriod === 'quarterly'`
+**Label**: "Quarter"
+**Options**: Q1-Q4 with month ranges
+**State**: `selectedQuarter` → `setSelectedQuarter`
+
+#### Month Selector (Conditional)
+**Condition**: `timePeriod === 'monthly'`
+**Label**: "Month"
+**Options**: Jan-Dec
+**State**: `selectedMonth` → `setSelectedMonth`
+
+### Data Source Summary for AnalyticsTab
+- **Primary Collections**: `vehicles`, `payments`, `expenses`
+- **Calculated Props**: `financialData` (from `calculateVehicleFinancials`), `expenseData` (from `getVehicleExpenseData`)
+- **Raw Data Arrays**: `firebasePayments`, `vehicleExpenses`
+- **State Dependencies**: `timePeriod`, `selectedYear`, `selectedQuarter`, `selectedMonth`
+- **Computed Data**: `earningsVsExpensesData`, `expenseBreakdownData`, `partnerProjectionData`, `grossMarginData`
+- **External Functions**: `getTotalInvestment`, `calculateProjection`
+- **Child Components**: `InvestmentReturnsCard`, `TotalReturnsBreakdownCard`, `TotalExpensesBreakdownCard`
+- **Conditional Rendering**: Partner earnings (ownershipType), Loan cards (financingType)
+- **Time Filtering**: Dynamic aggregation based on selected time period (yearly/quarterly/monthly)
+
+This analysis ensures complete traceability from every chart data point, card value, and UI control back to its fundamental database origin, enabling accurate debugging and maintenance of the analytics dashboard.
+
+### 13.1 Component Data Source Tracing Template
+
+**Instructions for AI Assistant:**
+
+When I provide context of a specific component file (e.g., AnalyticsTab.tsx, InvestmentReturnsCard.tsx, etc.) and reference this template, perform a **DEEP DATA SOURCE TRACING ANALYSIS** with the following requirements:
+
+### **Analysis Scope:**
+- Analyze **EVERY** data field displayed in the component
+- Include **ALL** labels and their corresponding values
+- Trace **EVERY** displayed value back to its fundamental database origin
+
+### **Tracing Methodology:**
+For each data field, show the complete chain:
+```
+Display Value (D) = Formula involving intermediate values
+Intermediate Value (C) = Formula involving other values  
+Intermediate Value (B) = Formula involving base values
+Base Value (A) = Direct database field from collection/document
+```
+
+### **Required Information per Field:**
+- **Label**: The display text shown to user
+- **Value**: The actual displayed value with formatting
+- **Data Source**: Which prop/state/variable provides the data
+- **Origin**: Which Firebase collection and document field
+- **Formula Chain**: Step-by-step calculation from database to display
+- **Dependencies**: Any intermediate calculations or transformations
+
+### **Output Format:**
+```
+## Deep Data Source Tracing Analysis for [ComponentName].tsx
+
+### Overview
+Brief description of the component and its data sources.
+
+### [Section Name] (e.g., Investment Breakdown, Charts, Cards, etc.)
+
+#### [Field Label]
+**Label**: "[Exact label text]"
+**Value**: `[Actual displayed value with formatting]`
+**Data Source**: `[variableName.property]`
+**Origin**: `[Firebase collection] field`
+**Formula Chain**:
+- `step1` = calculation involving database fields
+- `step2` = transformation of step1
+- `displayValue` = final formatting of step2
+
+#### [Next Field Label]
+... (continue for all fields)
+```
+
+### **Final Summary:**
+```
+### Data Source Summary for [ComponentName]
+- **Primary Collections**: List all Firebase collections used
+- **Calculated Props**: List key calculation functions
+- **Key Functions**: List helper functions and transformations
+- **State Dependencies**: List any component state that affects calculations
+- **External Dependencies**: List any external data sources or APIs
+```
+
+### **Example Context to Provide:**
+When asking for analysis, provide:
+1. The component file content/attachment
+2. Reference to this template section
+3. Any specific areas of focus (optional)
+
+**Template Reference:** Use this section as the instruction set for performing comprehensive data source tracing analysis on any React component.
+
+---
+
+### 13.2 Component UI/UX Analysis Template
+
+**Instructions for AI Assistant:**
+
+When I provide context of a specific component file (e.g., AnalyticsTab.tsx, Dashboard.tsx, etc.) and reference this template, perform a **COMPREHENSIVE UI/UX ANALYSIS** with the following requirements:
+
+### **Analysis Scope:**
+- Analyze **EVERY** visual element, layout structure, and interactive component
+- Include **ALL** UI elements (cards, buttons, charts, forms, modals, etc.)
+- Trace **ALL** user interactions (clicks, hovers, form submissions, navigation)
+- Document **ALL** state changes, side effects, and data flow triggered by interactions
+- Cover **ALL** styling, responsive behavior, and accessibility features
+
+### **Tracing Methodology:**
+For each UI element and interaction, show the complete chain:
+```
+User Action (Input) → Event Handler → State Update → Side Effects → UI Changes
+Component Structure → Layout System → Styling Approach → Responsive Behavior
+```
+
+### **Required Information per Element:**
+
+#### **Visual Elements:**
+- **Element Type**: Button, Card, Chart, Form, etc.
+- **Location**: Where it appears in the component hierarchy
+- **Content**: What data/text it displays and how it's sourced
+- **Styling**: CSS classes, Tailwind classes, inline styles
+- **Purpose**: What it represents and why it exists
+
+#### **Interactive Elements:**
+- **Trigger**: Click, hover, submit, change, etc.
+- **Event Handler**: Function/method called
+- **State Changes**: What state variables are updated
+- **Side Effects**: API calls, navigation, modal opens, toast messages
+- **UI Response**: What changes visually after interaction
+- **Validation**: Any input validation or error handling
+
+#### **Layout & Design:**
+- **Structure**: Grid/flexbox layout, component composition
+- **Responsive**: How it adapts to different screen sizes
+- **Accessibility**: ARIA labels, keyboard navigation, screen reader support
+- **Visual Hierarchy**: How elements are prioritized visually
+
+### **Output Format:**
+```
+## Comprehensive UI/UX Analysis for [ComponentName].tsx
+
+### Overview
+Brief description of the component's purpose, main features, and overall design approach.
+
+### [Section Name] (e.g., Header Section, Main Content, Sidebar, etc.)
+
+#### [Element Name] (e.g., "Save Button", "Revenue Chart", "Filter Dropdown")
+**Type**: `[Button/Card/Chart/etc.]`
+**Location**: `[Path in component hierarchy]`
+**Visual Design**:
+- Layout: `[Grid/Flexbox positioning]`
+- Styling: `[CSS classes and key styles]`
+- Content: `[What it displays and data source]`
+- Responsive: `[How it adapts to screen sizes]`
+
+**Interactions**:
+- **Primary Action**: `[Click/Hover/etc.]`
+  - Handler: `[functionName]`
+  - State Changes: `[what state updates]`
+  - Side Effects: `[API calls, navigation, etc.]`
+  - UI Response: `[visual changes after action]`
+
+- **Secondary Actions**: `[Other interactions if any]`
+  - [Same structure as primary]
+
+**Accessibility**:
+- ARIA Labels: `[aria-* attributes]`
+- Keyboard Support: `[Enter/Space/Tab handling]`
+- Screen Reader: `[alt text, role attributes]`
+
+#### [Next Element]
+... (continue for all elements)
+
+### Layout & Responsive Analysis
+**Overall Layout Structure**:
+- Container: `[Main layout approach]`
+- Grid/Flex System: `[How elements are arranged]`
+- Breakpoints: `[Responsive behavior at different sizes]`
+
+**Design System Usage**:
+- Components: `[shadcn/ui components used]`
+- Colors: `[Color scheme and variables]`
+- Typography: `[Font sizes, weights, hierarchy]`
+- Spacing: `[Margin/padding patterns]`
+
+### State Management & Data Flow
+**Component State**:
+- Local State: `[useState variables and purposes]`
+- Props: `[Received props and their usage]`
+- Context: `[Any context providers/consumers]`
+
+**Data Flow**:
+- Input: `[How data enters the component]`
+- Processing: `[Any transformations or calculations]`
+- Output: `[How data affects UI and interactions]`
+
+### User Experience Flow
+**Primary User Journey**:
+1. `[Step 1: User action and immediate response]`
+2. `[Step 2: State updates and side effects]`
+3. `[Step 3: Final UI state and feedback]`
+
+**Edge Cases**:
+- Loading States: `[How loading is handled]`
+- Error States: `[Error messages and recovery]`
+- Empty States: `[What shows when no data]`
+
+### Performance Considerations
+**Optimizations**:
+- Memoization: `[React.memo, useMemo, useCallback usage]`
+- Lazy Loading: `[Code splitting or lazy imports]`
+- Virtual Scrolling: `[For large lists]`
+
+**Potential Issues**:
+- Re-renders: `[What might cause unnecessary re-renders]`
+- Bundle Size: `[Heavy dependencies or large components]`
+```
+
+### **Final Summary:**
+```
+### UI/UX Analysis Summary for [ComponentName]
+- **Primary Purpose**: Brief statement of component's main function
+- **Key Interactions**: List of main user actions and their outcomes
+- **Design Patterns**: Notable UI/UX patterns used
+- **Accessibility Score**: Overall accessibility compliance level
+- **Performance Notes**: Any performance considerations or optimizations needed
+- **Improvement Suggestions**: Potential enhancements for better UX
+```
+
+### **Example Context to Provide:**
+When asking for analysis, provide:
+1. The component file content/attachment
+2. Reference to this template section
+3. Any specific areas of focus (optional)
+4. Screenshots or design references if available
+
+**Template Reference:** Use this section as the instruction set for performing comprehensive UI/UX analysis on any React component.
+
+---
+
+### 13.3 Component Navigation Analysis Template
+
+**Instructions for AI Assistant:**
+
+When I provide context of a specific component file (e.g., Dashboard.tsx, VehicleDetails.tsx, etc.) and reference this template, perform a **COMPREHENSIVE NAVIGATION ANALYSIS** with the following requirements:
+
+### **Analysis Scope:**
+- Analyze **ALL** navigation triggers (links, buttons, programmatic navigation)
+- Document **ALL** routing logic and redirection patterns
+- Trace **ALL** route parameters and dynamic segments
+- Cover **ALL** navigation guards and conditional redirects
+- Include **ALL** state management during navigation transitions
+- Document **ALL** URL changes and history manipulation
+- Analyze **ALL** breadcrumb navigation and back button behavior
+
+### **Tracing Methodology:**
+For each navigation element, show the complete flow:
+```
+User Action → Navigation Trigger → Route Resolution → State Transfer → URL Update → Component Mount
+Navigation Guards → Authentication Checks → Permission Validation → Redirection Logic
+```
+
+### **Required Information per Navigation Element:**
+
+#### **Navigation Triggers:**
+- **Trigger Type**: Link, Button, Programmatic, Form submission, etc.
+- **Trigger Location**: Where the navigation element appears in the UI
+- **Trigger Action**: Click, submit, programmatic call, etc.
+- **Navigation Method**: React Router navigate(), Link component, window.location, etc.
+
+#### **Route Configuration:**
+- **Target Route**: Destination path/URL pattern
+- **Route Parameters**: Dynamic segments and query parameters
+- **Route Guards**: Authentication, authorization, or custom guards
+- **Default Redirects**: Fallback routes for unauthorized access
+
+#### **State Management:**
+- **State Transfer**: What data is passed between routes
+- **URL State**: Query parameters, hash fragments, state objects
+- **Session Storage**: Data persisted across navigation
+- **Context Updates**: Global state changes during navigation
+
+#### **User Experience:**
+- **Loading States**: Navigation loading indicators
+- **Error Handling**: Failed navigation scenarios
+- **Back Button**: Browser back button behavior
+- **Deep Linking**: Direct URL access handling
+
+### **Output Format:**
+```
+## Comprehensive Navigation Analysis for [ComponentName].tsx
+
+### Overview
+Brief description of the component's navigation patterns, routing integration, and user flow management.
+
+### [Section Name] (e.g., Header Navigation, Action Buttons, Form Submissions, etc.)
+
+#### [Navigation Element Name] (e.g., "View Details Button", "Edit Link", "Save Form")
+**Trigger Type**: `[Link/Button/Programmatic/etc.]`
+**Location**: `[Where it appears in the component]`
+**Target Route**: `[Destination path or route name]`
+
+**Navigation Flow**:
+- **Trigger Action**: `[Click/submit/programmatic call]`
+  - Handler: `[functionName or inline handler]`
+  - Method: `[navigate(), Link, window.location, etc.]`
+  - Parameters: `[Route params, query params, state object]`
+
+- **Route Resolution**:
+  - Path: `[Actual URL pattern]`
+  - Guards: `[Authentication/permission checks]`
+  - Redirects: `[Conditional redirections]`
+
+- **State Transfer**:
+  - Props: `[Data passed via navigation state]`
+  - URL Params: `[Dynamic route parameters]`
+  - Query Strings: `[Additional query parameters]`
+  - Context: `[Global state updates]`
+
+**User Experience**:
+- Loading: `[Loading indicators during navigation]`
+- Errors: `[Error handling for failed navigation]`
+- Back Navigation: `[Browser back button behavior]`
+
+#### [Next Navigation Element]
+... (continue for all navigation elements)
+
+### Route Configuration Analysis
+**Component Routes**:
+- **Defined Routes**: `[Routes this component handles]`
+- **Nested Routes**: `[Child routes and layouts]`
+- **Index Routes**: `[Default child routes]`
+
+**Navigation Patterns**:
+- **Primary Flows**: `[Main user journeys through navigation]`
+- **Secondary Flows**: `[Alternative navigation paths]`
+- **Error Flows**: `[Navigation on errors or unauthorized access]`
+
+### State Management During Navigation
+**Data Persistence**:
+- **Route State**: `[useLocation.state usage]`
+- **URL State**: `[Query parameters and hash handling]`
+- **Session State**: `[Data stored in session/localStorage]`
+- **Context State**: `[Global context updates]`
+
+**State Synchronization**:
+- **Entry Sync**: `[State setup when entering route]`
+- **Exit Sync**: `[State cleanup when leaving route]`
+- **Cross-Route Sync**: `[State sharing between routes]`
+
+### Authentication & Authorization
+**Access Control**:
+- **Public Routes**: `[Routes accessible without authentication]`
+- **Protected Routes**: `[Routes requiring authentication]`
+- **Role-Based Access**: `[Routes restricted by user roles]`
+- **Permission Checks**: `[Specific permission validations]`
+
+**Redirection Logic**:
+- **Login Redirects**: `[Redirects for unauthenticated users]`
+- **Unauthorized Redirects**: `[Redirects for insufficient permissions]`
+- **Post-Login Redirects**: `[Return to intended destination after login]`
+
+### Performance & Optimization
+**Navigation Performance**:
+- **Lazy Loading**: `[Route-based code splitting]`
+- **Prefetching**: `[Data prefetching on navigation]`
+- **Caching**: `[Route/component caching strategies]`
+
+**Bundle Optimization**:
+- **Route Splitting**: `[How routes are split into chunks]`
+- **Shared Dependencies**: `[Common dependencies across routes]`
+```
+
+### **Final Summary:**
+```
+### Navigation Analysis Summary for [ComponentName]
+- **Navigation Complexity**: Assessment of navigation intricacy (Simple/Moderate/Complex)
+- **Route Coverage**: Percentage of component functionality involving navigation
+- **State Management**: Quality of state transfer during navigation
+- **User Experience**: Navigation intuitiveness and error handling
+- **Performance Impact**: Navigation-related performance considerations
+- **Security**: Authentication and authorization implementation quality
+- **Improvement Suggestions**: Potential navigation enhancements or optimizations
+```
+
+### **Example Context to Provide:**
+When asking for analysis, provide:
+1. The component file content/attachment
+2. Reference to this template section
+3. Any specific navigation flows to focus on (optional)
+4. Router configuration files if available (React Router setup)
+
+**Template Reference:** Use this section as the instruction set for performing comprehensive navigation analysis on any React component.

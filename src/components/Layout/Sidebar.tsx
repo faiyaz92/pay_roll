@@ -11,7 +11,8 @@ import {
   DollarSign,
   FileText,
   Shield,
-  UserPlus
+  UserPlus,
+  Calculator
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Vehicles', href: '/vehicles', icon: Car },
+  { name: 'Financial', href: '/financial', icon: Calculator },
   { name: 'Drivers', href: '/drivers', icon: Users },
   { name: 'Partners', href: '/partners', icon: UserPlus },
   { name: 'Assignments', href: '/assignments', icon: FileText },
