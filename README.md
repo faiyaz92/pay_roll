@@ -402,47 +402,326 @@ export const useFirestorePaths = (companyId?: string) => {
 
 ## Financial Formulas & Calculations
 
-### 5.1 Core Financial Calculations
+### 5.1 Data Sources & Field Documentation
 
-#### Total Investment Formula
-```
-Total Investment = Initial Investment + Prepayments + Total Operating Expenses + Total EMI Paid
+This section documents all visible data fields in the Analytics and Financial tabs, including their data sources, calculation formulas, and Firebase collection references.
 
-Where:
-- Initial Investment = Vehicle purchase price + registration + initial setup
-- Prepayments = Principal payments made upfront to reduce loan
-- Total Operating Expenses = Fuel + Maintenance + Insurance + Penalties (recurring costs)
-- Total EMI Paid = Sum of all EMI payments made (interest + principal)
-```
+#### Analytics Tab - Current Loan Status Card
 
-#### Total Return Formula
-```
-Total Return = Current Car Value + Total Earnings - Outstanding Loan
+**Prepayment (Principal)**
+- **Data Source**: `expenseData.vehicleExpenses` (Firebase: `expenses` collection)
+- **Filter Criteria**: `e.description.toLowerCase().includes('prepayment') || e.description.toLowerCase().includes('principal') || e.paymentType === 'prepayment' || e.type === 'prepayment'`
+- **Calculation**: `Sum of approved expenses matching prepayment criteria`
+- **Purpose**: Tracks principal payments made upfront to reduce loan balance
 
-Where:
-- Current Car Value = Initial Investment × (1 - depreciationRate)^operationalYears
-- Total Earnings = Sum of all rent payments received
-- Outstanding Loan = Remaining loan balance
-```
+**Principal (EMI)**
+- **Data Source**: Calculated from loan amortization simulation
+- **Formula**: `principalPaidFromEMI = Σ(principalPayment)` where `principalPayment = min(emiPerMonth - interestPayment, remainingBalance)`
+- **Variables**:
+  - `remainingBalance = vehicle.loanDetails.totalLoan - prepayments` (initially)
+  - `interestPayment = remainingBalance × monthlyRate`
+  - `monthlyRate = loanDetails.interestRate / 100 / 12`
+- **Purpose**: Cumulative principal portion of EMI payments made
 
-#### ROI (Return on Investment) Formula
-```
-ROI = (Total Return - Total Investment) / Total Investment × 100
+**Total Principal Paid**
+- **Formula**: `prepayments + principalPaidFromEMI`
+- **Purpose**: Total principal reduction achieved through prepayments + EMI principal payments
 
-Where:
-- Positive ROI = Profit (Total Return > Total Investment)
-- Negative ROI = Loss (Total Return < Total Investment)
-- Break-even = ROI = 0 (Total Return = Total Investment)
-```
+**Interest (EMI)**
+- **Data Source**: Calculated from loan amortization simulation
+- **Formula**: `interestPaidTillDate = Σ(remainingBalance × monthlyRate)` for each EMI period
+- **Purpose**: Cumulative interest portion paid through EMI payments
 
-#### Monthly Profit Formula
-```
-Monthly Profit = Monthly Rent - Monthly Operating Expenses
+**Total Loan Paid Till Date (with interest)**
+- **Formula**: `principalPaidFromEMI + interestPaidTillDate`
+- **Purpose**: Total amount paid towards loan through EMI payments (principal + interest)
 
-Where:
-- Monthly Rent = (Weekly Rent × 52) / 12
-- Monthly Operating Expenses = Average monthly recurring expenses
-```
+**Total EMI Paid Till Date**
+- **Formula**: `principalPaidFromEMI + interestPaidTillDate` (same as above)
+- **Purpose**: Total EMI payments made (equivalent to Total Loan Paid Till Date)
+
+**Outstanding Loan Amount**
+- **Data Source**: `financialData.outstandingLoan` (calculated in useFirebaseData hook)
+- **Formula**: `outstandingLoan = totalLoan - totalEmiPaid - prepayments`
+- **Purpose**: Remaining loan balance after all payments
+
+#### Analytics Tab - Loan Projection Card
+
+**Prepayment**
+- **Same as Current Loan Status "Prepayment (Principal)"**
+- **Purpose**: Shows prepayments in projection context
+
+**Principal (EMI)**
+- **Data Source**: Calculated from projection simulation for selected years
+- **Formula**: `principalPaidFromEMI = Σ(principalPayment)` over projection period
+- **Variables**: Same amortization logic as current status, but only for projection timeframe
+- **Purpose**: Principal portion that will be paid through EMIs in the projection period
+
+**Total Principal Paid**
+- **Formula**: `prepayments + principalPaidFromEMI` (projection)
+- **Purpose**: Total principal reduction after projection period
+
+**Interest (EMI)**
+- **Data Source**: Calculated from projection simulation
+- **Formula**: `interestPaidInPeriod = Σ(remainingBalance × monthlyRate)` over projection period
+- **Purpose**: Interest that will be paid through EMIs in the projection period
+
+**Total Loan Paid After X Year(s) (with interest)**
+- **Formula**: `prepayments + principalPaidFromEMI + interestPaidInPeriod`
+- **Purpose**: Total amount paid towards loan after projection period (all components)
+
+**Total EMI (X Year(s))**
+- **Formula**: `principalPaidFromEMI + interestPaidInPeriod`
+- **Purpose**: Total EMI payments that will be made in the projection period
+
+**Outstanding After X Year(s)**
+- **Formula**: `max(0, remainingBalance)` after projection simulation
+- **Purpose**: Loan balance remaining after projection period
+
+#### Financial Tab - Investment & Returns Card
+
+**Initial investment**
+- **Data Source**: `vehicle.initialInvestment || vehicle.initialCost` (Firebase: `vehicles` collection)
+- **Purpose**: Original purchase price of the vehicle
+
+**Prepayment**
+- **Same as Analytics "Prepayment (Principal)"**
+- **Purpose**: Principal payments made upfront
+
+**Total expenses**
+- **Data Source**: `expenseData.totalExpenses` (calculated in useFirebaseData hook)
+- **Formula**: Sum of all approved vehicle expenses excluding prepayments
+- **Purpose**: Total operational costs incurred
+
+**Total investment**
+- **Formula**: `initialInvestment + prepayments + totalExpenses`
+- **Purpose**: Complete capital invested in the vehicle
+
+**Total Earnings**
+- **Data Source**: `financialData.totalEarnings` (calculated in useFirebaseData hook)
+- **Formula**: Sum of all paid rent collections for the vehicle
+- **Firebase Source**: `payments` collection, filtered by `vehicleId` and `status === 'paid'`
+- **Purpose**: Total revenue generated from vehicle rental
+
+**Current Vehicle Value**
+- **Data Source**: `vehicle.residualValue` (Firebase: `vehicles` collection)
+- **Fallback Calculation**: `initialInvestment × (1 - depreciationRate)^operationalYears`
+- **Variables**:
+  - `depreciationRate = vehicle.depreciationRate || 10` (% per year)
+  - `operationalYears = max(1, currentYear - purchaseYear + 1)`
+- **Purpose**: Current market value of the vehicle after depreciation
+
+**Outstanding Loan**
+- **Same as Analytics "Outstanding Loan Amount"**
+- **Purpose**: Remaining loan balance
+
+**Total Return**
+- **Formula**: `currentVehicleValue + totalEarnings - outstandingLoan`
+- **Purpose**: Net financial return from the investment
+
+**Investment Status**
+- **Data Source**: `financialData.isInvestmentCovered` (calculated in useFirebaseData)
+- **Formula**: `totalReturn >= totalInvestment`
+- **Display**: Badge showing "Investment Covered" when true
+- **Purpose**: Indicates if the vehicle investment has been recovered
+
+**ROI**
+- **Formula**: `((totalReturn - totalInvestment) / totalInvestment) × 100`
+- **Purpose**: Return on investment percentage
+
+**Total Net Cash Flow**
+- **Formula**: `totalEarnings - totalOperatingExpenses`
+- **Purpose**: Net cash generated from operations
+
+**Profit/Loss**
+- **Formula**: `(totalReturn - totalInvestment)` with percentage
+- **Percentage**: `(profitLoss / totalInvestment) × 100`
+- **Purpose**: Net profit or loss from the vehicle investment
+
+#### Financial Tab - Monthly Breakdown Card
+
+**Monthly Earnings**
+- **Data Source**: `firebasePayments` (Firebase: `payments` collection)
+- **Filter**: `vehicleId === vehicleId && status === 'paid' && new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart && new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd`
+- **Formula**: `Sum of amountPaid for matching payments`
+- **Purpose**: Revenue earned in the selected month
+
+**Monthly Expenses**
+- **Data Source**: `expenseData.vehicleExpenses` (Firebase: `expenses` collection)
+- **Filter**: `vehicleId === vehicleId && status === 'approved' && new Date(e.date || e.createdAt) >= monthStart && new Date(e.date || e.createdAt) <= monthEnd`
+- **Formula**: `Sum of amount for matching expenses`
+- **Purpose**: Operational costs incurred in the selected month
+
+**Monthly EMI**
+- **Data Source**: `vehicle.loanDetails.emiPerMonth` (Firebase: `vehicles.loanDetails`)
+- **Purpose**: Monthly loan installment amount
+
+**Net Operating Profit**
+- **Formula**: `monthlyEarnings - monthlyExpenses`
+- **Purpose**: Profit before EMI deduction
+
+**After EMI Deduction**
+- **Formula**: `netOperatingProfit - monthlyEMI` (if financed)
+- **Purpose**: Profit after loan payment
+
+**Yearly Profit (Est.)**
+- **Formula**: `netOperatingProfit × 12`
+- **Purpose**: Estimated annual profit based on monthly performance
+
+#### Financial Tab - Historical Averages
+
+**Monthly Earnings**
+- **Data Source**: `financialData.isCurrentlyRented ? financialData.monthlyRent : 0`
+- **Formula**: `(weeklyRent * 52) / 12` (calculated in useFirebaseData)
+- **Purpose**: Average monthly revenue
+
+**Monthly Expenses (Avg.)**
+- **Data Source**: `financialData.monthlyExpenses` (calculated in useFirebaseData)
+- **Formula**: `totalExpenses / operationalMonths`
+- **Purpose**: Average monthly operational costs
+
+**Monthly EMI**
+- **Same as Monthly Breakdown "Monthly EMI"**
+- **Purpose**: Monthly loan installment (same value)
+
+**Net Operating Profit**
+- **Formula**: `monthlyEarnings - monthlyExpenses` (using averages)
+- **Purpose**: Average monthly profit before EMI
+
+**After EMI Deduction**
+- **Formula**: `netOperatingProfit - monthlyEMI` (using averages)
+- **Purpose**: Average monthly profit after EMI
+
+**Yearly Profit (Est.)**
+- **Formula**: `netOperatingProfit × 12` (using averages)
+- **Purpose**: Estimated annual profit from averages
+
+#### Financial Tab - Performance Comparison
+
+**Earnings Comparison**
+- **Formula**: `currentMonthEarnings >= historicalAverage ? '↑ Above Avg' : '↓ Below Avg'`
+- **Purpose**: Performance indicator vs historical average
+
+**Expenses Comparison**
+- **Formula**: `currentMonthExpenses <= historicalAverage ? '↓ Below Avg' : '↑ Above Avg'`
+- **Purpose**: Cost efficiency indicator
+
+**Profit Comparison**
+- **Formula**: `currentMonthData.netOperatingProfit >= financialData.monthlyProfit ? '↑ Above Avg' : '↓ Below Avg'`
+- **Purpose**: Profitability performance indicator
+
+#### Financial Tab - Monthly Net Cash Flow
+
+**Monthly Net Cash Flow**
+- **Data Source**: `historicalMonthlyNetCashFlow` (calculated in useFirebaseData)
+- **Formula**: `(totalEarnings - totalExpenses) / operationalMonths`
+- **Purpose**: Average monthly cash flow from operations
+
+#### Financial Tab - Loan Details
+
+**Original Loan**
+- **Data Source**: `vehicle.loanDetails.totalLoan` (Firebase: `vehicles.loanDetails`)
+- **Purpose**: Total loan amount sanctioned
+
+**Outstanding Balance**
+- **Same as Analytics "Outstanding Loan Amount"**
+- **Purpose**: Remaining loan balance
+
+**EMIs Paid**
+- **Data Source**: `vehicle.loanDetails.paidInstallments?.length` (count)
+- **Amount**: `financialData.totalEmiPaid` (total amount paid)
+- **Formula**: `paidInstallments.length + ' / ' + totalInstallments`
+- **Purpose**: EMI payment progress
+
+**Next EMI Due**
+- **Data Source**: `financialData.nextEMIDue` (calculated in useFirebaseData)
+- **Days Until**: `financialData.daysUntilEMI`
+- **Purpose**: Next payment schedule information
+
+#### Financial Tab - Prepayment Calculator
+
+**Outstanding**
+- **Same as Analytics "Outstanding Loan Amount"**
+- **Purpose**: Current loan balance for prepayment calculation
+
+**Prepayment Amount**
+- **Data Source**: User input (`prepaymentAmount` state)
+- **Purpose**: Amount user wants to prepay
+
+**New Outstanding**
+- **Formula**: `outstandingLoan - prepaymentAmount`
+- **Purpose**: Loan balance after prepayment
+
+**Tenure Reduction**
+- **Formula**: `currentTenureMonths - newTenureMonths`
+- **Calculation**: Recalculates EMI schedule with reduced principal
+- **Purpose**: Months saved from loan tenure
+
+**Interest Savings**
+- **Formula**: `(originalTotalPayments - outstandingLoan) - (newTotalPayments - newOutstanding)`
+- **Purpose**: Interest amount saved due to reduced tenure
+
+#### Financial Tab - Total Returns Breakdown
+
+**Current Car Value**
+- **Data Source**: Calculated inline in component
+- **Formula**: `initialValue × (1 - depreciationPerYear)^operationalYears`
+- **Variables**:
+  - `initialValue = vehicle.initialInvestment || vehicle.initialCost || 0`
+  - `depreciationPerYear = (vehicle.depreciationRate ?? 10) / 100`
+  - `operationalYears = max(1, currentYear - purchaseYear + 1)`
+  - `purchaseYear = vehicle.year || currentYear`
+- **Purpose**: Calculated depreciated value of the vehicle
+
+**Total Earnings**
+- **Same as Investment & Returns "Total Earnings"**
+- **Purpose**: Revenue contribution to returns
+
+**Outstanding Loan**
+- **Same as Analytics "Outstanding Loan Amount"**
+- **Purpose**: Liability deduction from returns
+
+**Total Returns**
+- **Same as Investment & Returns "Total Return"**
+- **Purpose**: Net financial return
+
+#### Financial Tab - Total Expenses Breakdown
+
+**Fuel Expenses**
+- **Data Source**: `expenseData.fuelExpenses` (calculated in useFirebaseData)
+- **Filter**: `expenseType === 'fuel' || description.includes('fuel') || description.includes('petrol') || description.includes('diesel')`
+- **Purpose**: Fuel costs incurred
+
+**Maintenance**
+- **Data Source**: `expenseData.maintenanceExpenses` (calculated in useFirebaseData)
+- **Filter**: `expenseType === 'maintenance' || type === 'maintenance' || description.includes('maintenance') || description.includes('repair') || description.includes('service')`
+- **Purpose**: Vehicle maintenance and repair costs
+
+**Insurance**
+- **Data Source**: `expenseData.insuranceExpenses` (calculated in useFirebaseData)
+- **Filter**: `expenseType === 'insurance' || type === 'insurance' || description.includes('insurance')`
+- **Purpose**: Insurance premium payments
+
+**Penalties**
+- **Data Source**: `expenseData.penaltyExpenses` (calculated in useFirebaseData)
+- **Filter**: `expenseType === 'penalties' || type === 'penalties' || description.includes('penalty') || description.includes('fine')`
+- **Purpose**: Traffic fines and penalties
+
+**EMI Payments**
+- **Data Source**: `expenseData.emiPayments` (calculated in useFirebaseData)
+- **Filter**: `paymentType === 'emi' || type === 'emi' || description.includes('emi')`
+- **Purpose**: Loan installment payments
+
+**Other Expenses**
+- **Formula**: `totalExpenses - (fuelExpenses + maintenanceExpenses + insuranceExpenses + penaltyExpenses + emiPayments)`
+- **Purpose**: Miscellaneous expenses not categorized above
+
+**Total Expenses**
+- **Data Source**: `expenseData.totalExpenses`
+- **Formula**: Sum of all approved vehicle expenses excluding prepayments
+- **Purpose**: Complete operational cost tracking
+
+### 5.2 Core Financial Calculations
 
 ### 5.2 Advanced Financial Projections (`calculateProjection` Function)
 
@@ -760,6 +1039,441 @@ const currentDepreciatedCarValue = initialCarValue * Math.pow((1 - depreciationP
 const depreciationPerMonth = depreciationRate / 100 / 12;
 const monthlyDepreciatedValue = initialCarValue * Math.pow((1 - depreciationPerMonth), operationalMonths);
 ```
+
+---
+
+## 📊 Complete Data Fields & Formulas Documentation
+
+This section provides comprehensive documentation of ALL data fields, labels, and formulas used throughout the application, organized by page/component.
+
+### Dashboard Page Data Fields
+
+#### Key Metrics Cards
+**Monthly Revenue**
+- **Data Source**: `payments` collection (Firebase)
+- **Filter**: `status === 'paid' && paidAt/collectionDate >= currentMonthStart && <= currentMonthEnd`
+- **Formula**: `Sum of amountPaid for filtered payments`
+- **Purpose**: Total rent collected in current month
+
+**Monthly Profit**
+- **Data Source**: Calculated from payments and expenses
+- **Formula**: `monthlyRevenue - totalMonthlyExpenses`
+- **Purpose**: Net profit for current month
+
+**Fleet Utilization**
+- **Data Source**: `vehicles` collection (Firebase)
+- **Formula**: `(rentedVehicles / totalVehicles) × 100`
+- **Variables**:
+  - `rentedVehicles = vehicles.filter(v => v.status === 'rented').length`
+  - `totalVehicles = vehicles.length`
+- **Purpose**: Percentage of fleet currently rented
+
+**Active Assignments**
+- **Data Source**: `assignments` collection (Firebase)
+- **Filter**: `status === 'active'`
+- **Formula**: `Count of active assignments`
+- **Purpose**: Number of currently active rental agreements
+
+#### Fleet Status Overview
+**Available Vehicles**
+- **Data Source**: `vehicles` collection
+- **Filter**: `status === 'available'`
+- **Formula**: `Count of available vehicles`
+- **Purpose**: Vehicles ready for rental
+
+**Rented Vehicles**
+- **Data Source**: `vehicles` collection
+- **Filter**: `status === 'rented'`
+- **Formula**: `Count of rented vehicles`
+- **Purpose**: Vehicles currently in use
+
+**Maintenance Vehicles**
+- **Data Source**: `vehicles` collection
+- **Filter**: `status === 'maintenance'`
+- **Formula**: `Count of maintenance vehicles`
+- **Purpose**: Vehicles undergoing repairs
+
+#### Monthly Financial Breakdown
+**Revenue**
+- **Same as Monthly Revenue above**
+- **Purpose**: Income from rentals
+
+**Fuel Expenses**
+- **Data Source**: `expenses` collection
+- **Filter**: `status === 'approved' && createdAt >= currentMonth && (expenseType === 'fuel' || description.includes('fuel'))`
+- **Formula**: `Sum of amount for filtered expenses`
+- **Purpose**: Fuel costs incurred
+
+**Maintenance Expenses**
+- **Data Source**: `expenses` collection
+- **Filter**: `status === 'approved' && createdAt >= currentMonth && (expenseType === 'maintenance' || type === 'maintenance')`
+- **Formula**: `Sum of amount for filtered expenses`
+- **Purpose**: Repair and maintenance costs
+
+**Insurance Expenses**
+- **Data Source**: `expenses` collection
+- **Filter**: `status === 'approved' && createdAt >= currentMonth && (expenseType === 'insurance' || type === 'insurance')`
+- **Formula**: `Sum of amount for filtered expenses`
+- **Purpose**: Insurance premium payments
+
+**Other Expenses**
+- **Formula**: `totalMonthlyExpenses - (fuelExpenses + maintenanceExpenses + insuranceExpenses)`
+- **Purpose**: Miscellaneous operational costs
+
+**Net Profit**
+- **Formula**: `monthlyRevenue - totalMonthlyExpenses`
+- **Purpose**: Bottom-line profit figure
+
+#### Recent Activities
+**Payment Transactions**
+- **Data Source**: `payments` collection
+- **Filter**: `status === 'paid'`
+- **Display**: `+amountPaid` with description "Rent collected from Driver"
+- **Purpose**: Income transaction history
+
+**Expense Transactions**
+- **Data Source**: `expenses` collection
+- **Filter**: `status === 'approved'`
+- **Display**: `-amount` with expense description
+- **Purpose**: Cost transaction history
+
+### Vehicles Page Data Fields
+
+#### Vehicle List Cards
+**Initial Investment**
+- **Data Source**: `vehicle.initialInvestment || vehicle.initialCost` (Firebase: `vehicles`)
+- **Purpose**: Original purchase price
+
+**Monthly Revenue**
+- **Data Source**: Calculated from current assignment
+- **Formula**: `(assignment.weeklyRent × 52) ÷ 12`
+- **Purpose**: Expected monthly rental income
+
+**Total Earnings**
+- **Data Source**: `vehicle.financialData.totalEarnings`
+- **Formula**: Sum of all paid payments for this vehicle
+- **Purpose**: Lifetime revenue generated
+
+**Outstanding Loan**
+- **Data Source**: `vehicle.financialData.outstandingLoan`
+- **Formula**: `totalLoan - totalEmiPaid - prepayments`
+- **Purpose**: Remaining loan balance
+
+### Assignments Page Data Fields
+
+#### Summary Cards
+**Total Monthly Revenue**
+- **Data Source**: `assignments` collection
+- **Filter**: `status === 'active'`
+- **Formula**: `Sum of ((assignment.weeklyRent × 52) ÷ 12) for active assignments`
+- **Purpose**: Combined monthly rental income
+
+#### Assignment Cards
+**Weekly Rent**
+- **Data Source**: `assignment.weeklyRent` (Firebase: `assignments`)
+- **Purpose**: Weekly rental amount
+
+**Monthly Rent**
+- **Data Source**: Calculated
+- **Formula**: `(weeklyRent × 52) ÷ 12`
+- **Purpose**: Monthly equivalent
+
+**Total Earnings**
+- **Data Source**: Calculated from payments
+- **Formula**: `Sum of amountPaid for payments linked to this assignment`
+- **Purpose**: Revenue generated by this assignment
+
+### Payments Page Data Fields
+
+#### Summary Cards
+**Total Received**
+- **Data Source**: `payments` collection
+- **Filter**: `status === 'paid'`
+- **Formula**: `Sum of amountPaid`
+- **Purpose**: Total rent collected
+
+**Total Paid**
+- **Data Source**: `expenses` collection
+- **Filter**: `status === 'approved'`
+- **Formula**: `Sum of amount`
+- **Purpose**: Total expenses incurred
+
+**Pending Received**
+- **Data Source**: `payments` collection
+- **Filter**: `status === 'due' || status === 'overdue'`
+- **Formula**: `Sum of amountPaid`
+- **Purpose**: Outstanding receivables
+
+**Net Cash Flow**
+- **Formula**: `totalReceived - totalPaid`
+- **Purpose**: Net financial position
+
+#### Transaction List
+**Transaction Amount**
+- **Display**: `+amount` for received, `-amount` for paid
+- **Purpose**: Individual transaction values
+
+### Drivers Page Data Fields
+
+#### Driver Cards
+**Weekly Rent**
+- **Data Source**: Calculated from active assignment
+- **Formula**: `assignment.weeklyRent` for driver's current vehicle
+- **Purpose**: Driver's weekly payment amount
+
+### Fuel Records Page Data Fields
+
+#### Summary Cards
+**Total Fuel Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'fuel' || description.includes('fuel')`
+- **Formula**: `Sum of amount`
+- **Purpose**: Total fuel expenditure
+
+**This Month Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'fuel' && createdAt >= currentMonth`
+- **Formula**: `Sum of amount`
+- **Purpose**: Current month fuel costs
+
+**Average Cost per Record**
+- **Formula**: `totalFuelCost ÷ numberOfFuelRecords`
+- **Purpose**: Average fuel expense per transaction
+
+#### Fuel Record Items
+**Amount**
+- **Data Source**: `expense.amount`
+- **Display**: `₹amount` (can be negative for refunds)
+- **Purpose**: Individual fuel transaction amounts
+
+### Maintenance Records Page Data Fields
+
+#### Summary Cards
+**Total Maintenance Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'maintenance' || type === 'maintenance'`
+- **Formula**: `Sum of amount`
+- **Purpose**: Total maintenance expenditure
+
+**This Month Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'maintenance' && createdAt >= currentMonth`
+- **Formula**: `Sum of amount`
+- **Purpose**: Current month maintenance costs
+
+**Average Cost per Record**
+- **Formula**: `totalMaintenanceCost ÷ numberOfMaintenanceRecords`
+- **Purpose**: Average maintenance expense per transaction
+
+#### Maintenance Record Items
+**Amount**
+- **Data Source**: `expense.amount`
+- **Display**: `₹amount` (can be negative for refunds)
+- **Purpose**: Individual maintenance transaction amounts
+
+### Insurance Page Data Fields
+
+#### Summary Cards
+**Total Insurance Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'insurance' || type === 'insurance'`
+- **Formula**: `Sum of amount`
+- **Purpose**: Total insurance expenditure
+
+**This Month Cost**
+- **Data Source**: `expenses` collection
+- **Filter**: `expenseType === 'insurance' && createdAt >= currentMonth`
+- **Formula**: `Sum of amount`
+- **Purpose**: Current month insurance costs
+
+**Average Cost per Record**
+- **Formula**: `totalInsuranceCost ÷ numberOfInsuranceRecords`
+- **Purpose**: Average insurance expense per transaction
+
+#### Insurance Record Items
+**Amount**
+- **Data Source**: `expense.amount`
+- **Display**: `₹amount` (can be negative for refunds)
+- **Purpose**: Individual insurance transaction amounts
+
+### Vehicle Details Page Data Fields
+
+#### Overview Tab
+**EMI Amount**
+- **Data Source**: `vehicle.loanDetails.emiPerMonth`
+- **Purpose**: Monthly loan installment
+
+#### Expense Proration Preview
+**Proration Amount**
+- **Formula**: `totalAmount ÷ coverageMonths`
+- **Purpose**: Monthly expense allocation
+
+### Driver Details Page Data Fields
+
+#### Analytics Cards
+**Total Paid**
+- **Data Source**: `payments` collection
+- **Filter**: `driverId === driver.id && status === 'paid'`
+- **Formula**: `Sum of amountPaid`
+- **Purpose**: Total payments received from driver
+
+**Total Due**
+- **Data Source**: `payments` collection
+- **Filter**: `driverId === driver.id && (status === 'due' || status === 'overdue')`
+- **Formula**: `Sum of amountPaid`
+- **Purpose**: Outstanding amounts from driver
+
+**Next Due Amount**
+- **Data Source**: Next pending payment
+- **Formula**: `amountPaid` of next due payment
+- **Purpose**: Upcoming payment amount
+
+#### Assignment Cards
+**Weekly Rent**
+- **Data Source**: `assignment.weeklyRent`
+- **Purpose**: Weekly rental rate
+
+#### Payment History
+**Payment Amount**
+- **Data Source**: `payment.amountPaid`
+- **Purpose**: Individual payment received
+
+### Assignment Details Page Data Fields
+
+#### Earnings Cards
+**Total Paid**
+- **Data Source**: `payments` collection
+- **Filter**: Linked to this assignment
+- **Formula**: `Sum of amountPaid`
+- **Purpose**: Revenue from this assignment
+
+**Total Due**
+- **Data Source**: Pending payments for this assignment
+- **Formula**: `Sum of amountPaid for due payments`
+- **Purpose**: Outstanding receivables
+
+**Projected Earnings**
+- **Data Source**: Calculated based on remaining term
+- **Formula**: `weeklyRent × remainingWeeks`
+- **Purpose**: Expected future revenue
+
+#### Assignment Details
+**Daily Rent**
+- **Data Source**: `assignment.dailyRent`
+- **Purpose**: Daily rental rate
+
+**Weekly Rent**
+- **Data Source**: `assignment.weeklyRent`
+- **Purpose**: Weekly rental rate
+
+**Monthly Rent**
+- **Formula**: `(weeklyRent × 52) ÷ 12`
+- **Purpose**: Monthly equivalent
+
+**Total Earnings**
+- **Formula**: `Sum of all payments for this assignment`
+- **Purpose**: Lifetime revenue
+
+#### Weekly Breakdown
+**Week Amount**
+- **Data Source**: Calculated weekly earnings
+- **Formula**: `weeklyRent × numberOfWeeksInPeriod`
+- **Purpose**: Revenue for specific week
+
+### Analytics Tab Data Fields
+
+#### Current Performance Cards
+**Monthly Rent**
+- **Data Source**: `financialData.monthlyRent`
+- **Formula**: `(currentAssignment.weeklyRent × 52) ÷ 12`
+- **Purpose**: Current monthly rental income
+
+**Average Monthly Profit**
+- **Data Source**: `financialData.avgMonthlyProfit`
+- **Formula**: `monthlyRent - monthlyExpenses`
+- **Purpose**: Expected monthly profit
+
+**Projected Yearly Profit**
+- **Data Source**: `financialData.projectedYearlyProfit`
+- **Formula**: `avgMonthlyProfit × 12`
+- **Purpose**: Annual profit projection
+
+#### Projection Breakdown Cards
+**Initial Investment**
+- **Data Source**: `vehicle.initialInvestment || vehicle.initialCost`
+- **Purpose**: Original capital invested
+
+**Prepayments**
+- **Data Source**: `expenseData.prepayments`
+- **Formula**: Sum of principal payments
+- **Purpose**: Principal reductions made
+
+**Projected Earnings**
+- **Data Source**: Calculated projection
+- **Formula**: `monthlyRent × 12 × years`
+- **Purpose**: Future revenue projection
+
+**Projected Depreciated Car Value**
+- **Data Source**: Calculated projection
+- **Formula**: `initialValue × (1 - depreciationRate)^years`
+- **Purpose**: Future asset value
+
+**Projected Operating Expenses**
+- **Data Source**: Calculated projection
+- **Formula**: `monthlyExpenses × 12 × years`
+- **Purpose**: Future cost projection
+
+**Fixed Investment**
+- **Formula**: `initialInvestment + prepayments`
+- **Purpose**: Non-growing capital investment
+
+**Projected Total Return**
+- **Formula**: `projectedEarnings + projectedDepreciatedCarValue - projectedOutstandingLoan`
+- **Purpose**: Future total return
+
+**Projected Net Cash Flow**
+- **Formula**: `projectedEarnings - projectedOperatingExpenses`
+- **Purpose**: Future cash flow
+
+**Projected Profit/Loss**
+- **Formula**: `projectedTotalReturn - fixedInvestment`
+- **Purpose**: Future profitability
+
+#### Loan Analysis Cards
+**Average Payment per Transaction**
+- **Formula**: `(totalEarnings - totalExpenses) ÷ numberOfPaidPayments`
+- **Purpose**: Average revenue per payment
+
+**Outstanding Loan**
+- **Data Source**: `financialData.outstandingLoan`
+- **Purpose**: Current loan balance
+
+**Current EMI**
+- **Data Source**: `vehicle.loanDetails.emiPerMonth`
+- **Purpose**: Current monthly installment
+
+**Increased EMI**
+- **Data Source**: User input for scenario analysis
+- **Purpose**: Hypothetical higher EMI
+
+**Additional Monthly Payment**
+- **Formula**: `increasedEMI - currentEMI`
+- **Purpose**: Extra monthly cost
+
+#### Partner Projection Cards
+**Partner Earnings**
+- **Data Source**: Calculated partner share
+- **Formula**: `totalEarnings × partnerPercentage`
+- **Purpose**: Partner's revenue share
+
+**Owner Earnings**
+- **Data Source**: Calculated owner share
+- **Formula**: `totalEarnings × (1 - partnerPercentage)`
+- **Purpose**: Owner's revenue share
+
+**Total Earnings**
+- **Formula**: `partnerEarnings + ownerEarnings`
+- **Purpose**: Combined revenue
 
 ---
 
