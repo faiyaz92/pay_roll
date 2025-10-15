@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Calculator, AlertTriangle } from 'lucide-react';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
@@ -326,6 +327,14 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
                   Calculate how prepayment reduces your loan tenure
                 </p>
               </div>
+
+              <Alert className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>Important:</strong> Make prepayments before paying the current month's EMI to avoid restructuring an already paid installment.
+                </AlertDescription>
+              </Alert>
+
               <div>
                 <Label htmlFor="prepayment">Prepayment Amount (₹)</Label>
                 <Input

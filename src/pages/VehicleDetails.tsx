@@ -567,21 +567,31 @@ const VehicleDetails: React.FC = () => {
       const newOutstanding = outstandingLoan - amount;
       const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
 
-      // Calculate current remaining tenure with existing outstanding
-      let currentTenure = 0;
+      // Get current loan details
+      const totalInstallments = vehicle.loanDetails?.totalInstallments || 0;
+      const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
+      const remainingInstallments = totalInstallments - paidInstallments;
+
+      // Calculate current remaining tenure (only for unpaid EMIs)
+      let currentTenure = remainingInstallments;
       let tempOutstanding = outstandingLoan;
-      while (tempOutstanding > 0 && currentTenure < 360) {
-        const interest = tempOutstanding * monthlyRate;
-        const principal = Math.min(emiPerMonth - interest, tempOutstanding);
-        tempOutstanding -= principal;
-        currentTenure++;
-        if (principal <= 0 || tempOutstanding <= 0) break;
+
+      // If there are still EMIs to pay, calculate exact remaining tenure
+      if (remainingInstallments > 0) {
+        currentTenure = 0;
+        while (tempOutstanding > 0 && currentTenure < remainingInstallments) {
+          const interest = tempOutstanding * monthlyRate;
+          const principal = Math.min(emiPerMonth - interest, tempOutstanding);
+          tempOutstanding -= principal;
+          currentTenure++;
+          if (principal <= 0 || tempOutstanding <= 0) break;
+        }
       }
 
-      // Calculate new tenure with reduced principal
+      // Calculate new tenure with reduced principal (only for remaining EMIs)
       let newTenure = 0;
       let tempOutstandingNew = newOutstanding;
-      while (tempOutstandingNew > 0 && newTenure < 360) {
+      while (tempOutstandingNew > 0 && newTenure < remainingInstallments) {
         const interest = tempOutstandingNew * monthlyRate;
         const principal = Math.min(emiPerMonth - interest, tempOutstandingNew);
         tempOutstandingNew -= principal;
@@ -591,7 +601,7 @@ const VehicleDetails: React.FC = () => {
 
       const tenureReduction = Math.max(0, currentTenure - newTenure);
 
-      // Calculate interest savings correctly
+      // Calculate interest savings correctly (only for remaining EMIs)
       const originalTotalPayments = currentTenure * emiPerMonth;
       const originalInterest = originalTotalPayments - outstandingLoan;
 
@@ -635,32 +645,35 @@ const VehicleDetails: React.FC = () => {
     const monthlyRate = interestRate / 12 / 100;
     const newSchedule = [];
     let outstanding = newOutstanding;
-    
-    // Find the last paid installment to continue from there
-    const lastPaidIndex = currentSchedule.findLastIndex(item => item.isPaid);
-    const nextMonthNumber = lastPaidIndex >= 0 ? currentSchedule[lastPaidIndex].month + 1 : 1;
-    
-    // Get the due date for the next installment
-    let nextDueDate: Date;
-    if (lastPaidIndex >= 0 && currentSchedule[lastPaidIndex].paidAt) {
-      nextDueDate = new Date(currentSchedule[lastPaidIndex].paidAt);
-      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+
+    // Create a completely fresh loan schedule starting from EMI 1
+    // Ignore all previous payment history - treat remaining balance as new loan
+    let month = 1;
+
+    // Set the due date for the first installment
+    // Use the original EMI due date or current date + 1 month
+    let firstDueDate: Date;
+    if (vehicle.loanDetails?.emiDueDate) {
+      firstDueDate = new Date();
+      firstDueDate.setDate(vehicle.loanDetails.emiDueDate);
+      // If the due date for this month has passed, set it to next month
+      if (firstDueDate < new Date()) {
+        firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+      }
     } else {
-      // Fallback to current date if no paid installments
-      nextDueDate = new Date();
-      nextDueDate.setDate(vehicle.loanDetails?.emiDueDate || 1);
+      firstDueDate = new Date();
+      firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+      firstDueDate.setDate(1);
     }
 
-    let month = nextMonthNumber;
-    
-    // Generate new schedule with reduced principal
-    while (outstanding > 0 && month <= 360) { // Max 30 years from current point
+    // Generate new schedule starting from EMI 1 with fresh loan structure
+    while (outstanding > 0 && month <= 360) { // Max 30 years
       const interest = outstanding * monthlyRate;
       const principal = Math.min(emiPerMonth - interest, outstanding);
       outstanding -= principal;
 
-      const dueDate = new Date(nextDueDate);
-      dueDate.setMonth(nextDueDate.getMonth() + (month - nextMonthNumber));
+      const dueDate = new Date(firstDueDate);
+      dueDate.setMonth(firstDueDate.getMonth() + (month - 1));
 
       newSchedule.push({
         month,
@@ -673,7 +686,7 @@ const VehicleDetails: React.FC = () => {
       });
 
       month++;
-      
+
       if (outstanding <= 0) break;
     }
 

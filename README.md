@@ -28,6 +28,7 @@
    - 4.4 [Authentication Context](#44-authentication-context-authcontext)
 5. [Financial Formulas & Calculations](#financial-formulas--calculations)
    - 5.1 [Data Sources & Field Documentation](#51-data-sources--field-documentation)
+   - 5.1.4 [Expense Management Hierarchy](#514-expense-management-hierarchy)
    - 5.2 [Core Financial Calculations](#52-core-financial-calculations)
    - 5.3 [Bulk Payment System](#53-bulk-payment-system)
    - 5.4 [Financial Analytics Tab](#54-financial-analytics-tab)
@@ -78,10 +79,23 @@
     - 13.1 [Component Data Source Tracing Template](#131-component-data-source-tracing-template)
     - 13.2 [Component UI/UX Analysis Template](#132-component-uiux-analysis-template)
     - 13.3 [Component Navigation Analysis Template](#133-component-navigation-analysis-template)
+14. [Prepayment Calculator Alert System](#prepayment-calculator-alert-system)
+    - 14.1 [Overview](#141-overview)
+    - 14.2 [Prepayment Timing Alert](#142-prepayment-timing-alert)
+    - 14.3 [Alert Logic](#143-alert-logic)
 
 ---
 
 ## 🚀 Latest Updates (October 2025)
+
+### ✅ Fixed EMI Structure & Prepayment Logic
+**Completely restructured loan prepayment calculations for accurate financial modeling:**
+
+- **✅ Fresh Loan Restructuring**: Prepayments now create completely new loan schedules starting from EMI 1, ignoring all previous payment history
+- **✅ Paid EMI Protection**: Already paid EMIs remain unchanged and unaffected by prepayments
+- **✅ Accurate Tenure Calculations**: Only unpaid EMIs are considered for tenure reduction calculations
+- **✅ Prepayment Timing Alert**: Warning message guides users to make prepayments before current month's EMI payment
+- **✅ Data Integrity**: Maintains complete audit trail of all payment history while enabling proper loan restructuring
 
 ### ✅ Complete Cash In Hand Tracking System
 **Implemented comprehensive real-time cash balance management across all business transactions:**
@@ -974,6 +988,105 @@ This section documents all visible data fields in the Analytics and Financial ta
 - **Formula**: Sum of all approved vehicle expenses excluding prepayments
 - **Purpose**: Complete operational cost tracking
 
+#### 5.1.4 Expense Management Hierarchy
+
+This section documents the hierarchical structure of expense categorization and recording in the system, showing how different types of expenses are organized and managed.
+
+```
+📊 Expense Recording System
+├── 🎯 Transaction Type Level (paymentType)
+│   ├── 💰 EMI Payments (paymentType: 'emi')
+│   │   ├── 📝 Description-based identification
+│   │   │   ├── "emi" in description
+│   │   │   └── "installment" in description
+│   │   └── 📊 Aggregation: emiPayments total
+│   │
+│   ├── 🔄 Prepayments (paymentType: 'prepayment')
+│   │   ├── 📝 Description-based identification
+│   │   │   ├── "prepayment" in description
+│   │   │   └── "principal" in description
+│   │   ├── 💰 Separate tracking (not included in operational expenses)
+│   │   └── 📊 Aggregation: prepayments total
+│   │
+│   └── 🛠️ Operational Expenses (paymentType: 'expenses')
+│       ├── ⛽ Fuel Expenses (expenseType: 'fuel')
+│       │   ├── 📝 Identification methods
+│       │   │   ├── expenseType === 'fuel'
+│       │   │   ├── "fuel" in description
+│       │   │   ├── "petrol" in description
+│       │   │   └── "diesel" in description
+│       │   └── 📊 Aggregation: fuelExpenses total
+│       │
+│       ├── 🔧 Maintenance Expenses (expenseType: 'maintenance')
+│       │   ├── 📝 Identification methods
+│       │   │   ├── expenseType === 'maintenance'
+│       │   │   ├── type === 'maintenance' (legacy)
+│       │   │   ├── expenseType === 'repair'
+│       │   │   ├── expenseType === 'service'
+│       │   │   ├── "maintenance" in description
+│       │   │   ├── "repair" in description
+│       │   │   └── "service" in description
+│       │   └── 📊 Aggregation: maintenanceExpenses total
+│       │
+│       ├── 🛡️ Insurance Expenses (expenseType: 'insurance')
+│       │   ├── 📝 Identification methods
+│       │   │   ├── expenseType === 'insurance'
+│       │   │   ├── type === 'insurance' (legacy)
+│       │   │   └── "insurance" in description
+│       │   └── 📊 Aggregation: insuranceExpenses total
+│       │
+│       ├── ⚠️ Penalty Expenses (expenseType: 'penalties')
+│       │   ├── 📝 Identification methods
+│       │   │   ├── expenseType === 'penalties'
+│       │   │   ├── type === 'penalties' (legacy)
+│       │   │   ├── expenseType === 'penalty'
+│       │   │   ├── expenseType === 'fine'
+│       │   │   ├── "penalty" in description
+│       │   │   ├── "fine" in description
+│       │   │   └── "late fee" in description
+│       │   └── 📊 Aggregation: penaltyExpenses total
+│       │
+│       └── 📦 Other/General Expenses (expenseType: 'general')
+│           ├── 📝 Fallback category for uncategorized expenses
+│           ├── 📊 Calculation: totalExpenses - categorizedExpenses
+│           └── 📊 Aggregation: otherExpenses total
+│
+├── 📈 Calculation Logic
+│   ├── 💵 Total Operational Expenses
+│   │   └── Excludes prepayments from total
+│   ├── 📊 Monthly Average (12-month rolling)
+│   │   └── Based on recent operational expenses
+│   └── 📊 Expense Ratio
+│       └── totalExpenses / totalEarnings × 100
+│
+└── 🔍 Data Sources & Processing
+    ├── 🗃️ Firebase Collection: expenses
+    ├── 🔄 Real-time updates via useExpenses hook
+    ├── 📱 Components: ExpensesTab, FinancialTab, EMITab
+    └── 📊 Export: Excel integration with category breakdowns
+```
+
+##### Key Hierarchical Insights:
+
+**3-Level Categorization System**: Transaction Type → Payment Sub-Type → Expense Sub-Type
+
+**Dual Classification Fields**:
+- `paymentType`: High-level transaction classification ('emi', 'prepayment', 'expenses')
+- `expenseType`: Detailed expense categorization within operational expenses
+
+**Backward Compatibility**: Legacy `type` field still supported alongside new hierarchical fields
+
+**Smart Categorization**: Multiple identification methods (exact field match + description keywords)
+
+**Financial Impact**:
+- EMI & Prepayments: Loan-related, separate from operational costs
+- Operational Expenses: Day-to-day running costs, included in profitability calculations
+- Prepayments excluded from total expense calculations for accurate operational metrics
+
+**Aggregation Strategy**: Each category summed separately, with "Other" as catch-all for uncategorized expenses
+
+This hierarchical structure allows for detailed expense tracking while maintaining flexibility for different types of financial transactions in the fleet rental business.
+
 ### 5.2 Core Financial Calculations
 
 ### 5.2 Advanced Financial Projections (`calculateProjection` Function)
@@ -1075,21 +1188,31 @@ const handlePrepayment = () => {
   const newOutstanding = outstandingLoan - amount;
   const emiPerMonth = vehicle.loanDetails?.emiPerMonth || 0;
 
-  // Calculate current remaining tenure with existing outstanding
-  let currentTenure = 0;
+  // Get current loan details
+  const totalInstallments = vehicle.loanDetails?.totalInstallments || 0;
+  const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
+  const remainingInstallments = totalInstallments - paidInstallments;
+
+  // Calculate current remaining tenure (only for unpaid EMIs)
+  let currentTenure = remainingInstallments;
   let tempOutstanding = outstandingLoan;
-  while (tempOutstanding > 0 && currentTenure < 360) {
-    const interest = tempOutstanding * monthlyRate;
-    const principal = Math.min(emiPerMonth - interest, tempOutstanding);
-    tempOutstanding -= principal;
-    currentTenure++;
-    if (principal <= 0 || tempOutstanding <= 0) break;
+
+  // If there are still EMIs to pay, calculate exact remaining tenure
+  if (remainingInstallments > 0) {
+    currentTenure = 0;
+    while (tempOutstanding > 0 && currentTenure < remainingInstallments) {
+      const interest = tempOutstanding * monthlyRate;
+      const principal = Math.min(emiPerMonth - interest, tempOutstanding);
+      tempOutstanding -= principal;
+      currentTenure++;
+      if (principal <= 0 || tempOutstanding <= 0) break;
+    }
   }
 
-  // Calculate new tenure with reduced principal
+  // Calculate new tenure with reduced principal (only for remaining EMIs)
   let newTenure = 0;
   let tempOutstandingNew = newOutstanding;
-  while (tempOutstandingNew > 0 && newTenure < 360) {
+  while (tempOutstandingNew > 0 && newTenure < remainingInstallments) {
     const interest = tempOutstandingNew * monthlyRate;
     const principal = Math.min(emiPerMonth - interest, tempOutstandingNew);
     tempOutstandingNew -= principal;
@@ -1099,7 +1222,7 @@ const handlePrepayment = () => {
 
   const tenureReduction = Math.max(0, currentTenure - newTenure);
 
-  // Calculate interest savings correctly
+  // Calculate interest savings correctly (only for remaining EMIs)
   const originalTotalPayments = currentTenure * emiPerMonth;
   const originalInterest = originalTotalPayments - outstandingLoan;
 
@@ -1117,10 +1240,86 @@ Tenure Reduction = Current Remaining Tenure - New Remaining Tenure
 Interest Savings = (Original Total Payments - Original Outstanding) - (New Total Payments - New Outstanding)
 
 Where:
-- Current Remaining Tenure = Months needed to pay off current outstanding loan
-- New Remaining Tenure = Months needed to pay off loan after prepayment
+- Current Remaining Tenure = Months needed to pay off current outstanding loan (unpaid EMIs only)
+- New Remaining Tenure = Months needed to pay off loan after prepayment (unpaid EMIs only)
 - Original Total Payments = Current Tenure × EMI per Month
 - New Total Payments = New Tenure × EMI per Month
+```
+
+#### Fresh Loan Restructuring After Prepayment
+```typescript
+const recalculateAmortizationSchedule = (
+  currentSchedule: EMIScheduleItem[],
+  newOutstanding: number,
+  emiPerMonth: number,
+  interestRate: number
+) => {
+  const monthlyRate = interestRate / 12 / 100;
+  const newSchedule = [];
+  let outstanding = newOutstanding;
+
+  // Create a completely fresh loan schedule starting from EMI 1
+  // Ignore all previous payment history - treat remaining balance as new loan
+  let month = 1;
+
+  // Set the due date for the first installment
+  // Use the original EMI due date or current date + 1 month
+  let firstDueDate: Date;
+  if (vehicle.loanDetails?.emiDueDate) {
+    firstDueDate = new Date();
+    firstDueDate.setDate(vehicle.loanDetails.emiDueDate);
+    // If the due date for this month has passed, set it to next month
+    if (firstDueDate < new Date()) {
+      firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+    }
+  } else {
+    firstDueDate = new Date();
+    firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+    firstDueDate.setDate(1);
+  }
+
+  // Generate new schedule starting from EMI 1 with fresh loan structure
+  while (outstanding > 0 && month <= 360) { // Max 30 years
+    const interest = outstanding * monthlyRate;
+    const principal = Math.min(emiPerMonth - interest, outstanding);
+    outstanding -= principal;
+
+    const dueDate = new Date(firstDueDate);
+    dueDate.setMonth(firstDueDate.getMonth() + (month - 1));
+
+    newSchedule.push({
+      month,
+      interest: Math.round(interest * 100) / 100,
+      principal: Math.round(principal * 100) / 100,
+      outstanding: Math.round(outstanding * 100) / 100,
+      dueDate: dueDate.toISOString().split('T')[0],
+      isPaid: false,
+      paidAt: null,
+    });
+
+    month++;
+
+    if (outstanding <= 0) break;
+  }
+
+  return newSchedule;
+};
+```
+
+**Fresh Loan Restructuring Logic:**
+```
+Key Principles:
+1. Prepayments create a completely fresh loan schedule starting from EMI 1
+2. All previous payment history is ignored
+3. Remaining balance becomes a brand new loan
+4. Due dates restart from current date or original EMI due date
+5. No modification of already paid EMI installments
+
+Benefits:
+- Accurate loan restructuring without corrupting payment history
+- Proper amortization schedule for remaining balance
+- Maintains integrity of paid EMI records
+- Enables correct future payment tracking
 ```
 
 ### 5.4 Expense Categorization Logic
@@ -3384,6 +3583,379 @@ filteredVehicles = companyFinancialData.vehicleData.filter(vehicleInfo => {
 
 This analysis ensures complete traceability from every displayed financial value, payment status, and interactive element back to its fundamental database origin, enabling accurate debugging and maintenance of the accounting interface.
 
+---
+
+## Deep Data Source Tracing Analysis for AccountsTab.tsx
+
+### Overview
+The AccountsTab component is a comprehensive vehicle-level accounting interface that displays monthly financial summaries, period-based calculations, and payment tracking for individual vehicles. It receives vehicle data and vehicle ID as props, then loads payments, expenses, and accounting transactions from Firestore to generate detailed financial breakdowns, profit sharing calculations, and payment status tracking. The component supports flexible period filtering (monthly/quarterly/yearly) and handles both individual and cumulative payment operations.
+
+### Component Props & Data Sources
+
+#### Primary Props
+**vehicle**: `any` - Complete vehicle document from Firestore
+- **Origin**: `vehicles` collection document
+- **Usage**: Vehicle metadata, ownership type, partnership settings, service charge rates
+- **Key Fields Used**: `ownershipType`, `partnerShare`, `serviceChargeRate`, `registrationNumber`
+
+**vehicleId**: `string` - Current vehicle identifier
+- **Origin**: URL parameter or parent component
+- **Usage**: Filtering payments, expenses, and accounting transactions for current vehicle
+
+### Internal State & Data Sources
+
+#### accountingTransactions State
+**Type**: `AccountingTransaction[]` - Payment transaction history for current vehicle
+- **Origin**: `accountingTransactions` collection filtered by vehicleId
+- **Formula Chain**:
+- `transactionsRef` = `collection(firestore, \`Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions\`)`
+- `q` = `query(transactionsRef, where('vehicleId', '==', vehicleId), orderBy('createdAt', 'desc'))`
+- `transactions` = Real-time snapshot listener data
+- **Usage**: Tracking payment status for GST, service charges, partner payments, owner shares
+
+#### cashInHand State
+**Type**: `number` - Current cash balance for the vehicle
+- **Origin**: `cashInHand` collection document
+- **Formula Chain**:
+- `cashRef` = `doc(firestore, \`Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand\`, vehicleId)`
+- `currentBalance` = `cashDoc.exists() ? cashDoc.data().balance || 0 : 0`
+- **Usage**: Display current cash position and update after payments
+
+### Period Selection State
+**selectedPeriod**: `'month' | 'quarter' | 'year'` - Current period filter type
+**selectedYear**: `string` - Selected year for filtering
+**selectedMonth**: `string` - Selected month (when period is 'month')
+**selectedQuarter**: `string` - Selected quarter (when period is 'quarter')
+
+### Computed Data (Period-Based Calculations)
+
+#### monthlyData - Main Calculation Engine
+**Purpose**: Calculate financial data for each month/period in the selected time range
+**Data Source**: `payments`, `expenses`, `accountingTransactions`, period state
+**Origin**: Real-time calculation from raw payment and expense records with period filtering
+
+**Period Month Determination**:
+```typescript
+// Single month
+if (selectedPeriod === 'month') {
+  monthsToShow = [parseInt(selectedMonth) - 1];
+}
+// Quarter (3 months)
+else if (selectedPeriod === 'quarter') {
+  const quarter = parseInt(selectedQuarter);
+  const startMonth = (quarter - 1) * 3;
+  monthsToShow = [startMonth, startMonth + 1, startMonth + 2];
+}
+// Year (12 months)
+else if (selectedPeriod === 'year') {
+  monthsToShow = Array.from({ length: 12 }, (_, i) => i);
+}
+```
+
+**Monthly Payment Filtering**:
+```typescript
+monthPayments = payments.filter(p =>
+  p.vehicleId === vehicleId &&
+  p.status === 'paid' &&
+  new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+  new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+);
+```
+
+**Monthly Expense Filtering**:
+```typescript
+monthExpenses = expenses.filter(e =>
+  e.vehicleId === vehicleId &&
+  e.status === 'approved' &&
+  new Date(e.createdAt) >= monthStart &&
+  new Date(e.createdAt) <= monthEnd
+);
+```
+
+### Per-Month Financial Calculations
+
+#### Earnings Calculation
+**Label**: "Earnings"
+**Value**: `₹{earnings.toLocaleString()}`
+**Data Source**: `monthData[].earnings` (calculated in monthlyData)
+**Origin**: `payments` collection filtered by vehicle and month
+**Formula Chain**:
+- `monthPayments` = `payments.filter(p => p.vehicleId === vehicleId && p.status === 'paid' && dateInMonthRange)`
+- `earnings` = `monthPayments.reduce((sum, p) => sum + p.amountPaid, 0)`
+- `displayValue` = `earnings.toLocaleString()`
+
+#### Total Expenses Calculation
+**Label**: "Expenses"
+**Value**: `₹{totalExpenses.toLocaleString()}`
+**Data Source**: `monthData[].totalExpenses` (calculated in monthlyData)
+**Origin**: `expenses` collection filtered by vehicle and month
+**Formula Chain**:
+- `monthExpenses` = `expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved' && dateInMonthRange)`
+- `totalExpenses` = `monthExpenses.reduce((sum, e) => sum + e.amount, 0)`
+- `displayValue` = `totalExpenses.toLocaleString()`
+
+#### Profit Calculation
+**Label**: "Profit"
+**Value**: `₹{profit.toLocaleString()}`
+**Data Source**: `monthData[].profit` (calculated in monthlyData)
+**Origin**: Derived from earnings minus expenses
+**Formula Chain**:
+- `profit` = `earnings - totalExpenses`
+- `displayValue` = `profit.toLocaleString()`
+- **Styling**: `profit >= 0 ? 'text-green-600' : 'text-red-600'`
+
+#### GST Amount Calculation
+**Label**: "GST (4%)"
+**Value**: `₹{gstAmount.toLocaleString()}`
+**Data Source**: `monthData[].gstAmount` (calculated in monthlyData)
+**Origin**: 4% tax calculation on positive profit
+**Formula Chain**:
+- `gstAmount` = `profit > 0 ? profit * 0.04 : 0`
+- `displayValue` = `gstAmount.toLocaleString()`
+- **Styling**: `text-orange-600`
+
+#### Service Charge Calculation (Partner Vehicles Only)
+**Label**: "Service Charge (10%)"
+**Value**: `₹{serviceCharge.toLocaleString()}`
+**Data Source**: `monthData[].serviceCharge` (calculated in monthlyData)
+**Origin**: Service charge on partner vehicle profits
+**Formula Chain**:
+- `isPartnerTaxi` = `vehicle?.ownershipType === 'partner'`
+- `serviceChargeRate` = `vehicle?.serviceChargeRate || 0.10`
+- `serviceCharge` = `isPartnerTaxi && profit > 0 ? profit * serviceChargeRate : 0`
+- `displayValue` = `serviceCharge.toLocaleString()`
+- **Conditional Display**: Only shown when `serviceCharge > 0`
+- **Styling**: `text-blue-600`
+
+#### Partner Share Calculation (Partner Vehicles Only)
+**Label**: "Partner Share (50%)"
+**Value**: `₹{partnerShare.toLocaleString()}`
+**Data Source**: `monthData[].partnerShare` (calculated in monthlyData)
+**Origin**: Partner profit share after GST and service charge deductions
+**Formula Chain**:
+- `remainingProfitAfterDeductions` = `profit - gstAmount - serviceCharge`
+- `partnerSharePercentage` = `vehicle?.partnerShare || 0.50`
+- `partnerShare` = `isPartnerTaxi && remainingProfitAfterDeductions > 0 ? remainingProfitAfterDeductions * partnerSharePercentage : 0`
+- `displayValue` = `partnerShare.toLocaleString()`
+- **Conditional Display**: Only shown when `partnerShare > 0`
+- **Styling**: `text-purple-600 font-bold`
+
+#### Owner Share Calculation (Partner Vehicles)
+**Label**: "Owner's Share (50%)"
+**Value**: `₹{ownerShare.toLocaleString()}`
+**Data Source**: `monthData[].ownerShare` (calculated in monthlyData)
+**Origin**: Owner profit share after GST and service charge deductions
+**Formula Chain**:
+- `ownerSharePercentage` = `1 - partnerSharePercentage`
+- `ownerShare` = `isPartnerTaxi && remainingProfitAfterDeductions > 0 ? remainingProfitAfterDeductions * ownerSharePercentage : 0`
+- `displayValue` = `ownerShare.toLocaleString()`
+- **Conditional Display**: Only shown when `ownerShare > 0`
+- **Styling**: `text-green-600 font-bold`
+
+#### Owner Full Share Calculation (Company Vehicles)
+**Label**: "Owner's Share (100%)"
+**Value**: `₹{ownerFullShare.toLocaleString()}`
+**Data Source**: `monthData[].ownerFullShare` (calculated in monthlyData)
+**Origin**: Full owner share for company-owned vehicles after GST
+**Formula Chain**:
+- `ownerFullShare` = `!isPartnerTaxi && (profit - gstAmount) > 0 ? profit - gstAmount : 0`
+- `displayValue` = `ownerFullShare.toLocaleString()`
+- **Conditional Display**: Only shown when `ownerFullShare > 0`
+- **Styling**: `text-green-600 font-bold`
+
+### Cash Balance Display
+
+#### Cash in Hand
+**Label**: "Cash in Hand"
+**Value**: `₹{cashInHand.toLocaleString()}`
+**Data Source**: `cashInHand` state
+**Origin**: `cashInHand` collection document
+**Formula Chain**:
+- `cashRef` = `doc(firestore, \`Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand\`, vehicleId)`
+- `currentBalance` = `cashDoc.exists() ? cashDoc.data().balance || 0 : 0`
+- `displayValue` = `currentBalance.toLocaleString()`
+- **Styling**: `text-green-600 font-semibold`
+
+### Payment Status Tracking
+
+#### GST Payment Status
+**Label**: "GST Payment"
+**Value**: Badge showing "Paid" or "Pay GST" button
+**Data Source**: `monthData[].gstPaid` (calculated in monthlyData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `monthStr` = `${year}-${String(month + 1).padStart(2, '0')}`
+- `gstPaid` = `accountingTransactions.some(t => t.type === 'gst_payment' && t.month === monthStr && t.status === 'completed')`
+- **Display Logic**: Show green "Paid" badge if `gstPaid`, otherwise show payment button
+
+#### Service Charge Collection Status
+**Label**: "Service Charge"
+**Value**: Badge showing "Collected" or "Collect" button
+**Data Source**: `monthData[].serviceChargeCollected` (calculated in monthlyData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `serviceChargeCollected` = `accountingTransactions.some(t => t.type === 'service_charge' && t.month === monthStr && t.status === 'completed')`
+- **Conditional Display**: Only shown for partner vehicles (`vehicle?.ownershipType === 'partner'`)
+
+#### Partner Payment Status
+**Label**: "Partner Payment"
+**Value**: Badge showing "Paid" or "Pay Partner" button
+**Data Source**: `monthData[].partnerPaid` (calculated in monthlyData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `partnerPaid` = `accountingTransactions.some(t => t.type === 'partner_payment' && t.month === monthStr && t.status === 'completed')`
+- **Conditional Display**: Only shown for partner vehicles
+
+#### Owner Share Collection Status
+**Label**: "Owner Share Collection"
+**Value**: Badge showing "Collected" or "Collect" button
+**Data Source**: `monthData[].ownerShareCollected` (calculated in monthlyData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `ownerShareCollected` = `accountingTransactions.some(t => t.type === 'owner_share' && t.month === monthStr && t.status === 'completed')`
+
+#### Owner Withdrawal Status
+**Label**: "Owner Withdrawal"
+**Value**: Badge showing "Withdrawn" or "Withdraw" button
+**Data Source**: `monthData[].ownerWithdrawn` (calculated in monthlyData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `ownerWithdrawn` = `accountingTransactions.some(t => t.type === 'owner_withdrawal' && t.month === monthStr && t.status === 'completed')`
+- **Conditional Display**: Only shown for company vehicles
+
+### Cumulative Data Calculations
+
+#### cumulativeData - Period Summary Calculations
+**Purpose**: Calculate total financial data across all months in selected period
+**Data Source**: `monthlyData`, `vehicle`
+**Origin**: Aggregation of monthly calculations
+
+**Total Earnings**:
+```typescript
+totalEarnings = monthlyData.reduce((sum, m) => sum + m.earnings, 0)
+```
+
+**Total Expenses**:
+```typescript
+totalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0)
+```
+
+**Total Profit**:
+```typescript
+totalProfit = totalEarnings - totalExpenses
+```
+
+**Total GST**:
+```typescript
+totalGst = totalProfit > 0 ? totalProfit * 0.04 : 0
+```
+
+**Total Service Charge**:
+```typescript
+isPartnerTaxi = vehicle?.ownershipType === 'partner'
+serviceChargeRate = vehicle?.serviceChargeRate || 0.10
+totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0
+```
+
+**Total Partner Share**:
+```typescript
+remainingProfitAfterDeductions = totalProfit - totalGst - totalServiceCharge
+partnerSharePercentage = vehicle?.partnerShare || 0.50
+totalPartnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+  remainingProfitAfterDeductions * partnerSharePercentage : 0
+```
+
+**Total Owner Share**:
+```typescript
+totalOwnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+  remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0
+```
+
+**Total Owner Withdrawal**:
+```typescript
+totalOwnerWithdrawal = !isPartnerTaxi && (totalProfit - totalGst) > 0 ?
+  totalProfit - totalGst : 0
+```
+
+### Period Selection Controls
+
+#### Period Type Selector
+**Label**: "Period"
+**Options**: Month, Quarter, Year
+**State**: `selectedPeriod` → `setSelectedPeriod`
+**Impact**: Controls data aggregation granularity and month range calculation
+
+#### Year Selector
+**Label**: "Year"
+**Options**: Current year to 10 years back
+**State**: `selectedYear` → `setSelectedYear`
+**Impact**: Year filter for all time-based calculations
+
+#### Month Selector (Conditional)
+**Condition**: `selectedPeriod === 'month'`
+**Label**: "Month"
+**Options**: Jan-Dec (localized month names)
+**State**: `selectedMonth` → `setSelectedMonth`
+
+#### Quarter Selector (Conditional)
+**Condition**: `selectedPeriod === 'quarter'`
+**Label**: "Quarter"
+**Options**: Q1 (Jan-Mar), Q2 (Apr-Jun), Q3 (Jul-Sep), Q4 (Oct-Dec)
+**State**: `selectedQuarter` → `setSelectedQuarter`
+
+### Payment Action Handlers
+
+#### Individual Payment Actions
+**GST Payment**: `handleGstPayment(monthData)`
+- Updates `cashInHand`: `cashInHand - monthData.gstAmount`
+- Creates transaction record in `accountingTransactions` collection
+
+**Service Charge Collection**: `handleServiceChargeCollection(monthData)`
+- Updates `cashInHand`: `cashInHand + monthData.serviceCharge` (income)
+- Creates transaction record in `accountingTransactions` collection
+
+**Partner Payment**: `handlePartnerPayment(monthData)`
+- Updates `cashInHand`: `cashInHand - monthData.partnerShare`
+- Creates transaction record in `accountingTransactions` collection
+
+**Owner Share Collection**: `handleOwnerShareCollection(monthData)`
+- Updates `cashInHand`: `cashInHand - monthData.ownerShare`
+- Creates transaction record in `accountingTransactions` collection
+
+**Owner Withdrawal**: `handleOwnerWithdrawal(monthData)`
+- Updates `cashInHand`: `cashInHand - monthData.ownerFullShare`
+- Creates transaction record in `accountingTransactions` collection
+
+#### Cumulative Payment Actions
+**Cumulative GST Payment**: `handleCumulativeGstPayment()`
+- Updates `cashInHand`: `cashInHand - cumulativeData.totalGst`
+- Creates transaction record with period-based month string
+
+**Cumulative Service Charge Collection**: `handleCumulativeServiceChargeCollection()`
+- Updates `cashInHand`: `cashInHand + cumulativeData.totalServiceCharge` (income)
+- Creates transaction record with period-based month string
+
+**Cumulative Partner Payment**: `handleCumulativePartnerPayment()`
+- Updates `cashInHand`: `cashInHand - cumulativeData.totalPartnerShare`
+- Creates transaction record with period-based month string
+
+**Cumulative Owner Share Collection**: `handleCumulativeOwnerShareCollection()`
+- Updates `cashInHand`: `cashInHand - (cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal)`
+- Creates transaction record with appropriate type based on ownership
+
+### Data Source Summary for AccountsTab
+- **Primary Collections**: `vehicles`, `payments`, `expenses`, `accountingTransactions`, `cashInHand`
+- **Calculated Props**: `vehicle` (from parent), `vehicleId` (from URL/parent)
+- **Key Functions**: `monthlyData` (main calculation engine), `cumulativeData` (period aggregation), payment handlers (`handleGstPayment`, `handleServiceChargeCollection`, etc.)
+- **State Dependencies**: `accountingTransactions`, `cashInHand`, period selection states (`selectedPeriod`, `selectedYear`, `selectedMonth`, `selectedQuarter`)
+- **External Functions**: Firestore operations (`addDoc`, `updateDoc`, `onSnapshot`), `toast()` notifications
+- **Child Components**: None (pure data display component)
+- **Conditional Rendering**: Partner vs company vehicle displays, payment status badges vs buttons, period-based calculations
+- **Time Filtering**: Dynamic month range calculation based on `selectedPeriod` (month/quarter/year)
+- **Real-time Updates**: Live synchronization via Firestore listeners for transactions and cash balance
+
+This analysis ensures complete traceability from every displayed financial value, payment status, and interactive element back to its fundamental database origin, enabling accurate debugging and maintenance of the vehicle accounting interface.
+
 ### 13.1 Component Data Source Tracing Template
 
 **Instructions for AI Assistant:**
@@ -3450,6 +4022,222 @@ When asking for analysis, provide:
 1. The component file content/attachment
 2. Reference to this template section
 3. Any specific areas of focus (optional)
+
+**Template Reference:** Use this section as the instruction set for performing comprehensive data source tracing analysis on any React component.
+
+---
+
+## Deep Data Source Tracing Analysis for EMITab.tsx
+
+### Overview
+The EMITab component displays EMI payment schedule management and tracking for financed vehicles. It shows loan details, payment progress, upcoming payments, and provides quick actions for EMI management. The component receives vehicle loan data and financial calculations as props.
+
+### EMI Payment Schedule Header
+
+#### EMI Amount Per Month
+**Label**: "EMI Payment Schedule" (header subtitle)
+**Value**: `₹[emiPerMonth].toLocaleString() per month`
+**Data Source**: `vehicle.loanDetails.emiPerMonth`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.emiPerMonth` field
+**Formula Chain**:
+- `baseValue` = vehicle.loanDetails.emiPerMonth (direct from Firebase)
+- `formattedValue` = baseValue.toLocaleString() (Indian number formatting)
+- `displayValue` = `₹${formattedValue} per month`
+
+#### Annual Interest Rate
+**Label**: "EMI Payment Schedule" (header subtitle)
+**Value**: `[interestRate]% annual interest`
+**Data Source**: `vehicle.loanDetails.interestRate`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.interestRate` field
+**Formula Chain**:
+- `baseValue` = vehicle.loanDetails.interestRate (direct from Firebase)
+- `displayValue` = `${baseValue}% annual interest`
+
+#### Paid Installments Count
+**Label**: Payment progress badge
+**Value**: `[paidCount] of [totalCount] paid`
+**Data Source**: `vehicle.loanDetails.paidInstallments?.length`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.paidInstallments` array field
+**Formula Chain**:
+- `paidArray` = vehicle.loanDetails.paidInstallments (array of payment dates)
+- `paidCount` = paidArray?.length || 0 (array length)
+- `totalCount` = vehicle.loanDetails.totalInstallments || 0
+- `displayValue` = `${paidCount} of ${totalCount} paid`
+
+#### Outstanding Loan Amount
+**Label**: "Outstanding: ₹[amount]"
+**Value**: `₹[outstandingLoan].toLocaleString()`
+**Data Source**: `financialData.outstandingLoan`
+**Origin**: Calculated in `calculateVehicleFinancials()` function from `vehicles/{vehicleId}` collection
+**Formula Chain**:
+- `amortizationSchedule` = vehicle.loanDetails.amortizationSchedule (array from Firebase)
+- `unpaidSchedules` = amortizationSchedule.filter(s => !s.isPaid)
+- `outstandingLoan` = unpaidSchedules.reduce((sum, emi) => sum + (emi.principal || 0), 0)
+- `fallbackValue` = vehicle.loanDetails?.outstandingLoan || 0 (if no schedule)
+- `displayValue` = `₹${outstandingLoan.toLocaleString()}`
+- **Note**: After prepayments, the amortization schedule is completely restructured as a fresh loan starting from EMI 1, ignoring all previous payment history
+
+### EMI Summary Cards
+
+#### EMIs Paid Count
+**Label**: "EMIs Paid"
+**Value**: `[count]` (large number display)
+**Data Source**: `vehicle.loanDetails.paidInstallments?.length`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.paidInstallments` array field
+**Formula Chain**:
+- `paidArray` = vehicle.loanDetails.paidInstallments (array from Firebase)
+- `displayValue` = paidArray?.length || 0
+
+#### Days to Next EMI
+**Label**: "Days to Next EMI"
+**Value**: `[daysUntilEMI]` or "Overdue"
+**Data Source**: `financialData.daysUntilEMI`
+**Origin**: Calculated in `calculateVehicleFinancials()` function from `vehicles/{vehicleId}` collection
+**Formula Chain**:
+- `amortizationSchedule` = vehicle.loanDetails.amortizationSchedule
+- `unpaidSchedules` = amortizationSchedule.filter(s => !s.isPaid)
+- `nextEMIDue` = unpaidSchedules[0]?.dueDate (first unpaid EMI)
+- `daysUntilEMI` = Math.ceil((new Date(nextEMIDue).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+- `displayValue` = daysUntilEMI >= 0 ? daysUntilEMI : 'Overdue'
+
+#### Outstanding Amount (in Lakhs)
+**Label**: "Outstanding"
+**Value**: `₹[amount]L` (e.g., "₹2.5L")
+**Data Source**: `financialData.outstandingLoan`
+**Origin**: Calculated in `calculateVehicleFinancials()` function from `vehicles/{vehicleId}` collection
+**Formula Chain**:
+- `outstandingLoan` = calculated from unpaid EMI principals (see above)
+- `lakhsValue` = Math.round(outstandingLoan / 100000).toFixed(1)
+- `displayValue` = `₹${lakhsValue}L`
+
+#### Completion Percentage
+**Label**: "Completed"
+**Value**: `[percentage]%`
+**Data Source**: Calculated inline from loan details
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.paidInstallments` and `loanDetails.totalInstallments` fields
+**Formula Chain**:
+- `paidCount` = vehicle.loanDetails.paidInstallments?.length || 0
+- `totalCount` = vehicle.loanDetails.totalInstallments || 1
+- `percentage` = ((paidCount / totalCount) * 100).toFixed(0)
+- `displayValue` = `${percentage}%`
+
+### EMI Schedule Grid
+
+#### EMI Month Number
+**Label**: "EMI [month]"
+**Value**: `EMI [monthNumber]`
+**Data Source**: `emi.month` (from amortization schedule array)
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.amortizationSchedule[].month` field
+**Formula Chain**:
+- `baseValue` = emi.month (direct from Firebase array)
+- `displayValue` = `EMI ${baseValue}`
+
+#### EMI Due Date
+**Label**: Due date display
+**Value**: `[day] [month] [year]` (e.g., "15 Oct 25")
+**Data Source**: `emi.dueDate`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.amortizationSchedule[].dueDate` field
+**Formula Chain**:
+- `dueDate` = emi.dueDate (ISO string from Firebase)
+- `dateObject` = new Date(dueDate)
+- `formattedDate` = dateObject.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+- `displayValue` = formattedDate
+
+#### EMI Amount
+**Label**: Monthly payment amount
+**Value**: `₹[amount].toLocaleString()`
+**Data Source**: `vehicle.loanDetails?.emiPerMonth`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.emiPerMonth` field
+**Formula Chain**:
+- `baseValue` = vehicle.loanDetails?.emiPerMonth || 0
+- `formattedValue` = baseValue.toLocaleString()
+- `displayValue` = `₹${formattedValue}`
+
+#### Payment Status
+**Label**: Status text below EMI amount
+**Value**: Various status messages (e.g., "Paid 15 Oct", "3 days left", "5 days overdue")
+**Data Source**: Multiple sources based on payment status and dates
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.amortizationSchedule[]` fields
+**Formula Chain**:
+- `isPaid` = emi.isPaid (boolean from Firebase)
+- `paidAt` = emi.paidAt (timestamp from Firebase)
+- `dueDate` = emi.dueDate (string from Firebase)
+- `daysDiff` = Math.ceil((new Date(dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+- `status` = isPaid ? `Paid ${new Date(paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                   : daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue`
+                   : daysDiff === 0 ? 'Due Today'
+                   : `${daysDiff} days left`
+- `displayValue` = status
+
+#### Payment Date (when paid)
+**Label**: Part of status text
+**Value**: `Paid [date]` format
+**Data Source**: `emi.paidAt`
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails.amortizationSchedule[].paidAt` field
+**Formula Chain**:
+- `paidAt` = emi.paidAt (ISO timestamp from Firebase)
+- `dateObject` = new Date(paidAt)
+- `formattedDate` = dateObject.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+- `displayValue` = `Paid ${formattedDate}`
+
+### Quick Actions Section
+
+#### Payment History Summary (Toast)
+**Label**: "Payment History Summary"
+**Value**: Multi-line summary with counts and amounts
+**Data Source**: Multiple loan detail fields
+**Origin**: `vehicles/{vehicleId}` collection, `loanDetails` object fields
+**Formula Chain**:
+- `paidCount` = vehicle.loanDetails?.paidInstallments?.length || 0
+- `totalCount` = vehicle.loanDetails?.totalInstallments || 0
+- `completionPercentage` = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0'
+- `outstandingAmount` = financialData.outstandingLoan.toLocaleString()
+- `displayValue` = `EMIs Paid: ${paidCount} of ${totalCount}\nCompletion: ${completionPercentage}%\nRemaining: ${totalCount - paidCount} installments\nOutstanding: ₹${outstandingAmount}`
+
+### Data Source Summary for EMITab.tsx
+- **Primary Collections**: `vehicles` collection (loan details and amortization schedule)
+- **Calculated Props**: `financialData` (VehicleFinancialData interface from calculateVehicleFinancials function)
+- **Key Functions**: `calculateVehicleFinancials()` (outstanding loan, days until EMI calculations)
+- **Prepayment Behavior**: Prepayments trigger complete loan restructuring where remaining balance becomes a fresh loan starting from EMI 1, ignoring all previous payment history
+- **Schedule Integrity**: Paid EMI records remain unchanged; only future EMIs are recalculated as new loan structure
+
+---
+
+## Prepayment Calculator Alert System
+
+### 14.1 Overview
+The FinancialTab includes an alert system to guide users on optimal prepayment timing to avoid loan restructuring complications.
+
+### 14.2 Prepayment Timing Alert
+**Alert Type**: Warning Alert with AlertTriangle icon
+**Location**: FinancialTab.tsx - Prepayment Calculator Card
+**Trigger**: Always visible in prepayment calculator
+**Message**: "Important: Make prepayments before paying the current month's EMI to avoid restructuring an already paid installment."
+
+### 14.3 Alert Logic
+**Alert Type**: Warning Alert with AlertTriangle icon
+**Location**: FinancialTab.tsx - Prepayment Calculator Card
+**Trigger**: Always visible in prepayment calculator
+**Message**: "Important: Make prepayments before paying the current month's EMI to avoid restructuring an already paid installment."
+
+### Alert Logic
+```typescript
+// Alert is always displayed in prepayment calculator
+<Alert className="mb-4">
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription className="text-sm">
+    <strong>Important:</strong> Make prepayments before paying the current month's EMI to avoid restructuring an already paid installment.
+  </AlertDescription>
+</Alert>
+```
+
+**Purpose**: 
+- Educates users about optimal prepayment timing
+- Prevents accidental restructuring of paid EMIs
+- Ensures loan calculations remain accurate
+- Maintains data integrity of payment history
+- **State Dependencies**: None (purely prop-driven component)
+- **External Dependencies**: Date calculations using JavaScript Date API, toast notifications via useToast hook
 
 **Template Reference:** Use this section as the instruction set for performing comprehensive data source tracing analysis on any React component.
 
