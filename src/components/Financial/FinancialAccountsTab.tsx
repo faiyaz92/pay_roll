@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 }) => {
   const { userInfo } = useAuth();
   const { vehicles } = useFirebaseData();
+  const navigate = useNavigate();
   const [vehicleCashBalances, setVehicleCashBalances] = useState<Record<string, number>>({});
 
   // Bulk payment dialog state
@@ -59,6 +61,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [bulkDialogTitle, setBulkDialogTitle] = useState('');
   const [bulkDialogDescription, setBulkDialogDescription] = useState('');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  // Function to navigate to vehicle details payments tab with current period criteria
+  const handleViewExpenses = (vehicleId: string) => {
+    const params = new URLSearchParams({
+      tab: 'payments',
+      period: companyFinancialData.filterType,
+      year: companyFinancialData.selectedYear
+    });
+
+    if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
+      params.set('month', companyFinancialData.selectedMonth);
+    } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
+      params.set('quarter', companyFinancialData.selectedQuarter);
+    }
+
+    navigate(`/vehicles/${vehicleId}?${params.toString()}`);
+  };
 
   // Load cash balances for all vehicles
   useEffect(() => {
@@ -696,7 +715,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       let cumulativeOwnerShare = 0;
       let cumulativeOwnerFullShare = 0;
 
-      // Sum up data for each month in the period
+      // Sum up data for each month in the period to get cumulative earnings and expenses
       months.forEach(monthIndex => {
         const monthStart = new Date(year, monthIndex, 1);
         const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
@@ -718,36 +737,32 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
         const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
         const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-        const monthProfit = monthEarnings - monthExpensesAmount;
 
         cumulativeEarnings += monthEarnings;
         cumulativeExpenses += monthExpensesAmount;
-        cumulativeProfit += monthProfit;
-
-        // GST calculation (4% - only if profit is positive)
-        const monthGst = monthProfit > 0 ? monthProfit * 0.04 : 0;
-        cumulativeGst += monthGst;
-
-        // Service charge (10% for partner taxis - only if profit is positive)
-        const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
-        const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
-        const monthServiceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
-        cumulativeServiceCharge += monthServiceCharge;
-
-        // Partner share and owner share calculations
-        const remainingProfitAfterDeductions = monthProfit - monthGst - monthServiceCharge;
-        const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
-
-        if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
-          const monthPartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
-          const monthOwnerShare = remainingProfitAfterDeductions * (1 - partnerSharePercentage);
-
-          cumulativePartnerShare += monthPartnerShare;
-          cumulativeOwnerShare += monthOwnerShare;
-        } else if (!isPartnerTaxi && (monthProfit - monthGst) > 0) {
-          cumulativeOwnerFullShare += (monthProfit - monthGst);
-        }
       });
+
+      // Calculate cumulative profit
+      cumulativeProfit = cumulativeEarnings - cumulativeExpenses;
+
+      // GST calculation (4% on cumulative profit - only if cumulative profit is positive)
+      cumulativeGst = cumulativeProfit > 0 ? cumulativeProfit * 0.04 : 0;
+
+      // Service charge (configurable rate for partner taxis - only if cumulative profit is positive)
+      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      cumulativeServiceCharge = isPartnerTaxi && cumulativeProfit > 0 ? cumulativeProfit * serviceChargeRate : 0;
+
+      // Partner share and owner share calculations (on remaining profit after GST and service charge)
+      const remainingProfitAfterDeductions = cumulativeProfit - cumulativeGst - cumulativeServiceCharge;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+
+      if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
+        cumulativePartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
+        cumulativeOwnerShare = remainingProfitAfterDeductions * (1 - partnerSharePercentage);
+      } else if (!isPartnerTaxi && (cumulativeProfit - cumulativeGst) > 0) {
+        cumulativeOwnerFullShare = cumulativeProfit - cumulativeGst;
+      }
 
       // Check if payments are completed for the period
       const periodStr = companyFinancialData.filterType === 'yearly'
@@ -970,8 +985,16 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   <Receipt className="h-4 w-4" />
                   Expenses
                 </div>
-                <div className="text-sm font-medium text-red-600">
-                  ₹{vehicleInfo.expenses.toLocaleString()}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-red-600">
+                    ₹{vehicleInfo.expenses.toLocaleString()}
+                  </div>
+                  <button
+                    onClick={() => handleViewExpenses(vehicleInfo.vehicle.id)}
+                    className="text-blue-600 hover:text-blue-800 text-xs underline"
+                  >
+                    view breakup
+                  </button>
                 </div>
               </div>
 

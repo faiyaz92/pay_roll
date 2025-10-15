@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
-import { Role, TenantCompanyType, FuelRecord, MaintenanceRecord, Vehicle, LoanDetails, Assignment } from '@/types/user';
+import { Role, TenantCompanyType, FuelRecord, MaintenanceRecord, Vehicle, LoanDetails, Assignment, UserInfo } from '@/types/user';
 
 // Fleet Rental Business Interfaces (based on BRD)
 
@@ -699,6 +699,39 @@ export const useTenantCompanies = () => {
   return { companies, loading };
 };
 
+export const usePartners = () => {
+  const [partners, setPartners] = useState<UserInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { userInfo } = useAuth();
+  const paths = useFirestorePaths(userInfo?.companyId);
+
+  useEffect(() => {
+    if (!userInfo?.companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const usersRef = collection(firestore, paths.getUsersPath());
+    const q = query(usersRef, where('role', '==', Role.PARTNER));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const partnersData = snapshot.docs.map(doc => ({
+        userId: doc.id,
+        ...doc.data()
+      })) as UserInfo[];
+      setPartners(partnersData);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching partners:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo?.companyId, paths]);
+
+  return { partners, loading };
+};
+
 // Enhanced Vehicle Financial Data Calculations
 export interface VehicleFinancialData {
   totalInvestment: any;
@@ -937,8 +970,9 @@ export const useFirebaseData = () => {
   const { assignments, loading: assignmentsLoading, addAssignment } = useAssignments();
   const { payments, loading: paymentsLoading, markPaymentCollected } = usePayments();
   const { expenses, loading: expensesLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { partners, loading: partnersLoading } = usePartners();
 
-  const loading = driversLoading || vehiclesLoading || assignmentsLoading || paymentsLoading || expensesLoading;
+  const loading = driversLoading || vehiclesLoading || assignmentsLoading || paymentsLoading || expensesLoading || partnersLoading;
 
   // Enhanced vehicle data with real financial calculations
   const getVehicleFinancialData = (vehicleId: string): VehicleFinancialData | null => {
@@ -965,6 +999,7 @@ export const useFirebaseData = () => {
     assignments,
     payments,
     expenses,
+    partners,
     loading,
     
     // Helper Functions

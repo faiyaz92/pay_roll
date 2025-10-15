@@ -201,7 +201,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               <div>
                 <p className="text-sm font-medium text-muted-foreground">EMI Payments</p>
                 <p className="text-xl font-bold">
-                  ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'emi')
+                  ₹{(filteredPayments.filter(p => p.type === 'paid' && (p.paymentType === 'emi' || p.expenseType === 'emi'))
                     .reduce((sum, p) => sum + (p.amountPaid || 0), 0)).toLocaleString()}
                 </p>
               </div>
@@ -215,7 +215,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Prepayments</p>
                 <p className="text-xl font-bold text-purple-500">
-                  ₹{(filteredPayments.filter(p => p.type === 'paid' && p.paymentType === 'prepayment')
+                  ₹{(filteredPayments.filter(p => p.type === 'paid' && (p.paymentType === 'prepayment' || p.expenseType === 'prepayment'))
                     .reduce((sum, p) => sum + (p.amountPaid || 0), 0)).toLocaleString()}
                 </p>
               </div>
@@ -265,6 +265,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                             payment.expenseType === 'insurance' ? 'secondary' :
                             payment.expenseType === 'penalties' ? 'destructive' :
                             payment.expenseType === 'fuel' ? 'secondary' :
+                            payment.expenseType === 'emi' ? 'secondary' :
+                            payment.expenseType === 'prepayment' ? 'outline' :
                             'destructive'
                           }
                           className={
@@ -275,6 +277,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                             payment.expenseType === 'penalties' ? 'bg-red-100 text-red-800' :
                             payment.expenseType === 'fuel' ? 'bg-blue-100 text-blue-800' :
                             payment.expenseType === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                            payment.expenseType === 'emi' ? 'bg-indigo-100 text-indigo-800' :
+                            payment.expenseType === 'prepayment' ? 'bg-orange-100 text-orange-800' :
                             'bg-purple-100 text-purple-800'
                           }
                         >
@@ -286,6 +290,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                            payment.expenseType === 'penalties' ? 'PENALTY' :
                            payment.expenseType === 'maintenance' ? 'MAINTENANCE' :
                            payment.expenseType === 'fuel' ? 'FUEL' :
+                           payment.expenseType === 'emi' ? 'EMI' :
+                           payment.expenseType === 'prepayment' ? 'PREPAYMENT' :
                            payment.expenseType === 'general' ? 'GENERAL' :
                            'EXPENSE'}
                         </Badge>

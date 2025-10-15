@@ -3086,6 +3086,304 @@ The AnalyticsTab component is a comprehensive analytics dashboard that displays 
 
 This analysis ensures complete traceability from every chart data point, card value, and UI control back to its fundamental database origin, enabling accurate debugging and maintenance of the analytics dashboard.
 
+---
+
+## Deep Data Source Tracing Analysis for FinancialAccountsTab.tsx
+
+### Overview
+The FinancialAccountsTab component is a comprehensive accounting interface that displays company-level financial summaries and per-vehicle accounting cards. It receives company financial data, accounting transactions, and vehicle information as props, then processes this data through complex period-based calculations to generate financial summaries, profit sharing breakdowns, and payment tracking. The component supports navigation to detailed expense views and handles bulk payment operations.
+
+### Component Props & Data Sources
+
+#### Primary Props
+**companyFinancialData**: `any` - Complete company financial dataset with filtering and raw data
+- **Origin**: Parent component calculations from `vehicles`, `payments`, `expenses` collections
+- **Usage**: Period filtering, vehicle data, payment/expense records, filter settings
+- **Key Fields Used**: `payments[]`, `expenses[]`, `vehicleData[]`, `filterType`, `selectedYear`, `selectedMonth`, `selectedQuarter`, `partnerFilter`
+
+**accountingTransactions**: `AccountingTransaction[]` - Payment transaction history
+- **Origin**: `accountingTransactions` collection filtered by companyId
+- **Usage**: Tracking payment status for GST, service charges, partner payments, owner shares
+- **Key Fields Used**: `vehicleId`, `type`, `month`, `status`
+
+**setAccountingTransactions**: Function - State setter for accounting transactions
+- **Origin**: Parent component state management
+- **Usage**: Updating transaction records after payments
+
+### Internal State & Data Sources
+
+#### vehicleCashBalances State
+**Type**: `Record<string, number>` - Cash balance for each vehicle
+- **Origin**: `cashInHand` collection documents loaded via Firestore onSnapshot
+- **Formula Chain**:
+- `cashRef` = `doc(firestore, \`Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand\`, vehicle.id)`
+- `balance` = `cashDoc.exists() ? cashDoc.data().balance || 0 : 0`
+- **Usage**: Display current cash position for each vehicle
+
+### Computed Data (Period-Based Calculations)
+
+#### getPeriodData Function - Main Calculation Engine
+**Purpose**: Calculate cumulative financial data for selected time period across all vehicles
+**Data Source**: `companyFinancialData`, `accountingTransactions`
+**Origin**: Real-time calculation from raw payment and expense records with period filtering
+
+**Period Month Determination**:
+```typescript
+// Monthly filter
+if (companyFinancialData.filterType === 'monthly') {
+  months = [monthNameToIndex(companyFinancialData.selectedMonth)];
+}
+// Quarterly filter  
+else if (companyFinancialData.filterType === 'quarterly') {
+  const quarterMonths = {'Q1': [0,1,2], 'Q2': [3,4,5], 'Q3': [6,7,8], 'Q4': [9,10,11]};
+  months = quarterMonths[companyFinancialData.selectedQuarter];
+}
+// Yearly filter
+else if (companyFinancialData.filterType === 'yearly') {
+  months = Array.from({length: 12}, (_, i) => i); // [0,1,2,...,11]
+}
+```
+
+**Vehicle Filtering**:
+```typescript
+filteredVehicles = companyFinancialData.vehicleData.filter(vehicleInfo => {
+  if (companyFinancialData.partnerFilter === 'all') return true;
+  if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.ownershipType === 'partner';
+  if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.ownershipType !== 'partner';
+  return true;
+});
+```
+
+### Per-Vehicle Financial Calculations
+
+#### Earnings Calculation
+**Label**: "Earnings"
+**Value**: `₹{vehicleInfo.earnings.toLocaleString()}`
+**Data Source**: `vehicleInfo.earnings` (calculated in getPeriodData)
+**Origin**: `payments` collection filtered by vehicle and period
+**Formula Chain**:
+- `monthPayments` = `companyFinancialData.payments.filter(p => p.vehicleId === vehicleInfo.vehicle.id && p.status === 'paid' && dateInMonthRange)`
+- `monthEarnings` = `monthPayments.reduce((sum, p) => sum + p.amountPaid, 0)`
+- `cumulativeEarnings` = `months.reduce((total, monthIndex) => total + monthEarnings[monthIndex], 0)`
+- `displayValue` = `cumulativeEarnings.toLocaleString()`
+
+#### Expenses Calculation
+**Label**: "Expenses"
+**Value**: `₹{vehicleInfo.expenses.toLocaleString()}`
+**Data Source**: `vehicleInfo.expenses` (calculated in getPeriodData)
+**Origin**: `expenses` collection filtered by vehicle and period
+**Formula Chain**:
+- `monthExpenses` = `companyFinancialData.expenses.filter(e => e.vehicleId === vehicleInfo.vehicle.id && e.status === 'approved' && dateInMonthRange)`
+- `monthExpensesAmount` = `monthExpenses.reduce((sum, e) => sum + e.amount, 0)`
+- `cumulativeExpenses` = `months.reduce((total, monthIndex) => total + monthExpensesAmount[monthIndex], 0)`
+- `displayValue` = `cumulativeExpenses.toLocaleString()`
+
+#### Profit Calculation
+**Label**: "Profit (Earnings - Expenses)"
+**Value**: `₹{vehicleInfo.profit.toLocaleString()}`
+**Data Source**: `vehicleInfo.profit` (calculated in getPeriodData)
+**Origin**: Derived from earnings and expenses calculations
+**Formula Chain**:
+- `cumulativeProfit` = `cumulativeEarnings - cumulativeExpenses`
+- `displayValue` = `cumulativeProfit.toLocaleString()`
+- **Styling**: `vehicleInfo.profit >= 0 ? 'text-green-600' : 'text-red-600'`
+
+#### GST Amount Calculation
+**Label**: "GST (4%)"
+**Value**: `₹{vehicleInfo.gstAmount.toLocaleString()}`
+**Data Source**: `vehicleInfo.gstAmount` (calculated in getPeriodData)
+**Origin**: 4% tax calculation on positive profit
+**Formula Chain**:
+- `cumulativeGst` = `cumulativeProfit > 0 ? cumulativeProfit * 0.04 : 0`
+- `displayValue` = `cumulativeGst.toLocaleString()`
+- **Styling**: `text-orange-600`
+
+#### Service Charge Calculation (Partner Vehicles Only)
+**Label**: "Service Charge (10%)"
+**Value**: `₹{vehicleInfo.serviceCharge.toLocaleString()}`
+**Data Source**: `vehicleInfo.serviceCharge` (calculated in getPeriodData)
+**Origin**: Service charge on partner vehicle profits
+**Formula Chain**:
+- `isPartnerTaxi` = `vehicleInfo.vehicle.ownershipType === 'partner'`
+- `serviceChargeRate` = `vehicleInfo.vehicle.serviceChargeRate || 0.10`
+- `cumulativeServiceCharge` = `isPartnerTaxi && cumulativeProfit > 0 ? cumulativeProfit * serviceChargeRate : 0`
+- `displayValue` = `cumulativeServiceCharge.toLocaleString()`
+- **Conditional Display**: Only shown when `vehicleInfo.serviceCharge > 0`
+- **Styling**: `text-blue-600`
+
+#### Partner Share Calculation (Partner Vehicles Only)
+**Label**: "Partner Share (50%)"
+**Value**: `₹{vehicleInfo.partnerShare.toLocaleString()}`
+**Data Source**: `vehicleInfo.partnerShare` (calculated in getPeriodData)
+**Origin**: Partner profit share after GST and service charge deductions
+**Formula Chain**:
+- `remainingProfitAfterDeductions` = `cumulativeProfit - cumulativeGst - cumulativeServiceCharge`
+- `partnerSharePercentage` = `vehicleInfo.vehicle.partnerShare || 0.50`
+- `cumulativePartnerShare` = `isPartnerTaxi && remainingProfitAfterDeductions > 0 ? remainingProfitAfterDeductions * partnerSharePercentage : 0`
+- `displayValue` = `cumulativePartnerShare.toLocaleString()`
+- **Conditional Display**: Only shown when `vehicleInfo.partnerShare > 0`
+- **Styling**: `text-purple-600 font-bold`
+
+#### Owner Share Calculation (Partner Vehicles)
+**Label**: "Owner's Share (50%)"
+**Value**: `₹{vehicleInfo.ownerShare.toLocaleString()}`
+**Data Source**: `vehicleInfo.ownerShare` (calculated in getPeriodData)
+**Origin**: Owner profit share after GST and service charge deductions
+**Formula Chain**:
+- `cumulativeOwnerShare` = `isPartnerTaxi && remainingProfitAfterDeductions > 0 ? remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0`
+- `displayValue` = `cumulativeOwnerShare.toLocaleString()`
+- **Conditional Display**: Only shown when `vehicleInfo.ownerShare > 0`
+- **Styling**: `text-green-600 font-bold`
+
+#### Owner Full Share Calculation (Company Vehicles)
+**Label**: "Owner's Share (100%)"
+**Value**: `₹{vehicleInfo.ownerFullShare.toLocaleString()}`
+**Data Source**: `vehicleInfo.ownerFullShare` (calculated in getPeriodData)
+**Origin**: Full owner share for company-owned vehicles after GST
+**Formula Chain**:
+- `cumulativeOwnerFullShare` = `!isPartnerTaxi && (cumulativeProfit - cumulativeGst) > 0 ? cumulativeProfit - cumulativeGst : 0`
+- `displayValue` = `cumulativeOwnerFullShare.toLocaleString()`
+- **Conditional Display**: Only shown when `vehicleInfo.ownerFullShare > 0`
+- **Styling**: `text-green-600 font-bold`
+
+### Cash Balance Display
+
+#### Cash in Hand
+**Label**: "Cash in Hand"
+**Value**: `₹{(vehicleCashBalances[vehicleInfo.vehicle.id] || 0).toLocaleString()}`
+**Data Source**: `vehicleCashBalances[vehicleInfo.vehicle.id]`
+**Origin**: `cashInHand` collection document
+**Formula Chain**:
+- `cashRef` = `doc(firestore, \`Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand\`, vehicleInfo.vehicle.id)`
+- `currentBalance` = `cashDoc.exists() ? cashDoc.data().balance || 0 : 0`
+- `displayValue` = `currentBalance.toLocaleString()`
+- **Styling**: `text-green-600 font-semibold`
+
+### Payment Status Tracking
+
+#### GST Payment Status
+**Label**: "GST Payment"
+**Value**: Badge showing "Paid" or "Pay GST" button
+**Data Source**: `vehicleInfo.gstPaid` (calculated in getPeriodData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `periodStr` = Generate period identifier (year/quarter/month format)
+- `gstPaid` = `accountingTransactions.some(t => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'gst_payment' && t.month === periodStr && t.status === 'completed')`
+- **Display Logic**: Show green "Paid" badge if `gstPaid`, otherwise show payment button
+
+#### Service Charge Collection Status
+**Label**: "Service Charge"
+**Value**: Badge showing "Collected" or "Collect" button
+**Data Source**: `vehicleInfo.serviceChargeCollected` (calculated in getPeriodData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `serviceChargeCollected` = `accountingTransactions.some(t => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'service_charge' && t.month === periodStr && t.status === 'completed')`
+- **Conditional Display**: Only shown for partner vehicles (`vehicleInfo.vehicle.ownershipType === 'partner'`)
+
+#### Partner Payment Status
+**Label**: "Partner Payment"
+**Value**: Badge showing "Paid" or "Pay Partner" button
+**Data Source**: `vehicleInfo.partnerPaid` (calculated in getPeriodData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `partnerPaid` = `accountingTransactions.some(t => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'partner_payment' && t.month === periodStr && t.status === 'completed')`
+- **Conditional Display**: Only shown for partner vehicles
+
+#### Owner Share Collection Status
+**Label**: "Owner Share Collection"
+**Value**: Badge showing "Collected" or "Collect" button
+**Data Source**: `vehicleInfo.ownerShareCollected` (calculated in getPeriodData)
+**Origin**: `accountingTransactions` collection query
+**Formula Chain**:
+- `ownerShareCollected` = `accountingTransactions.some(t => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'owner_share' && t.month === periodStr && t.status === 'completed')`
+
+### Company-Level Summary Cards
+
+#### Total Earnings
+**Label**: "Total Earnings"
+**Value**: `₹{periodTotals.totalEarnings.toLocaleString()}`
+**Data Source**: `periodTotals.totalEarnings` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle earnings in period
+**Formula Chain**:
+- `totalEarnings` = `periodData.reduce((sum, v) => sum + v.earnings, 0)`
+- `displayValue` = `totalEarnings.toLocaleString()`
+
+#### Total Expenses
+**Label**: "Total Expenses"
+**Value**: `₹{periodTotals.totalExpenses.toLocaleString()}`
+**Data Source**: `periodTotals.totalExpenses` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle expenses in period
+**Formula Chain**:
+- `totalExpenses` = `periodData.reduce((sum, v) => sum + v.expenses, 0)`
+- `displayValue` = `totalExpenses.toLocaleString()`
+
+#### Total Profit
+**Label**: "Total Profit"
+**Value**: `₹{periodTotals.totalProfit.toLocaleString()}`
+**Data Source**: `periodTotals.totalProfit` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle profits in period
+**Formula Chain**:
+- `totalProfit` = `periodData.reduce((sum, v) => sum + v.profit, 0)`
+- `displayValue` = `totalProfit.toLocaleString()`
+
+#### Total GST
+**Label**: "Total GST"
+**Value**: `₹{periodTotals.totalGst.toLocaleString()}`
+**Data Source**: `periodTotals.totalGst` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle GST amounts in period
+**Formula Chain**:
+- `totalGst` = `periodData.reduce((sum, v) => sum + v.gstAmount, 0)`
+- `displayValue` = `totalGst.toLocaleString()`
+
+#### Total Service Charge
+**Label**: "Total Service Charge"
+**Value**: `₹{periodTotals.totalServiceCharge.toLocaleString()}`
+**Data Source**: `periodTotals.totalServiceCharge` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle service charges in period
+**Formula Chain**:
+- `totalServiceCharge` = `periodData.reduce((sum, v) => sum + v.serviceCharge, 0)`
+- `displayValue` = `totalServiceCharge.toLocaleString()`
+
+#### Total Partner Share
+**Label**: "Total Partner Share"
+**Value**: `₹{periodTotals.totalPartnerShare.toLocaleString()}`
+**Data Source**: `periodTotals.totalPartnerShare` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle partner shares in period
+**Formula Chain**:
+- `totalPartnerShare` = `periodData.reduce((sum, v) => sum + v.partnerShare, 0)`
+- `displayValue` = `totalPartnerShare.toLocaleString()`
+
+#### Total Owner Share
+**Label**: "Total Owner Share"
+**Value**: `₹{periodTotals.totalOwnerShare.toLocaleString()}`
+**Data Source**: `periodTotals.totalOwnerShare` (calculated in getPeriodData)
+**Origin**: Sum of all vehicle owner shares in period
+**Formula Chain**:
+- `totalOwnerShare` = `periodData.reduce((sum, v) => sum + v.ownerShare + v.ownerFullShare, 0)`
+- `displayValue` = `totalOwnerShare.toLocaleString()`
+
+### Navigation & Interactive Elements
+
+#### View Expenses Breakup Link
+**Trigger**: Click on "view breakup" text link in expenses section
+**Event Handler**: `handleViewExpenses(vehicleId)`
+**State Changes**: None (navigation)
+**Side Effects**: URL navigation to vehicle payments tab with period filters
+**UI Response**: Navigate to `/vehicles/${vehicleId}?tab=payments&period=${period}&year=${year}&month=${month}&quarter=${quarter}`
+
+### Data Source Summary for FinancialAccountsTab
+- **Primary Collections**: `vehicles`, `payments`, `expenses`, `accountingTransactions`, `cashInHand`, `companyCashInHand`
+- **Calculated Props**: `companyFinancialData` (from parent component processing), `accountingTransactions` (from collection)
+- **Key Functions**: `getPeriodData()` (main calculation engine), `handleViewExpenses()` (navigation), payment handlers (`handleGstPayment`, `handleServiceChargeCollection`, etc.)
+- **State Dependencies**: `vehicleCashBalances` (loaded from Firestore), bulk payment dialog states
+- **External Functions**: `navigate()` (React Router), Firestore operations (`addDoc`, `updateDoc`, `onSnapshot`)
+- **Child Components**: `BulkPaymentDialog`
+- **Conditional Rendering**: Partner vs company vehicle displays, payment status badges vs buttons, period-based calculations
+- **Time Filtering**: Dynamic month selection based on `filterType` (yearly/quarterly/monthly)
+- **Navigation**: URL parameter-based navigation to vehicle details payments tab with filter preservation
+
+This analysis ensures complete traceability from every displayed financial value, payment status, and interactive element back to its fundamental database origin, enabling accurate debugging and maintenance of the accounting interface.
+
 ### 13.1 Component Data Source Tracing Template
 
 **Instructions for AI Assistant:**

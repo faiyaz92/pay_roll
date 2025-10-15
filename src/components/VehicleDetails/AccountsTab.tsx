@@ -18,7 +18,8 @@ import {
   Banknote,
   Calendar,
   CheckCircle,
-  Clock
+  Clock,
+  Users
 } from 'lucide-react';
 
 interface AccountsTabProps {
@@ -384,12 +385,30 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const cumulativeData = useMemo(() => {
     const totalEarnings = monthlyData.reduce((sum, m) => sum + m.earnings, 0);
     const totalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0);
-    const totalProfit = monthlyData.reduce((sum, m) => sum + m.profit, 0);
-    const totalGst = monthlyData.reduce((sum, m) => sum + m.gstAmount, 0);
-    const totalServiceCharge = monthlyData.reduce((sum, m) => sum + m.serviceCharge, 0);
-    const totalPartnerShare = monthlyData.reduce((sum, m) => sum + m.partnerShare, 0);
-    const totalOwnerShare = monthlyData.reduce((sum, m) => sum + m.ownerShare, 0);
-    const totalOwnerWithdrawal = monthlyData.reduce((sum, m) => sum + m.ownerFullShare, 0);
+    const totalProfit = totalEarnings - totalExpenses;
+
+    // GST calculation (4% on total profit - only if total profit is positive)
+    const totalGst = totalProfit > 0 ? totalProfit * 0.04 : 0;
+
+    // Service charge (10% for partner taxis - only if total profit is positive)
+    const isPartnerTaxi = vehicle?.ownershipType === 'partner';
+    const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
+    const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
+
+    // Partner share and owner share calculations (on remaining profit after GST and service charge)
+    const remainingProfitAfterDeductions = totalProfit - totalGst - totalServiceCharge;
+    const partnerSharePercentage = vehicle?.partnerShare || 0.50; // Default 50%
+
+    let totalPartnerShare = 0;
+    let totalOwnerShare = 0;
+    let totalOwnerWithdrawal = 0;
+
+    if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
+      totalPartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
+      totalOwnerShare = remainingProfitAfterDeductions * (1 - partnerSharePercentage);
+    } else if (!isPartnerTaxi && (totalProfit - totalGst) > 0) {
+      totalOwnerWithdrawal = totalProfit - totalGst;
+    }
 
     return {
       totalEarnings,
@@ -401,7 +420,177 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       totalOwnerShare,
       totalOwnerWithdrawal
     };
-  }, [monthlyData]);
+  }, [monthlyData, vehicle]);
+
+  // Cumulative payment handlers
+  const handleCumulativeGstPayment = async () => {
+    if (cumulativeData.totalGst <= 0) return;
+
+    try {
+      const periodStr = selectedPeriod === 'year'
+        ? selectedYear
+        : selectedPeriod === 'quarter'
+        ? `${selectedYear}-Q${selectedQuarter}`
+        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'gst_payment',
+        amount: cumulativeData.totalGst,
+        month: periodStr,
+        description: `Cumulative GST Payment for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+
+      // Update cash in hand
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: cashInHand - cumulativeData.totalGst,
+        lastUpdated: new Date().toISOString()
+      });
+
+      toast({
+        title: 'GST Paid Successfully',
+        description: `₹${cumulativeData.totalGst.toLocaleString()} cumulative GST payment recorded`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to record cumulative GST payment',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleCumulativeServiceChargeCollection = async () => {
+    if (cumulativeData.totalServiceCharge <= 0) return;
+
+    try {
+      const periodStr = selectedPeriod === 'year'
+        ? selectedYear
+        : selectedPeriod === 'quarter'
+        ? `${selectedYear}-Q${selectedQuarter}`
+        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'service_charge',
+        amount: cumulativeData.totalServiceCharge,
+        month: periodStr,
+        description: `Cumulative Service Charge Collection for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+
+      // Update cash in hand - INCREASE when owner collects service charge
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: cashInHand + cumulativeData.totalServiceCharge,
+        lastUpdated: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Service Charge Collected',
+        description: `₹${cumulativeData.totalServiceCharge.toLocaleString()} cumulative service charge collected as additional income`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to collect cumulative service charge',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleCumulativePartnerPayment = async () => {
+    if (cumulativeData.totalPartnerShare <= 0) return;
+
+    try {
+      const periodStr = selectedPeriod === 'year'
+        ? selectedYear
+        : selectedPeriod === 'quarter'
+        ? `${selectedYear}-Q${selectedQuarter}`
+        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'partner_payment',
+        amount: cumulativeData.totalPartnerShare,
+        month: periodStr,
+        description: `Cumulative Partner Payment for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+
+      // Update cash in hand
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: cashInHand - cumulativeData.totalPartnerShare,
+        lastUpdated: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Partner Paid Successfully',
+        description: `₹${cumulativeData.totalPartnerShare.toLocaleString()} cumulative partner payment recorded`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to record cumulative partner payment',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleCumulativeOwnerShareCollection = async () => {
+    const totalOwnerAmount = cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal;
+    if (totalOwnerAmount <= 0) return;
+
+    try {
+      const periodStr = selectedPeriod === 'year'
+        ? selectedYear
+        : selectedPeriod === 'quarter'
+        ? `${selectedYear}-Q${selectedQuarter}`
+        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: cumulativeData.totalOwnerShare > 0 ? 'owner_share' : 'owner_withdrawal',
+        amount: totalOwnerAmount,
+        month: periodStr,
+        description: `Cumulative Owner Share Collection for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+
+      // Update cash in hand
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: cashInHand - totalOwnerAmount,
+        lastUpdated: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Owner Share Collected',
+        description: `₹${totalOwnerAmount.toLocaleString()} cumulative owner share collected`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to collect cumulative owner share',
+        variant: 'destructive'
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -529,6 +718,80 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 <div className="text-sm text-gray-600">Total Owner Share</div>
               </div>
             </div>
+
+            {/* Cumulative Payables Breakdown */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-orange-600">
+                  ₹{cumulativeData.totalGst.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-600">GST Payable</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-blue-600">
+                  ₹{cumulativeData.totalServiceCharge.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-600">Service Charges</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-purple-600">
+                  ₹{cumulativeData.totalPartnerShare.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-600">Partner Shares</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-green-600">
+                  ₹{cumulativeData.totalOwnerShare.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-600">Owner Shares</div>
+              </div>
+            </div>
+
+            {/* Cumulative Payment Actions */}
+            <div className="mt-6 pt-4 border-t">
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  onClick={() => handleCumulativeGstPayment()}
+                  disabled={cumulativeData.totalGst === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Pay GST ({cumulativeData.totalGst.toLocaleString()})
+                </Button>
+                <Button
+                  onClick={() => handleCumulativeServiceChargeCollection()}
+                  disabled={cumulativeData.totalServiceCharge === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  Collect Service Charges ({cumulativeData.totalServiceCharge.toLocaleString()})
+                </Button>
+                <Button
+                  onClick={() => handleCumulativePartnerPayment()}
+                  disabled={cumulativeData.totalPartnerShare === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  Pay Partner ({cumulativeData.totalPartnerShare.toLocaleString()})
+                </Button>
+                <Button
+                  onClick={() => handleCumulativeOwnerShareCollection()}
+                  disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Banknote className="h-4 w-4" />
+                  Collect Owner Share ({(cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString()})
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -565,16 +828,41 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 </div>
                 <div className="space-y-1 text-sm">
                   {monthData.expenses.slice(0, 3).map((expense, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span className="truncate">{expense.description || expense.type}</span>
+                    <div key={idx} className="flex justify-between items-center">
+                      <Badge
+                        variant={
+                          (expense.paymentType === 'emi' || (expense.expenseType as any) === 'emi') ? 'secondary' :
+                          (expense.paymentType === 'prepayment' || (expense.expenseType as any) === 'prepayment') ? 'outline' :
+                          expense.expenseType === 'insurance' ? 'secondary' :
+                          expense.expenseType === 'penalties' ? 'destructive' :
+                          expense.expenseType === 'fuel' ? 'secondary' :
+                          expense.expenseType === 'maintenance' ? 'secondary' :
+                          expense.expenseType === 'general' ? 'secondary' :
+                          'destructive'
+                        }
+                        className={
+                          (expense.paymentType === 'emi' || (expense.expenseType as any) === 'emi') ? 'bg-indigo-100 text-indigo-800' :
+                          (expense.paymentType === 'prepayment' || (expense.expenseType as any) === 'prepayment') ? 'bg-orange-100 text-orange-800' :
+                          expense.expenseType === 'insurance' ? 'bg-blue-100 text-blue-800' :
+                          expense.expenseType === 'penalties' ? 'bg-red-100 text-red-800' :
+                          expense.expenseType === 'fuel' ? 'bg-blue-100 text-blue-800' :
+                          expense.expenseType === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                          expense.expenseType === 'general' ? 'bg-purple-100 text-purple-800' :
+                          'bg-gray-100 text-gray-800'
+                        }
+                      >
+                        {(expense.paymentType === 'emi' || (expense.expenseType as any) === 'emi') ? 'EMI' :
+                         (expense.paymentType === 'prepayment' || (expense.expenseType as any) === 'prepayment') ? 'PREPAYMENT' :
+                         expense.expenseType === 'insurance' ? 'INSURANCE' :
+                         expense.expenseType === 'penalties' ? 'PENALTY' :
+                         expense.expenseType === 'maintenance' ? 'MAINTENANCE' :
+                         expense.expenseType === 'fuel' ? 'FUEL' :
+                         expense.expenseType === 'general' ? 'GENERAL' :
+                         String(expense.expenseType || expense.type || 'EXPENSE').toUpperCase()}
+                      </Badge>
                       <span>₹{expense.amount.toLocaleString()}</span>
                     </div>
                   ))}
-                  {monthData.expenses.length > 3 && (
-                    <div className="text-gray-500 text-xs">
-                      +{monthData.expenses.length - 3} more expenses
-                    </div>
-                  )}
                 </div>
                 <div className="text-sm font-medium text-red-600 border-t pt-1">
                   Total: ₹{monthData.totalExpenses.toLocaleString()}

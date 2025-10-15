@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -97,6 +97,7 @@ import {
 const VehicleDetails: React.FC = () => {
   const { vehicleId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { userInfo } = useAuth();
   const { vehicles, drivers, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments, assignments: allAssignments } = useFirebaseData();
@@ -136,8 +137,46 @@ const VehicleDetails: React.FC = () => {
   const [selectedExpenseType, setSelectedExpenseType] = useState('fuel');
   const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
   const [projectionYear, setProjectionYear] = useState(1); // Default to 1 year projection
+  const [activeTab, setActiveTab] = useState('overview');
+
   const [assumedMonthlyRent, setAssumedMonthlyRent] = useState(''); // For assumption-based projections
   const [projectionMode, setProjectionMode] = useState<'current' | 'assumed'>('current'); // Current trends vs assumptions
+
+  // Read URL parameters and set initial state
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const period = searchParams.get('period');
+    const year = searchParams.get('year');
+    const month = searchParams.get('month');
+    const quarter = searchParams.get('quarter');
+
+    if (tab) {
+      setActiveTab(tab);
+    }
+
+    if (period && tab === 'payments') {
+      // Set PaymentsTab filters when navigating from FinancialAccountsTab
+      if (period === 'monthly' && month) {
+        setTransactionTypeFilter('paid');
+        setPaidSubTypeFilter('expenses');
+        setExpenseSubTypeFilter('all');
+        setPaymentDateFilter(`${year}-${String(parseInt(month)).padStart(2, '0')}-01`);
+      } else if (period === 'quarterly' && quarter) {
+        // For quarterly, we can't easily filter by quarter in payments tab
+        // Just set to show all expenses
+        setTransactionTypeFilter('paid');
+        setPaidSubTypeFilter('expenses');
+        setExpenseSubTypeFilter('all');
+        setPaymentDateFilter(''); // Clear date filter for quarterly
+      } else if (period === 'yearly') {
+        // For yearly, show all expenses without date filter
+        setTransactionTypeFilter('paid');
+        setPaidSubTypeFilter('expenses');
+        setExpenseSubTypeFilter('all');
+        setPaymentDateFilter(''); // Clear date filter for yearly
+      }
+    }
+  }, [searchParams]);
   const [increasedEMI, setIncreasedEMI] = useState(''); // For increased EMI projections
   const [netCashFlowMode, setNetCashFlowMode] = useState(false); // Use net cash flow for EMI payoff
 
@@ -338,24 +377,35 @@ const VehicleDetails: React.FC = () => {
 
     // Add expenses
     expenses.filter(e => e.vehicleId === vehicleId && e.status === 'approved').forEach((expense, index) => {
-      // Determine expense type based on description or type
+      // Check if this is a special payment type (prepayment, emi) that was recorded as expense
+      let paymentType = 'expenses';
       let expenseType = 'general';
-      if (expense.description?.toLowerCase().includes('fuel')) {
-        expenseType = 'fuel';
-      } else if (expense.expenseType === 'fuel' || expense.type === 'fuel') {
-        expenseType = 'fuel';
-      } else if (expense.expenseType === 'maintenance' || expense.type === 'maintenance') {
-        expenseType = 'maintenance';
-      } else if (expense.expenseType === 'insurance' || expense.type === 'insurance') {
-        expenseType = 'insurance';
-      } else if (expense.expenseType === 'penalties' || expense.type === 'penalties') {
-        expenseType = 'penalties';
+
+      if (expense.paymentType === 'prepayment' || expense.type === 'prepayment') {
+        paymentType = 'prepayment';
+        expenseType = 'prepayment';
+      } else if (expense.paymentType === 'emi' || expense.type === 'emi') {
+        paymentType = 'emi';
+        expenseType = 'emi';
+      } else {
+        // Determine expense type based on description or type for regular expenses
+        if (expense.description?.toLowerCase().includes('fuel')) {
+          expenseType = 'fuel';
+        } else if (expense.expenseType === 'fuel' || expense.type === 'fuel') {
+          expenseType = 'fuel';
+        } else if (expense.expenseType === 'maintenance' || expense.type === 'maintenance') {
+          expenseType = 'maintenance';
+        } else if (expense.expenseType === 'insurance' || expense.type === 'insurance') {
+          expenseType = 'insurance';
+        } else if (expense.expenseType === 'penalties' || expense.type === 'penalties') {
+          expenseType = 'penalties';
+        }
       }
 
       payments.push({
         date: expense.createdAt,
         type: 'paid',
-        paymentType: 'expenses',
+        paymentType: paymentType,
         expenseType: expenseType,
         amount: expense.amount,
         description: expense.description,
@@ -388,7 +438,10 @@ const VehicleDetails: React.FC = () => {
     
     // Level 2: Payment Sub-Type
     if (paidSubTypeFilter !== 'all') {
-      if (payment.paymentType !== paidSubTypeFilter) {
+      // Check both paymentType and expenseType for backward compatibility
+      const matchesPaymentType = payment.paymentType === paidSubTypeFilter;
+      const matchesExpenseType = payment.expenseType === paidSubTypeFilter;
+      if (!matchesPaymentType && !matchesExpenseType) {
         return false;
       }
     }
@@ -1449,7 +1502,7 @@ const VehicleDetails: React.FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>

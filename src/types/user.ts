@@ -218,7 +218,7 @@ export interface Payment {
   // New hierarchical structure
   type: 'paid' | 'received';
   paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
-  expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
+  expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general' | 'emi' | 'prepayment';
   companyId: string;
   // Display properties (added when creating payment records)
   date?: string;
