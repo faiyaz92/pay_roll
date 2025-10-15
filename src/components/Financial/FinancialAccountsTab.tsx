@@ -8,18 +8,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { collection, addDoc, doc, updateDoc, onSnapshot, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
+import BulkPaymentDialog from './BulkPaymentDialog';
 import {
   Calculator,
   DollarSign,
   TrendingUp,
   TrendingDown,
   Receipt,
-  CreditCard,
+  Users,
+  User,
   Banknote,
   CheckCircle,
   Car,
   Filter,
-  Calendar
+  Calendar,
+  CreditCard
 } from 'lucide-react';
 
 interface AccountingTransaction {
@@ -48,6 +51,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const { userInfo } = useAuth();
   const { vehicles } = useFirebaseData();
   const [vehicleCashBalances, setVehicleCashBalances] = useState<Record<string, number>>({});
+
+  // Bulk payment dialog state
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkDialogType, setBulkDialogType] = useState<'gst' | 'service_charge' | 'partner_share' | 'owner_share'>('gst');
+  const [bulkDialogItems, setBulkDialogItems] = useState<any[]>([]);
+  const [bulkDialogTitle, setBulkDialogTitle] = useState('');
+  const [bulkDialogDescription, setBulkDialogDescription] = useState('');
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // Load cash balances for all vehicles
   useEffect(() => {
@@ -324,6 +335,320 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     }
   };
 
+  // Bulk payment functions
+  const openBulkPaymentDialog = (type: 'gst' | 'service_charge' | 'partner_share' | 'owner_share') => {
+    const { periodData } = getPeriodData();
+    let items: any[] = [];
+    let title = '';
+    let description = '';
+
+    switch (type) {
+      case 'gst':
+        title = `Bulk GST Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+        description = `Pay GST for all vehicles in the selected period. You can deselect vehicles that should not have GST paid.`;
+        items = periodData
+          .filter(vehicle => vehicle.gstAmount > 0 && !vehicle.gstPaid)
+          .map(vehicle => ({
+            vehicleId: vehicle.vehicle.id,
+            vehicleName: vehicle.vehicle.registrationNumber,
+            amount: vehicle.gstAmount,
+            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyGSTBreakdown(vehicle) : undefined,
+            checked: true
+          }));
+        break;
+
+      case 'service_charge':
+        title = `Bulk Service Charge Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+        description = `Collect service charges from all partner vehicles in the selected period. You can deselect vehicles that should not have service charges collected.`;
+        items = periodData
+          .filter(vehicle => vehicle.serviceCharge > 0 && !vehicle.serviceChargeCollected && vehicle.vehicle.ownershipType === 'partner')
+          .map(vehicle => ({
+            vehicleId: vehicle.vehicle.id,
+            vehicleName: vehicle.vehicle.registrationNumber,
+            amount: vehicle.serviceCharge,
+            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyServiceChargeBreakdown(vehicle) : undefined,
+            checked: true
+          }));
+        break;
+
+      case 'partner_share':
+        title = `Bulk Partner Share Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+        description = `Pay partner shares for all partner vehicles in the selected period. You can deselect vehicles that should not have partner shares paid.`;
+        items = periodData
+          .filter(vehicle => vehicle.partnerShare > 0 && !vehicle.partnerPaid && vehicle.vehicle.ownershipType === 'partner')
+          .map(vehicle => ({
+            vehicleId: vehicle.vehicle.id,
+            vehicleName: vehicle.vehicle.registrationNumber,
+            amount: vehicle.partnerShare,
+            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyPartnerShareBreakdown(vehicle) : undefined,
+            checked: true
+          }));
+        break;
+
+      case 'owner_share':
+        title = `Bulk Owner Share Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+        description = `Collect owner shares from all partner vehicles in the selected period. You can deselect vehicles that should not have owner shares collected.`;
+        items = periodData
+          .filter(vehicle => vehicle.ownerShare > 0 && !vehicle.ownerShareCollected && vehicle.vehicle.ownershipType === 'partner')
+          .map(vehicle => ({
+            vehicleId: vehicle.vehicle.id,
+            vehicleName: vehicle.vehicle.registrationNumber,
+            amount: vehicle.ownerShare,
+            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyOwnerShareBreakdown(vehicle) : undefined,
+            checked: true
+          }));
+        break;
+    }
+
+    setBulkDialogType(type);
+    setBulkDialogItems(items);
+    setBulkDialogTitle(title);
+    setBulkDialogDescription(description);
+    setBulkDialogOpen(true);
+  };
+
+  // Helper functions for quarterly breakdowns
+  const getQuarterlyGSTBreakdown = (vehicleInfo: any) => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    const quarterMonths = {
+      'Q1': [0, 1, 2], // Jan, Feb, Mar
+      'Q2': [3, 4, 5], // Apr, May, Jun
+      'Q3': [6, 7, 8], // Jul, Aug, Sep
+      'Q4': [9, 10, 11] // Oct, Nov, Dec
+    };
+    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+
+    return months.map(monthIndex => {
+      const monthStart = new Date(year, monthIndex, 1);
+      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+      // Calculate GST for this specific month
+      const monthPayments = (companyFinancialData.payments || []).filter((p: any) =>
+        p.vehicleId === vehicleInfo.vehicle.id &&
+        p.status === 'paid' &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+      );
+
+      const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+        e.vehicleId === vehicleInfo.vehicle.id &&
+        e.status === 'approved' &&
+        new Date(e.createdAt) >= monthStart &&
+        new Date(e.createdAt) <= monthEnd
+      );
+
+      const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+      const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const monthProfit = monthEarnings - monthExpensesAmount;
+      const monthGst = monthProfit > 0 ? monthProfit * 0.04 : 0;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return {
+        month: monthNames[monthIndex],
+        amount: monthGst
+      };
+    });
+  };
+
+  const getQuarterlyServiceChargeBreakdown = (vehicleInfo: any) => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    const quarterMonths = {
+      'Q1': [0, 1, 2], // Jan, Feb, Mar
+      'Q2': [3, 4, 5], // Apr, May, Jun
+      'Q3': [6, 7, 8], // Jul, Aug, Sep
+      'Q4': [9, 10, 11] // Oct, Nov, Dec
+    };
+    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+
+    return months.map(monthIndex => {
+      const monthStart = new Date(year, monthIndex, 1);
+      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+      // Calculate service charge for this specific month
+      const monthPayments = (companyFinancialData.payments || []).filter((p: any) =>
+        p.vehicleId === vehicleInfo.vehicle.id &&
+        p.status === 'paid' &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+      );
+
+      const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+        e.vehicleId === vehicleInfo.vehicle.id &&
+        e.status === 'approved' &&
+        new Date(e.createdAt) >= monthStart &&
+        new Date(e.createdAt) <= monthEnd
+      );
+
+      const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+      const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const monthProfit = monthEarnings - monthExpensesAmount;
+
+      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const monthServiceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return {
+        month: monthNames[monthIndex],
+        amount: monthServiceCharge
+      };
+    });
+  };
+
+  const getQuarterlyPartnerShareBreakdown = (vehicleInfo: any) => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    const quarterMonths = {
+      'Q1': [0, 1, 2], // Jan, Feb, Mar
+      'Q2': [3, 4, 5], // Apr, May, Jun
+      'Q3': [6, 7, 8], // Jul, Aug, Sep
+      'Q4': [9, 10, 11] // Oct, Nov, Dec
+    };
+    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+
+    return months.map(monthIndex => {
+      const monthStart = new Date(year, monthIndex, 1);
+      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+      // Calculate partner share for this specific month
+      const monthPayments = (companyFinancialData.payments || []).filter((p: any) =>
+        p.vehicleId === vehicleInfo.vehicle.id &&
+        p.status === 'paid' &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+      );
+
+      const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+        e.vehicleId === vehicleInfo.vehicle.id &&
+        e.status === 'approved' &&
+        new Date(e.createdAt) >= monthStart &&
+        new Date(e.createdAt) <= monthEnd
+      );
+
+      const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+      const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const monthProfit = monthEarnings - monthExpensesAmount;
+
+      const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
+      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+      const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const monthPartnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+        remainingProfitAfterDeductions * partnerSharePercentage : 0;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return {
+        month: monthNames[monthIndex],
+        amount: monthPartnerShare
+      };
+    });
+  };
+
+  const getQuarterlyOwnerShareBreakdown = (vehicleInfo: any) => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    const quarterMonths = {
+      'Q1': [0, 1, 2], // Jan, Feb, Mar
+      'Q2': [3, 4, 5], // Apr, May, Jun
+      'Q3': [6, 7, 8], // Jul, Aug, Sep
+      'Q4': [9, 10, 11] // Oct, Nov, Dec
+    };
+    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+
+    return months.map(monthIndex => {
+      const monthStart = new Date(year, monthIndex, 1);
+      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+      // Calculate owner share for this specific month
+      const monthPayments = (companyFinancialData.payments || []).filter((p: any) =>
+        p.vehicleId === vehicleInfo.vehicle.id &&
+        p.status === 'paid' &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+        new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+      );
+
+      const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+        e.vehicleId === vehicleInfo.vehicle.id &&
+        e.status === 'approved' &&
+        new Date(e.createdAt) >= monthStart &&
+        new Date(e.createdAt) <= monthEnd
+      );
+
+      const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+      const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const monthProfit = monthEarnings - monthExpensesAmount;
+
+      const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
+      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+      const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const monthOwnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
+        remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return {
+        month: monthNames[monthIndex],
+        amount: monthOwnerShare
+      };
+    });
+  };
+
+  // Handle bulk payment confirmation
+  const handleBulkPaymentConfirm = async (selectedItems: any[]) => {
+    if (selectedItems.length === 0) return;
+
+    setIsBulkProcessing(true);
+    try {
+      const { periodData } = getPeriodData();
+      let totalAmount = 0;
+
+      for (const item of selectedItems) {
+        const vehicleInfo = periodData.find((v: any) => v.vehicle.id === item.vehicleId);
+        if (!vehicleInfo) continue;
+
+        totalAmount += item.amount;
+
+        // Process payment based on type
+        switch (bulkDialogType) {
+          case 'gst':
+            await handleGstPayment(vehicleInfo);
+            break;
+          case 'service_charge':
+            await handleServiceChargeCollection(vehicleInfo);
+            break;
+          case 'partner_share':
+            await handlePartnerPayment(vehicleInfo);
+            break;
+          case 'owner_share':
+            await handleOwnerShareCollection(vehicleInfo);
+            break;
+        }
+
+        // Small delay to prevent overwhelming Firestore
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      toast({
+        title: 'Bulk Payment Completed',
+        description: `Successfully processed ${selectedItems.length} payments totaling ₹${totalAmount.toLocaleString()}`,
+      });
+
+      setBulkDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Bulk Payment Failed',
+        description: 'Some payments may have failed. Please check individual vehicle cards.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
   // Calculate period-based data (yearly, quarterly, or monthly)
   const getPeriodData = () => {
     const year = parseInt(companyFinancialData.selectedYear);
@@ -549,6 +874,55 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               <div className="text-xs text-gray-600">Current Cash</div>
             </div>
           </div>
+
+          {/* Bulk Payment Actions */}
+          <div className="mt-6 pt-4 border-t">
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                onClick={() => openBulkPaymentDialog('gst')}
+                disabled={periodTotals.totalGst === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <CreditCard className="h-4 w-4" />
+                Pay GST ({periodTotals.totalGst.toLocaleString()})
+              </Button>
+              <Button
+                onClick={() => openBulkPaymentDialog('service_charge')}
+                disabled={periodTotals.totalServiceCharge === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <DollarSign className="h-4 w-4" />
+                Collect Service Charges ({periodTotals.totalServiceCharge.toLocaleString()})
+              </Button>
+              <Button
+                onClick={() => openBulkPaymentDialog('partner_share')}
+                disabled={periodTotals.totalPartnerShare === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Pay Partner Shares ({periodTotals.totalPartnerShare.toLocaleString()})
+              </Button>
+              <Button
+                onClick={() => openBulkPaymentDialog('owner_share')}
+                disabled={periodTotals.totalOwnerShare === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <User className="h-4 w-4" />
+                Collect Owner Shares ({periodTotals.totalOwnerShare.toLocaleString()})
+              </Button>
+            </div>
+            <div className="text-xs text-gray-500 text-center mt-2">
+              Bulk payments allow you to process multiple vehicles at once. You can deselect vehicles in the dialog.
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -765,6 +1139,18 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           </Card>
         ))}
       </div>
+
+      {/* Bulk Payment Dialog */}
+      <BulkPaymentDialog
+        isOpen={bulkDialogOpen}
+        onClose={() => setBulkDialogOpen(false)}
+        title={bulkDialogTitle}
+        description={bulkDialogDescription}
+        paymentType={bulkDialogType}
+        items={bulkDialogItems}
+        onConfirm={handleBulkPaymentConfirm}
+        isLoading={isBulkProcessing}
+      />
     </div>
   );
 };

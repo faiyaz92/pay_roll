@@ -15,11 +15,12 @@
    - 3.1 [Dashboard Page](#31-dashboard-page-dashboard)
    - 3.2 [Vehicles Page](#32-vehicles-page-vehicles)
    - 3.3 [Vehicle Details Page](#33-vehicle-details-page-vehiclesvehicleid)
-   - 3.4 [Drivers Page](#34-drivers-page-drivers)
-   - 3.5 [Assignments Page](#35-assignments-page-assignments)
-   - 3.6 [Payments Page](#36-payments-page-payments)
-   - 3.7 [Fuel Records Page](#37-fuel-records-page-fuel-records)
-   - 3.8 [Authentication System](#38-authentication-system)
+   - 3.4 [Financial Page](#34-financial-page-financial)
+   - 3.5 [Drivers Page](#35-drivers-page-drivers)
+   - 3.6 [Assignments Page](#36-assignments-page-assignments)
+   - 3.7 [Payments Page](#37-payments-page-payments)
+   - 3.8 [Fuel Records Page](#38-fuel-records-page-fuel-records)
+   - 3.9 [Authentication System](#39-authentication-system)
 4. [Hooks Logic & Data Management](#hooks-logic--data-management)
    - 4.1 [Core Data Management Hook](#41-core-data-management-hook-usefirebasedata)
    - 4.2 [Individual Entity Hooks](#42-individual-entity-hooks)
@@ -28,6 +29,8 @@
 5. [Financial Formulas & Calculations](#financial-formulas--calculations)
    - 5.1 [Data Sources & Field Documentation](#51-data-sources--field-documentation)
    - 5.2 [Core Financial Calculations](#52-core-financial-calculations)
+   - 5.3 [Bulk Payment System](#53-bulk-payment-system)
+   - 5.4 [Financial Analytics Tab](#54-financial-analytics-tab)
 6. [Cash In Hand Tracking System](#cash-in-hand-tracking-system)
    - 6.1 [Overview](#61-overview)
    - 6.2 [Cash Balance Updates](#62-cash-balance-updates)
@@ -283,7 +286,203 @@ Status Determination:
 - **Next EMI Due**: Next unpaid installment date
 - **Days Until EMI**: Days until next payment is due
 
-### 3.4 Drivers Page (`/drivers`)
+### 3.4 Financial Page (`/financial`)
+**Purpose**: Comprehensive company-level financial management with per-vehicle accounting, period-based analysis, and payment actions
+
+**Key Features**:
+- **Multi-tab Interface**: Overview, Financial Analytics, Expenses, Payment History, Accounts
+- **Flexible Period Filtering**: Yearly, Quarterly, Monthly analysis with dynamic data updates
+- **Partner Filtering**: Filter vehicles by ownership type (All, Partner, Company)
+- **Real-time Cash Balance**: Company-wide cash in hand tracking
+- **Per-Vehicle Accounting**: Individual vehicle financial cards with payment actions
+
+**Period Selection Controls**:
+- **Filter Type**: Dropdown selection (Monthly/Quarterly/Yearly)
+- **Year Selection**: Always available for all filter types
+- **Month Selection**: Available for Monthly and Quarterly filters
+- **Quarter Selection**: Available for Quarterly filter
+- **Vehicle Type Filter**: All Vehicles, Partner Vehicles, Company Vehicles
+
+**Company Financial Data Structure**:
+```typescript
+companyFinancialData = {
+  selectedYear: string,           // Selected year for analysis
+  selectedMonth: string,          // Selected month (1-12)
+  selectedQuarter: string,        // Selected quarter (Q1-Q4)
+  filterType: 'yearly' | 'quarterly' | 'monthly',  // Current filter type
+  partnerFilter: 'all' | 'partner' | 'company',    // Vehicle ownership filter
+  periodLabel: string,            // Display label (e.g., "October 2025 (Monthly)")
+  monthName: string,              // Full month name (e.g., "October")
+  totalEarnings: number,          // Total earnings for period
+  totalExpenses: number,          // Total expenses for period
+  totalProfit: number,            // Net profit for period
+  vehicleData: VehicleInfo[],     // Array of vehicle financial data
+  payments: Payment[],            // Payment records for period
+  expenses: Expense[]             // Expense records for period
+}
+```
+
+#### FinancialAccountsTab Component
+**Purpose**: Per-vehicle accounting interface with payment actions and period-based financial calculations
+
+**Component Props**:
+```typescript
+interface FinancialAccountsTabProps {
+  companyFinancialData: CompanyFinancialData;
+  accountingTransactions: AccountingTransaction[];
+  setAccountingTransactions: (transactions: AccountingTransaction[]) => void;
+}
+```
+
+**Key Functionality**:
+
+**Period-Based Data Calculation** (`getPeriodData` function):
+- **Month Determination**: Based on `companyFinancialData.filterType`
+  - Yearly: All 12 months (0-11)
+  - Quarterly: 3 months based on selected quarter
+  - Monthly: Single month based on `monthName` index
+- **Vehicle Filtering**: Applied based on `partnerFilter` ('all', 'partner', 'company')
+- **Cumulative Calculations**: Sums data across selected months for each vehicle
+
+**Per-Vehicle Financial Calculations**:
+```typescript
+// Earnings: Sum of paid payments in period
+vehicleEarnings = payments.filter(p =>
+  p.vehicleId === vehicle.id &&
+  p.status === 'paid' &&
+  date >= monthStart && date <= monthEnd
+).reduce((sum, p) => sum + p.amountPaid, 0)
+
+// Expenses: Sum of approved expenses in period
+vehicleExpenses = expenses.filter(e =>
+  e.vehicleId === vehicle.id &&
+  e.status === 'approved' &&
+  date >= monthStart && date <= monthEnd
+).reduce((sum, e) => sum + e.amount, 0)
+
+// Profit: Earnings minus expenses
+vehicleProfit = vehicleEarnings - vehicleExpenses
+
+// GST Calculation (4% of profit for positive profit)
+gstAmount = vehicleProfit > 0 ? vehicleProfit * 0.04 : 0
+
+// Service Charge (10% for partner vehicles with positive profit)
+serviceCharge = isPartnerVehicle && vehicleProfit > 0 ?
+  vehicleProfit * serviceChargeRate : 0
+
+// Partner Share (configurable % after GST and service charge)
+remainingProfit = vehicleProfit - gstAmount - serviceCharge
+partnerShare = isPartnerVehicle && remainingProfit > 0 ?
+  remainingProfit * partnerSharePercentage : 0
+
+// Owner Share (remaining profit for partner vehicles)
+ownerShare = isPartnerVehicle && remainingProfit > 0 ?
+  remainingProfit * (1 - partnerSharePercentage) : 0
+
+// Owner Full Share (profit after GST for company vehicles)
+ownerFullShare = !isPartnerVehicle && (vehicleProfit - gstAmount) > 0 ?
+  vehicleProfit - gstAmount : 0
+```
+
+**Payment Actions**:
+
+**GST Payment** (`handleGstPayment`):
+- Records GST payment transaction in `accountingTransactions` collection
+- Decreases vehicle cash balance by GST amount
+- Updates company cash balance
+- Updates local state for immediate UI feedback
+
+**Service Charge Collection** (`handleServiceChargeCollection`):
+- Records service charge collection (additional income)
+- Increases vehicle cash balance by service charge amount
+- Updates company cash balance
+- Updates local state
+
+**Partner Payment** (`handlePartnerPayment`):
+- Records partner share payment
+- Decreases vehicle cash balance by partner share amount
+- Updates company cash balance
+- Updates local state
+
+**Owner Share Collection** (`handleOwnerShareCollection`):
+- Records owner share collection from partner vehicles
+- Decreases vehicle cash balance by owner share amount
+- Updates company cash balance
+- Updates local state
+
+**Owner Withdrawal** (`handleOwnerWithdrawal`):
+- Records full owner share withdrawal from company vehicles
+- Decreases vehicle cash balance by full owner share amount
+- Updates company cash balance
+- Updates local state
+
+**Period String Generation**:
+```typescript
+periodStr = filterType === 'yearly' ? `${year}` :
+           filterType === 'quarterly' ? `${year}-${selectedQuarter}` :
+           `${year}-${monthName}`
+```
+
+**Payment Status Tracking**:
+- Checks `accountingTransactions` for completed payments
+- Updates UI badges (Paid/Pending) based on transaction status
+- Prevents duplicate payments for same period
+
+**Cash Balance Management**:
+- Loads initial cash balances from `cashInHand` collection
+- Real-time updates via Firestore listeners
+- Dual cash tracking: individual vehicles + company total
+- Atomic updates using Firestore increment operations
+
+**Data Display Structure**:
+```typescript
+periodData = vehicleData.map(vehicle => ({
+  ...vehicle,
+  earnings: cumulativeEarnings,
+  expenses: cumulativeExpenses,
+  profit: cumulativeProfit,
+  gstAmount: cumulativeGst,
+  serviceCharge: cumulativeServiceCharge,
+  partnerShare: cumulativePartnerShare,
+  ownerShare: cumulativeOwnerShare,
+  ownerFullShare: cumulativeOwnerFullShare,
+  gstPaid: boolean,
+  serviceChargeCollected: boolean,
+  partnerPaid: boolean,
+  ownerShareCollected: boolean,
+  ownerWithdrawn: boolean,
+  periodStr: string
+}))
+```
+
+**Period Totals Calculation**:
+```typescript
+periodTotals = {
+  totalEarnings: periodData.reduce((sum, v) => sum + v.earnings, 0),
+  totalExpenses: periodData.reduce((sum, v) => sum + v.expenses, 0),
+  totalProfit: periodData.reduce((sum, v) => sum + v.profit, 0),
+  totalGst: periodData.reduce((sum, v) => sum + v.gstAmount, 0),
+  totalServiceCharge: periodData.reduce((sum, v) => sum + v.serviceCharge, 0),
+  totalPartnerShare: periodData.reduce((sum, v) => sum + v.partnerShare, 0),
+  totalOwnerShare: periodData.reduce((sum, v) => sum + v.ownerShare, 0),
+  totalOwnerFullShare: periodData.reduce((sum, v) => sum + v.ownerFullShare, 0),
+  vehicleCount: periodData.length
+}
+```
+
+**UI Components**:
+- **Period Summary Card**: Shows totals across all vehicles for selected period
+- **Vehicle Accounting Cards**: Individual cards for each vehicle with financial data and action buttons
+- **Payment Status Badges**: Visual indicators for completed/pending payments
+- **Cash Balance Display**: Current cash in hand for each vehicle
+
+**Real-time Updates**:
+- Period filter changes immediately recalculate all data
+- Payment actions instantly update cash balances and transaction history
+- Partner filter changes dynamically update displayed vehicles
+- All calculations respond to parent component data changes
+
+### 3.5 Drivers Page (`/drivers`)
 **Purpose**: Driver management and assignment tracking
 
 **Key Features**:
@@ -291,7 +490,7 @@ Status Determination:
 - **Add Driver Form**: Complete driver profile with documents
 - **Driver Details**: Assignment history and performance metrics
 
-### 3.5 Assignments Page (`/assignments`)
+### 3.6 Assignments Page (`/assignments`)
 **Purpose**: Rental agreement management
 
 **Key Components**:
@@ -299,7 +498,7 @@ Status Determination:
 - **Assignment Details**: Weekly rent collection interface
 - **Payment Tracking**: Automated due date calculations
 
-### 3.6 Payments Page (`/payments`)
+### 3.7 Payments Page (`/payments`)
 **Purpose**: Centralized payment tracking across all vehicles
 
 **Advanced Filtering System**:
@@ -307,7 +506,7 @@ Status Determination:
 - **Level 2 - Payment Type**: 'all' | 'emi' | 'prepayment' | 'expenses' | 'rent'
 - **Level 3 - Expense Type**: 'all' | 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general'
 
-### 3.7 Fuel Records Page (`/fuel-records`)
+### 3.8 Fuel Records Page (`/fuel-records`)
 **Purpose**: Fuel expense tracking and efficiency monitoring
 
 **Key Features**:
@@ -315,7 +514,7 @@ Status Determination:
 - **Efficiency Calculations**: km/liter, cost per km
 - **Historical Tracking**: Fuel consumption patterns
 
-### 3.8 Authentication System
+### 3.9 Authentication System
 **Login Flow**:
 1. Email/password authentication via Firebase Auth
 2. User info retrieval from hierarchical Firestore structure:
@@ -1529,7 +1728,293 @@ This section provides comprehensive documentation of ALL data fields, labels, an
 - **Formula**: `partnerEarnings + ownerEarnings`
 - **Purpose**: Combined revenue
 
+### 5.3 Bulk Payment System
+
+The Bulk Payment System allows processing multiple vehicle payments simultaneously through the Financial Accounts Tab summary card. This feature maintains identical database impact as individual payments while providing efficiency for bulk operations.
+
+#### Bulk Payment Types
+
+**GST Bulk Payment**
+- **Trigger**: "Pay GST" button in summary card
+- **Eligibility**: Vehicles with `gstAmount > 0` and `gstPaid = false`
+- **Calculation**: Same as individual GST payment (4% of profit)
+- **Database Impact**: Updates `gstPaid: true`, creates transaction record, deducts from cash balance
+- **Quarterly Breakdown**: Shows monthly GST amounts for Q1 (Jan-Mar), Q2 (Apr-Jun), Q3 (Jul-Sep), Q4 (Oct-Dec)
+
+**Service Charge Bulk Collection**
+- **Trigger**: "Collect Service Charges" button in summary card
+- **Eligibility**: Partner vehicles with `serviceCharge > 0` and `serviceChargeCollected = false`
+- **Calculation**: Same as individual service charge (configurable rate, default 10% of profit)
+- **Database Impact**: Updates `serviceChargeCollected: true`, creates transaction record, adds to cash balance
+- **Quarterly Breakdown**: Shows monthly service charge amounts for each quarter
+
+**Partner Share Bulk Payment**
+- **Trigger**: "Pay Partner Shares" button in summary card
+- **Eligibility**: Partner vehicles with `partnerShare > 0` and `partnerPaid = false`
+- **Calculation**: Same as individual partner share (remaining profit after GST/service charges × partner percentage)
+- **Database Impact**: Updates `partnerPaid: true`, creates transaction record, deducts from cash balance
+- **Quarterly Breakdown**: Shows monthly partner share amounts for each quarter
+
+**Owner Share Bulk Collection**
+- **Trigger**: "Collect Owner Shares" button in summary card
+- **Eligibility**: Partner vehicles with `ownerShare > 0` and `ownerShareCollected = false`
+- **Calculation**: Same as individual owner share (remaining profit after GST/service charges × (1 - partner percentage))
+- **Database Impact**: Updates `ownerShareCollected: true`, creates transaction record, adds to cash balance
+- **Quarterly Breakdown**: Shows monthly owner share amounts for each quarter
+
+#### Bulk Payment Dialog Features
+
+**Vehicle Selection**
+- **Interface**: Checkbox list of eligible vehicles
+- **Default State**: All eligible vehicles pre-selected
+- **Selection Control**: Users can deselect specific vehicles to exclude from bulk payment
+- **Real-time Updates**: Selected total updates as checkboxes are toggled
+
+**Quarterly Period Breakdown**
+- **Monthly Details**: For quarterly periods, shows breakdown by month (3 months per quarter)
+- **Month Calculation**: Each month calculates profit/GST/service charges independently
+- **Visual Layout**: Monthly amounts displayed in a grid format within each vehicle item
+
+**Payment Confirmation**
+- **Summary Display**: Shows total amount and number of vehicles selected
+- **Processing State**: Loading indicator during bulk payment processing
+- **Success Feedback**: Toast notification with total amount and vehicle count
+- **Error Handling**: Partial failure notification if some payments fail
+
+#### Bulk Payment Data Flow
+
+**Dialog Opening**
+1. User clicks bulk payment button in summary card
+2. System filters eligible vehicles based on payment type criteria
+3. Dialog opens with pre-populated vehicle list and amounts
+4. For quarterly periods, monthly breakdowns are calculated and displayed
+
+**Payment Processing**
+1. User reviews and optionally deselects vehicles
+2. User clicks "Confirm Bulk Payment"
+3. System processes each selected vehicle using existing individual payment functions
+4. Each payment creates appropriate transaction records and updates cash balances
+5. Sequential processing with 100ms delay between payments to prevent Firestore conflicts
+
+**Database Updates**
+- **Transaction Records**: Creates entries in `transactions` collection for each payment
+- **Vehicle Financial Status**: Updates payment flags (`gstPaid`, `serviceChargeCollected`, etc.)
+- **Cash Balance**: Updates vehicle cash balance based on payment type
+- **Period Tracking**: Maintains period-specific payment status
+
+#### Bulk Payment Formulas
+
+**Quarterly Monthly GST Calculation**
+```
+For each month in quarter:
+  monthEarnings = Σ(payments where paymentDate in month)
+  monthExpenses = Σ(expenses where expenseDate in month)
+  monthProfit = monthEarnings - monthExpenses
+  monthGst = monthProfit > 0 ? monthProfit × 0.04 : 0
+```
+
+**Quarterly Monthly Service Charge Calculation**
+```
+For each month in quarter:
+  monthEarnings = Σ(payments where paymentDate in month)
+  monthExpenses = Σ(expenses where expenseDate in month)
+  monthProfit = monthEarnings - monthExpenses
+  serviceChargeRate = vehicle.serviceChargeRate || 0.10
+  monthServiceCharge = (vehicle.ownershipType === 'partner' && monthProfit > 0) ?
+    monthProfit × serviceChargeRate : 0
+```
+
+**Quarterly Monthly Partner Share Calculation**
+```
+For each month in quarter:
+  monthEarnings = Σ(payments where paymentDate in month)
+  monthExpenses = Σ(expenses where expenseDate in month)
+  monthProfit = monthEarnings - monthExpenses
+  gstAmount = monthProfit > 0 ? monthProfit × 0.04 : 0
+  serviceCharge = (vehicle.ownershipType === 'partner' && monthProfit > 0) ?
+    monthProfit × serviceChargeRate : 0
+  remainingProfit = monthProfit - gstAmount - serviceCharge
+  partnerPercentage = vehicle.partnerShare || 0.50
+  monthPartnerShare = (vehicle.ownershipType === 'partner' && remainingProfit > 0) ?
+    remainingProfit × partnerPercentage : 0
+```
+
+**Quarterly Monthly Owner Share Calculation**
+```
+For each month in quarter:
+  monthEarnings = Σ(payments where paymentDate in month)
+  monthExpenses = Σ(expenses where expenseDate in month)
+  monthProfit = monthEarnings - monthExpenses
+  gstAmount = monthProfit > 0 ? monthProfit × 0.04 : 0
+  serviceCharge = (vehicle.ownershipType === 'partner' && monthProfit > 0) ?
+    monthProfit × serviceChargeRate : 0
+  remainingProfit = monthProfit - gstAmount - serviceCharge
+  partnerPercentage = vehicle.partnerShare || 0.50
+  monthOwnerShare = (vehicle.ownershipType === 'partner' && remainingProfit > 0) ?
+    remainingProfit × (1 - partnerPercentage) : 0
+```
+
+#### Implementation Details
+
+**Component Structure**
+- **BulkPaymentDialog.tsx**: Reusable dialog component for all bulk payment types
+- **FinancialAccountsTab.tsx**: Main component with bulk payment buttons and logic
+- **State Management**: Local state for dialog control and selected items
+- **Icon Integration**: Lucide icons for visual payment type indicators
+
+**Error Handling**
+- **Partial Failures**: Continues processing remaining payments if one fails
+- **User Feedback**: Clear error messages for failed operations
+- **Rollback**: No automatic rollback - failed payments need manual correction
+
+**Performance Considerations**
+- **Sequential Processing**: 100ms delay between payments to prevent Firestore rate limits
+- **Batch Size**: No explicit limit, but large batches may take time to process
+- **Real-time Updates**: Dialog shows processing state during bulk operations
+
+### 5.4 Financial Analytics Tab
+
+The Financial Analytics Tab provides comprehensive financial analysis and visualization of company performance across all vehicles. This tab displays key performance indicators, expense breakdowns, vehicle profitability analysis, and financial health metrics.
+
+#### Analytics Tab - Financial Summary Cards
+
+**Monthly Revenue**
+- **Data Source**: `companyFinancialData.totalEarnings` (aggregated from all vehicle payments)
+- **Display**: `₹{totalEarnings.toLocaleString()}`
+- **Time Period**: Current selected month and year
+- **Purpose**: Total earnings from all vehicle operations for the selected period
+
+**Operating Expenses**
+- **Data Source**: `companyFinancialData.totalExpenses` (aggregated from all vehicle expenses)
+- **Display**: `₹{totalExpenses.toLocaleString()}`
+- **Purpose**: Total operational costs across all vehicles for the selected period
+
+**Net Profit**
+- **Formula**: `totalProfit = totalEarnings - totalExpenses`
+- **Display**: `₹{totalProfit.toLocaleString()}` with color coding (green for profit, red for loss)
+- **Additional Metric**: `profitMargin = totalEarnings > 0 ? (totalProfit / totalEarnings) * 100 : 0`
+- **Display Format**: `{profitMargin.toFixed(1)}% margin`
+- **Purpose**: Overall profitability with percentage margin
+
+**Profit per Vehicle**
+- **Formula**: `profitPerVehicle = vehicleData.length > 0 ? totalProfit / vehicleData.length : 0`
+- **Display**: `₹{profitPerVehicle.toLocaleString()}`
+- **Purpose**: Average profitability per vehicle in the fleet
+
+#### Analytics Tab - Expense Breakdown Card
+
+**Expense Category Distribution**
+- **Data Source**: Vehicle-level expense aggregation with estimated category breakdown
+- **Purpose**: Visual representation of expense allocation across major categories
+
+**Fuel Expenses**
+- **Formula**: `fuelExpenses = Σ(vehicle.expenses × 0.3)` for all vehicles
+- **Assumption**: Fuel represents 30% of total vehicle expenses
+- **Display**: `₹{fuelExpenses.toLocaleString()}`
+- **Visualization**: Progress bar showing percentage of total expenses
+
+**Maintenance Expenses**
+- **Formula**: `maintenanceExpenses = Σ(vehicle.expenses × 0.25)` for all vehicles
+- **Assumption**: Maintenance represents 25% of total vehicle expenses
+- **Display**: `₹{maintenanceExpenses.toLocaleString()}`
+- **Visualization**: Progress bar showing percentage of total expenses
+
+**Insurance Expenses**
+- **Formula**: `insuranceExpenses = Σ(vehicle.expenses × 0.15)` for all vehicles
+- **Assumption**: Insurance represents 15% of total vehicle expenses
+- **Display**: `₹{insuranceExpenses.toLocaleString()}`
+- **Visualization**: Progress bar showing percentage of total expenses
+
+**Other Expenses**
+- **Formula**: `otherExpenses = Σ(vehicle.expenses × 0.3)` for all vehicles
+- **Assumption**: Other expenses represent 30% of total vehicle expenses
+- **Display**: `₹{otherExpenses.toLocaleString()}`
+- **Visualization**: Progress bar showing percentage of total expenses
+
+**Category Percentage Calculation**
+- **Formula**: `categoryPercentage = totalExpenses > 0 ? (categoryAmount / totalExpenses) × 100 : 0`
+- **Purpose**: Relative weight of each expense category
+
+#### Analytics Tab - Vehicle Performance Analysis
+
+**Vehicle Profit Margin**
+- **Formula**: `vehicleMargin = vehicle.earnings > 0 ? (vehicle.profit / vehicle.earnings) × 100 : 0`
+- **Display**: `{vehicleMargin.toFixed(1)}%`
+- **Purpose**: Individual vehicle profitability as percentage of earnings
+
+**Vehicle Profitability Status**
+- **Logic**: `vehicle.profit >= 0 ? 'Profitable' : 'Loss Making'`
+- **Display**: Badge with appropriate color (green for profitable, red for loss making)
+- **Purpose**: Quick visual indicator of vehicle financial health
+
+**Vehicle Metrics Display**
+- **Earnings**: `₹{vehicle.earnings.toLocaleString()}` (green)
+- **Expenses**: `₹{vehicle.expenses.toLocaleString()}` (red)
+- **Profit**: `₹{vehicle.profit.toLocaleString()}` (green/red based on value)
+- **Purpose**: Detailed breakdown of each vehicle's financial performance
+
+#### Analytics Tab - Profitability Analysis Card
+
+**Overall Profit Margin Assessment**
+- **Formula**: `profitMargin = totalEarnings > 0 ? (totalProfit / totalEarnings) × 100 : 0`
+- **Thresholds**:
+  - `≥ 20%`: Excellent profitability (green indicator)
+  - `≥ 10%`: Good profitability (yellow indicator)
+  - `< 10%`: Needs improvement (red indicator)
+- **Visualization**: Progress bar scaled to margin percentage (max 50% width for 25% margin)
+
+**Profit Distribution Metrics**
+- **Profitable Vehicles**: `vehicleData.filter(v => v.profit > 0).length`
+- **Loss Making Vehicles**: `vehicleData.filter(v => v.profit <= 0).length`
+- **Total Vehicles**: `vehicleData.length`
+- **Display Format**: `{profitableCount} / {totalVehicles}`
+
+#### Analytics Tab - Expense Efficiency Card
+
+**Expense Ratio**
+- **Formula**: `expenseRatio = totalEarnings > 0 ? (totalExpenses / totalEarnings) × 100 : 0`
+- **Display**: `{expenseRatio.toFixed(1)}%`
+- **Threshold**: `≤ 70%` considered good expense control (green), above is high ratio (red)
+- **Purpose**: Measures cost efficiency relative to revenue
+
+**Expense Ratio Visualization**
+- **Progress Bar Width**: `Math.min((totalExpenses / totalEarnings) × 100, 100)%`
+- **Color Coding**: Green for good control (≤70%), red for high ratio (>70%)
+- **Purpose**: Visual indicator of expense management effectiveness
+
+**Top Expense Categories Summary**
+- **Fuel**: `₹{expenseBreakdown.fuel.toLocaleString()}`
+- **Maintenance**: `₹{expenseBreakdown.maintenance.toLocaleString()}`
+- **Insurance**: `₹{expenseBreakdown.insurance.toLocaleString()}`
+- **Purpose**: Quick reference for major expense categories
+
+#### Analytics Tab - Data Sources & Calculations
+
+**Primary Data Sources**
+- `companyFinancialData.totalEarnings`: Aggregated payment data
+- `companyFinancialData.totalExpenses`: Aggregated expense data
+- `companyFinancialData.vehicleData[]`: Array of vehicle financial summaries
+- `vehicle.earnings`: Individual vehicle earnings from payments
+- `vehicle.expenses`: Individual vehicle expenses
+- `vehicle.profit`: Individual vehicle profit (earnings - expenses)
+
+**Calculation Dependencies**
+- All calculations depend on current month/year filter selection
+- Vehicle data is filtered by selected time period
+- Expense breakdown uses estimated percentages (may need actual categorization in future)
+- Profit calculations assume earnings minus expenses model
+
+**Performance Considerations**
+- Calculations performed client-side for real-time updates
+- Data aggregation happens in `useFirebaseData` hook
+- Visualizations update automatically when data changes
+- No caching implemented - recalculates on each render
+
 ---
+
+## Cash In Hand Tracking System
+
+## Cash In Hand Tracking System
 
 ## Cash In Hand Tracking System
 
