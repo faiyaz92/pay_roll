@@ -4,6 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { collection, addDoc, doc, updateDoc, onSnapshot, increment } from 'firebase/firestore';
@@ -20,11 +23,376 @@ import {
   User,
   Banknote,
   CheckCircle,
-  Car,
   Filter,
   Calendar,
-  CreditCard
+  CreditCard,
+  Clock,
+  AlertCircle,
+  Plus,
+  Car
 } from 'lucide-react';
+import { Checkbox } from '@radix-ui/react-checkbox';
+
+interface EMIPaymentSectionProps {
+  vehicle: any;
+  onPayEMI: (monthIndex: number, emi: any) => void;
+  onShowMore: () => void;
+  periodType: string;
+  selectedYear: string;
+  selectedMonth?: string;
+  selectedQuarter?: string;
+}
+
+const EMIPaymentSection: React.FC<EMIPaymentSectionProps> = ({
+  vehicle,
+  onPayEMI,
+  onShowMore,
+  periodType,
+  selectedYear,
+  selectedMonth,
+  selectedQuarter
+}) => {
+  // Get EMIs for the selected period
+  const getPeriodEMIs = () => {
+    const year = parseInt(selectedYear);
+    const schedule = vehicle.loanDetails?.amortizationSchedule || [];
+    let relevantEMIs: { index: number; emi: any }[] = [];
+
+    if (periodType === 'monthly' && selectedMonth) {
+      const monthIndex = new Date(`${selectedMonth} 1, ${year}`).getMonth();
+      // Find EMIs due in this month
+      schedule.forEach((emi: any, index: number) => {
+        const dueDate = new Date(emi.dueDate);
+        if (dueDate.getMonth() === monthIndex && dueDate.getFullYear() === year) {
+          relevantEMIs.push({ index, emi });
+        }
+      });
+    } else if (periodType === 'quarterly' && selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths];
+      
+      // Find EMIs due in this quarter
+      schedule.forEach((emi: any, index: number) => {
+        const dueDate = new Date(emi.dueDate);
+        if (months.includes(dueDate.getMonth()) && dueDate.getFullYear() === year) {
+          relevantEMIs.push({ index, emi });
+        }
+      });
+    } else if (periodType === 'yearly') {
+      // For yearly, show first 3 unpaid EMIs or all if less than 3
+      const unpaidEMIs = schedule
+        .map((emi: any, index: number) => ({ index, emi }))
+        .filter(({ emi }) => !emi.isPaid);
+      
+      relevantEMIs = unpaidEMIs.slice(0, 3);
+    }
+
+    return relevantEMIs;
+  };
+
+  const periodEMIs = getPeriodEMIs();
+  const hasMoreEMIs = periodType === 'yearly' && (vehicle.loanDetails?.amortizationSchedule || []).filter((emi: any) => !emi.isPaid).length > 3;
+
+  if (periodEMIs.length === 0 && !hasMoreEMIs) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-2">
+      <div className="text-xs font-medium text-gray-700">EMI Payments</div>
+      <div className="space-y-1">
+        {periodEMIs.map(({ index, emi }) => {
+          const dueDate = new Date(emi.dueDate);
+          const today = new Date();
+          const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const threeDaysFromNow = new Date();
+          threeDaysFromNow.setDate(today.getDate() + 3);
+          const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
+
+          let statusText = '';
+          let statusColor = 'text-gray-500';
+          let canPay = false;
+
+          if (emi.isPaid) {
+            statusText = `Paid ${emi.paidAt ? new Date(emi.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}`;
+            statusColor = 'text-green-600';
+          } else if (daysDiff < 0) {
+            statusText = `${Math.abs(daysDiff)} days overdue`;
+            statusColor = 'text-red-600';
+            canPay = true;
+          } else if (daysDiff <= 7) {
+            statusText = daysDiff === 0 ? 'Due Today' : `${daysDiff} days left`;
+            statusColor = 'text-yellow-600';
+            canPay = true;
+          } else {
+            statusText = `Due ${dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+            canPay = canPayNow;
+          }
+
+          return (
+            <div key={index} className="flex items-center justify-between text-xs">
+              <div className="flex-1">
+                <div className="font-medium">EMI {emi.month}</div>
+                <div className={statusColor}>{statusText}</div>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="text-gray-600">₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}</div>
+                {!emi.isPaid && canPay && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => onPayEMI(index, emi)}
+                  >
+                    Pay
+                  </Button>
+                )}
+                {emi.isPaid && (
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                )}
+              </div>
+            </div>
+          );
+        })}
+        
+        {hasMoreEMIs && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full text-xs text-blue-600 hover:text-blue-800"
+            onClick={onShowMore}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Show More EMIs
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface RentCollectionSectionProps {
+  vehicle: any;
+  payments: any[];
+  assignments: any[];
+  onCollectRent: (weekIndex: number, assignment: any, weekStartDate: Date) => void;
+  onShowMore: () => void;
+  periodType: string;
+  selectedYear: string;
+  selectedMonth?: string;
+  selectedQuarter?: string;
+  isProcessingRentPayment: number | null;
+}
+
+const RentCollectionSection: React.FC<RentCollectionSectionProps> = ({
+  vehicle,
+  payments,
+  assignments,
+  onCollectRent,
+  onShowMore,
+  periodType,
+  selectedYear,
+  selectedMonth,
+  selectedQuarter,
+  isProcessingRentPayment
+}) => {
+  // Get rent collection periods for the selected period
+  const getPeriodRentWeeks = () => {
+    const currentAssignment = assignments.find((a: any) =>
+      a.vehicleId === vehicle.id && a.status === 'active'
+    );
+
+    if (!currentAssignment || !currentAssignment.assignedDriverId) {
+      return [];
+    }
+
+    const assignmentStartDate = new Date(currentAssignment.startDate);
+    const agreementEndDate = new Date(assignmentStartDate);
+    agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
+
+    const year = parseInt(selectedYear);
+    let periodStart: Date;
+    let periodEnd: Date;
+
+    // Determine period boundaries based on selected period type
+    if (periodType === 'monthly' && selectedMonth) {
+      const monthIndex = new Date(`${selectedMonth} 1, ${year}`).getMonth();
+      periodStart = new Date(year, monthIndex, 1);
+      periodEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+    } else if (periodType === 'quarterly' && selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths];
+      periodStart = new Date(year, months[0], 1);
+      periodEnd = new Date(year, months[months.length - 1] + 1, 0, 23, 59, 59);
+    } else if (periodType === 'yearly') {
+      periodStart = new Date(year, 0, 1);
+      periodEnd = new Date(year, 11, 31, 23, 59, 59);
+    } else {
+      return [];
+    }
+
+    let relevantWeeks: { weekIndex: number; weekStartDate: Date; weekEndDate: Date; isCollected: boolean }[] = [];
+    let weekIndex = 0;
+    let currentWeekStart = new Date(assignmentStartDate);
+
+    // Find weeks that fall within the selected period
+    while (currentWeekStart <= agreementEndDate && currentWeekStart <= periodEnd) {
+      const currentWeekEnd = new Date(currentWeekStart);
+      currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+
+      // Check if this week overlaps with the selected period
+      if (currentWeekEnd >= periodStart && currentWeekStart <= periodEnd) {
+        // Check if rent is already collected for this week
+        const isCollected = payments.some((p: any) => {
+          if (p.vehicleId !== vehicle.id || p.status !== 'paid') return false;
+          const paymentWeekStart = new Date(p.weekStart);
+          // More precise matching - check if payment week matches this assignment week
+          return Math.abs(paymentWeekStart.getTime() - currentWeekStart.getTime()) < (24 * 60 * 60 * 1000);
+        });
+
+        relevantWeeks.push({
+          weekIndex,
+          weekStartDate: new Date(currentWeekStart),
+          weekEndDate: new Date(currentWeekEnd),
+          isCollected
+        });
+
+        // Limit to 4 weeks for display
+        if (relevantWeeks.length >= 4) break;
+      }
+
+      currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+      weekIndex++;
+    }
+
+    return relevantWeeks;
+  };
+
+  const periodRentWeeks = getPeriodRentWeeks();
+  const currentAssignment = assignments.find((a: any) =>
+    a.vehicleId === vehicle.id && a.status === 'active'
+  );
+
+  // Calculate total weeks in assignment for "show more" functionality (within selected period)
+  const totalWeeksInAssignment = (() => {
+    if (!currentAssignment) return 0;
+
+    const assignmentStartDate = new Date(currentAssignment.startDate);
+    const agreementEndDate = new Date(assignmentStartDate);
+    agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
+
+    const year = parseInt(selectedYear);
+    let periodStart: Date;
+    let periodEnd: Date;
+
+    // Determine period boundaries based on selected period type
+    if (periodType === 'monthly' && selectedMonth) {
+      const monthIndex = new Date(`${selectedMonth} 1, ${year}`).getMonth();
+      periodStart = new Date(year, monthIndex, 1);
+      periodEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+    } else if (periodType === 'quarterly' && selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths];
+      periodStart = new Date(year, months[0], 1);
+      periodEnd = new Date(year, months[months.length - 1] + 1, 0, 23, 59, 59);
+    } else if (periodType === 'yearly') {
+      periodStart = new Date(year, 0, 1);
+      periodEnd = new Date(year, 11, 31, 23, 59, 59);
+    } else {
+      return 0;
+    }
+
+    // Count weeks that fall within the selected period
+    let weekCount = 0;
+    let currentWeekStart = new Date(assignmentStartDate);
+
+    while (currentWeekStart <= agreementEndDate && currentWeekStart <= periodEnd) {
+      const currentWeekEnd = new Date(currentWeekStart);
+      currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+
+      // Check if this week overlaps with the selected period
+      if (currentWeekEnd >= periodStart && currentWeekStart <= periodEnd) {
+        weekCount++;
+      }
+
+      currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    }
+
+    return weekCount;
+  })();
+
+  const hasMoreRentWeeks = totalWeeksInAssignment > 4;
+
+  if (periodRentWeeks.length === 0 && !hasMoreRentWeeks) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-2">
+      <div className="text-xs font-medium text-gray-700">Rent Collection</div>
+      <div className="space-y-1">
+        {periodRentWeeks.map(({ weekIndex, weekStartDate, weekEndDate, isCollected }) => {
+          return (
+            <div key={weekIndex} className="flex items-center justify-between text-xs">
+              <div className="flex-1">
+                <div className="font-medium">Week {weekIndex + 1}</div>
+                <div className="text-gray-500">
+                  {weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {weekEndDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="text-gray-600">₹{(currentAssignment?.weeklyRent || 0).toLocaleString()}</div>
+                {isCollected ? (
+                  <Badge variant="default" className="bg-green-500">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Paid
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    disabled={isProcessingRentPayment === weekIndex}
+                    onClick={() => onCollectRent(weekIndex, currentAssignment, weekStartDate)}
+                  >
+                    {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark as Paid'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {hasMoreRentWeeks && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full text-xs text-blue-600 hover:text-blue-800"
+            onClick={onShowMore}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Show More Rent Weeks ({totalWeeksInAssignment - 4} remaining)
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface AccountingTransaction {
   id: string;
@@ -44,23 +412,69 @@ interface FinancialAccountsTabProps {
   setAccountingTransactions: (transactions: AccountingTransaction[]) => void;
 }
 
+const getStatusBadge = (status: string) => {
+  const statusConfig = {
+    available: {
+      color: 'bg-green-500 hover:bg-green-600',
+      text: 'Available',
+      icon: <Car className="h-4 w-4" />
+    },
+    rented: {
+      color: 'bg-blue-500 hover:bg-blue-600',
+      text: 'Rented',
+      icon: <DollarSign className="h-4 w-4" />
+    },
+    maintenance: {
+      color: 'bg-red-500 hover:bg-red-600',
+      text: 'Maintenance',
+      icon: <AlertCircle className="h-4 w-4" />
+    },
+  };
+
+  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
+
+  return (
+    <Badge className={`${config.color} text-white flex items-center gap-1`}>
+      {config.icon}
+      {config.text}
+    </Badge>
+  );
+};
+
 const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   companyFinancialData,
   accountingTransactions,
   setAccountingTransactions
 }) => {
   const { userInfo } = useAuth();
-  const { vehicles } = useFirebaseData();
+  const { vehicles, assignments } = useFirebaseData();
   const navigate = useNavigate();
   const [vehicleCashBalances, setVehicleCashBalances] = useState<Record<string, number>>({});
 
   // Bulk payment dialog state
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [bulkDialogType, setBulkDialogType] = useState<'gst' | 'service_charge' | 'partner_share' | 'owner_share'>('gst');
+  const [bulkDialogType, setBulkDialogType] = useState<'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi'>('gst');
   const [bulkDialogItems, setBulkDialogItems] = useState<any[]>([]);
   const [bulkDialogTitle, setBulkDialogTitle] = useState('');
   const [bulkDialogDescription, setBulkDialogDescription] = useState('');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  // EMI payment dialog state
+  const [emiDialogOpen, setEmiDialogOpen] = useState(false);
+  const [selectedVehicleForEMI, setSelectedVehicleForEMI] = useState<any>(null);
+  const [selectedEMIs, setSelectedEMIs] = useState<Set<number>>(new Set());
+  const [isProcessingEMI, setIsProcessingEMI] = useState(false);
+
+  // Penalty dialog state for individual EMI payments
+  const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
+  const [penaltyAmount, setPenaltyAmount] = useState('');
+  const [selectedEMIForPenalty, setSelectedEMIForPenalty] = useState<{vehicle: any, monthIndex: number, scheduleItem: any, dueDate: string, emiAmount: number} | null>(null);
+
+  // Bulk EMI penalty state
+  const [emiPenalties, setEmiPenalties] = useState<Record<number, string>>({});
+
+  // Rent collection state
+  const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
 
   // Function to navigate to vehicle details payments tab with current period criteria
   const handleViewExpenses = (vehicleId: string) => {
@@ -354,8 +768,33 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     }
   };
 
+  // Penalty dialog handlers
+  const handlePenaltyConfirm = async () => {
+    if (!selectedEMIForPenalty) return;
+    
+    const penalty = parseFloat(penaltyAmount) || 0;
+    setPenaltyDialogOpen(false);
+    
+    await handleEMIPayment(selectedEMIForPenalty.vehicle, selectedEMIForPenalty.monthIndex, penalty);
+    
+    setPenaltyAmount('0');
+    setSelectedEMIForPenalty(null);
+  };
+
+  // Bulk EMI payment handler
+  const handleBulkEmiPayment = async (vehicleInfo: any, item: any, emiPenalties?: Record<string, Record<number, string>>) => {
+    const vehiclePenalties = emiPenalties?.[item.vehicleId] || {};
+    
+    for (const emi of item.overdueEMIs) {
+      const penalty = parseFloat(vehiclePenalties[emi.monthIndex] || '0') || 0;
+      await handleEMIPayment(vehicleInfo.vehicle, emi.monthIndex, penalty);
+      // Small delay between EMI payments
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  };
+
   // Bulk payment functions
-  const openBulkPaymentDialog = (type: 'gst' | 'service_charge' | 'partner_share' | 'owner_share') => {
+  const openBulkPaymentDialog = (type: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi') => {
     const { periodData } = getPeriodData();
     let items: any[] = [];
     let title = '';
@@ -416,6 +855,40 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyOwnerShareBreakdown(vehicle) : undefined,
             checked: true
           }));
+        break;
+
+      case 'emi':
+        title = `Bulk EMI Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+        description = `Pay overdue EMIs for all vehicles. You can deselect vehicles or modify penalty amounts for each EMI.`;
+        items = periodData
+          .filter(vehicle => {
+            if (!vehicle.vehicle.loanDetails?.amortizationSchedule) return false;
+            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
+              const dueDate = new Date(schedule.dueDate);
+              const now = new Date();
+              return !schedule.isPaid && dueDate <= now;
+            });
+            return overdueEMIs.length > 0;
+          })
+          .map(vehicle => {
+            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
+              const dueDate = new Date(schedule.dueDate);
+              const now = new Date();
+              return !schedule.isPaid && dueDate <= now;
+            });
+            const totalOverdueAmount = overdueEMIs.reduce((sum, schedule) => sum + vehicle.vehicle.loanDetails.emiPerMonth, 0);
+            return {
+              vehicleId: vehicle.vehicle.id,
+              vehicleName: vehicle.vehicle.registrationNumber,
+              amount: totalOverdueAmount,
+              overdueEMIs: overdueEMIs.map(schedule => ({
+                monthIndex: schedule.month,
+                emiAmount: vehicle.vehicle.loanDetails.emiPerMonth,
+                dueDate: schedule.dueDate
+              })),
+              checked: true
+            };
+          });
         break;
     }
 
@@ -617,7 +1090,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle bulk payment confirmation
-  const handleBulkPaymentConfirm = async (selectedItems: any[]) => {
+  const handleBulkPaymentConfirm = async (selectedItems: any[], emiPenalties?: Record<string, Record<number, string>>) => {
     if (selectedItems.length === 0) return;
 
     setIsBulkProcessing(true);
@@ -629,7 +1102,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         const vehicleInfo = periodData.find((v: any) => v.vehicle.id === item.vehicleId);
         if (!vehicleInfo) continue;
 
-        totalAmount += item.amount;
+        let itemTotal = item.amount;
+        if (bulkDialogType === 'emi' && item.overdueEMIs && emiPenalties) {
+          const vehiclePenalties = emiPenalties[item.vehicleId] || {};
+          item.overdueEMIs.forEach(emi => {
+            const penalty = parseFloat(vehiclePenalties[emi.monthIndex] || '0') || 0;
+            itemTotal += penalty;
+          });
+        }
+        totalAmount += itemTotal;
 
         // Process payment based on type
         switch (bulkDialogType) {
@@ -644,6 +1125,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             break;
           case 'owner_share':
             await handleOwnerShareCollection(vehicleInfo);
+            break;
+          case 'emi':
+            await handleBulkEmiPayment(vehicleInfo, item, emiPenalties);
             break;
         }
 
@@ -665,6 +1149,308 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       });
     } finally {
       setIsBulkProcessing(false);
+    }
+  };
+
+  // EMI Payment Functions
+  const markEMIPaid = async (vehicle: any, monthIndex: number, scheduleItem: any) => {
+    const currentDate = new Date();
+    const dueDate = new Date(scheduleItem.dueDate);
+    const daysPastDue = Math.ceil((currentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(currentDate.getDate() + 3);
+    
+    // Check if payment is too early (more than 3 days before due date)
+    const canEdit = dueDate <= threeDaysFromNow;
+    
+    if (!canEdit && daysPastDue < -3) {
+      toast({
+        title: 'Payment Too Early',
+        description: `You can only mark EMI as paid starting 3 days before due date (${new Date(dueDate.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString()})`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (scheduleItem.isPaid) {
+      toast({
+        title: 'Already Paid',
+        description: `EMI for month ${monthIndex + 1} has already been marked as paid.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Handle overdue payments with penalty option (like VehicleDetails)
+    if (daysPastDue > 0) {
+      // Set up penalty dialog
+      setSelectedEMIForPenalty({ 
+        vehicle, 
+        monthIndex, 
+        scheduleItem, 
+        dueDate: scheduleItem.dueDate,
+        emiAmount: vehicle.loanDetails?.emiPerMonth || 0
+      });
+      setPenaltyAmount('');
+      setPenaltyDialogOpen(true);
+    } else {
+      // Regular on-time payment - process directly
+      await handleEMIPayment(vehicle, monthIndex, 0);
+    }
+  };
+
+  const handleEMIPayment = async (vehicle: any, monthIndex: number, penalty: number = 0) => {
+    try {
+      const scheduleItem = vehicle.loanDetails?.amortizationSchedule?.[monthIndex];
+      if (!scheduleItem) return;
+
+      // Update the amortization schedule
+      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
+      updatedSchedule[monthIndex] = {
+        ...scheduleItem,
+        isPaid: true,
+        paidAt: new Date().toISOString().split('T')[0]
+      };
+
+      // Update paid installments array with payment date
+      const updatedPaidInstallments = [...(vehicle.loanDetails?.paidInstallments || [])];
+      const paymentDate = new Date().toISOString().split('T')[0];
+      if (!updatedPaidInstallments.includes(paymentDate)) {
+        updatedPaidInstallments.push(paymentDate);
+      }
+
+      // Update vehicle in Firestore
+      const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicle.id);
+      await updateDoc(vehicleRef, {
+        loanDetails: {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        }
+      });
+
+      // Add EMI payment as expense record
+      const expenseRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
+      await addDoc(expenseRef, {
+        vehicleId: vehicle.id,
+        amount: vehicle.loanDetails?.emiPerMonth || 0,
+        description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+        billUrl: '',
+        submittedBy: 'owner',
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'paid',
+        paymentType: 'emi',
+        verifiedKm: 0,
+        companyId: userInfo.companyId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      // Add penalty as expense if applicable
+      if (penalty > 0) {
+        await addDoc(expenseRef, {
+          vehicleId: vehicle.id,
+          amount: penalty,
+          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
+          billUrl: '',
+          submittedBy: 'owner',
+          status: 'approved',
+          approvedAt: new Date().toISOString(),
+          adjustmentWeeks: 0,
+          type: 'general',
+          verifiedKm: 0,
+          companyId: userInfo.companyId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      // Update cash in hand
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicle.id);
+      const currentBalance = vehicleCashBalances[vehicle.id] || 0;
+      const totalPayment = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
+      await updateDoc(cashRef, {
+        balance: currentBalance - totalPayment,
+        lastUpdated: new Date().toISOString()
+      });
+
+      // Update company-level cash balance
+      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
+      await updateDoc(companyCashRef, {
+        balance: increment(-totalPayment),
+        lastUpdated: new Date().toISOString()
+      });
+
+      // Update local state
+      setVehicleCashBalances(prev => ({
+        ...prev,
+        [vehicle.id]: currentBalance - totalPayment
+      }));
+
+      const totalPaid = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
+      
+      toast({
+        title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
+        description: penalty > 0 
+          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
+          : `EMI for month ${monthIndex + 1} (₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}) has been marked as paid.`,
+      });
+
+    } catch (error) {
+      console.error('Error updating EMI payment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record EMI payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const openEMIDialog = (vehicle: any) => {
+    setSelectedVehicleForEMI(vehicle);
+    setSelectedEMIs(new Set());
+    setEmiDialogOpen(true);
+  };
+
+  const handleEMIBulkPayment = async () => {
+    if (!selectedVehicleForEMI || selectedEMIs.size === 0) return;
+
+    setIsProcessingEMI(true);
+    try {
+      const schedule = selectedVehicleForEMI.loanDetails?.amortizationSchedule || [];
+      let totalAmount = 0;
+      let penaltyTotal = 0;
+
+      for (const emiIndex of Array.from(selectedEMIs).sort((a, b) => a - b)) {
+        const emi = schedule[emiIndex];
+        if (!emi || emi.isPaid) continue;
+
+        const currentDate = new Date();
+        const dueDate = new Date(emi.dueDate);
+        const penalty = parseFloat(emiPenalties[emiIndex] || '0');
+
+        await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
+        totalAmount += selectedVehicleForEMI.loanDetails?.emiPerMonth || 0;
+        penaltyTotal += penalty;
+
+        // Small delay to prevent overwhelming Firestore
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      toast({
+        title: 'EMI Payments Completed',
+        description: `Successfully processed ${selectedEMIs.size} EMI payments totaling ₹${(totalAmount + penaltyTotal).toLocaleString()}`,
+      });
+
+      setEmiDialogOpen(false);
+      setSelectedVehicleForEMI(null);
+      setSelectedEMIs(new Set());
+      setEmiPenalties({});
+    } catch (error) {
+      toast({
+        title: 'EMI Payment Failed',
+        description: 'Some EMI payments may have failed. Please check vehicle details.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingEMI(false);
+    }
+  };
+
+  // Rent Collection Function
+  const markRentCollected = async (weekIndex: number, assignment: any, weekStartDate: Date) => {
+    // Prevent double-click processing
+    if (isProcessingRentPayment === weekIndex) return;
+
+    try {
+      setIsProcessingRentPayment(weekIndex);
+
+      if (!assignment || !assignment.assignedDriverId) {
+        toast({
+          title: 'Error',
+          description: 'No active assignment found for this vehicle.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Get week start and end dates (already calculated and passed)
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+
+      // Check if this rent payment already exists
+      const existingPayment = companyFinancialData.payments.find((payment: any) => {
+        if (payment.vehicleId !== assignment.vehicleId || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart || payment.collectionDate);
+        // More precise matching - check if payment week matches this assignment week
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+
+      if (existingPayment) {
+        toast({
+          title: 'Already Collected',
+          description: `Rent for week ${weekIndex + 1} has already been recorded on ${new Date(existingPayment.paidAt || existingPayment.createdAt).toLocaleDateString()}.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (!userInfo?.companyId) {
+        toast({
+          title: 'Error',
+          description: 'Company information not found.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Create payment record in Firebase payments collection
+      const paymentData = {
+        assignmentId: assignment.id || '',
+        vehicleId: assignment.vehicleId,
+        driverId: assignment.assignedDriverId,
+        weekStart: weekStartDate.toISOString().split('T')[0],
+        weekNumber: weekIndex + 1, // Week number within assignment
+        amountDue: assignment.weeklyRent,
+        amountPaid: assignment.weeklyRent,
+        paidAt: new Date().toISOString(),
+        collectionDate: new Date().toISOString(),
+        nextDueDate: new Date(weekEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Next week
+        daysLeft: 7, // Will be recalculated on load
+        status: 'paid' as const,
+        companyId: userInfo.companyId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Add payment record directly to payments collection using correct path
+      const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/payments`);
+      await addDoc(paymentsRef, paymentData);
+
+      // Update cash in hand - INCREASE when rent is collected
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, assignment.vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(assignment.weeklyRent),
+        updatedAt: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Rent Collected Successfully! 🎉',
+        description: `Weekly rent of ₹${assignment.weeklyRent.toLocaleString()} for assignment week ${weekIndex + 1} (${weekStartDate.toLocaleDateString('en-IN')}) has been recorded and will reflect in earnings immediately.`,
+      });
+
+    } catch (error) {
+      console.error('Error recording rent payment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record rent payment. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingRentPayment(null);
     }
   };
 
@@ -706,6 +1492,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
     // Calculate cumulative data for the selected period
     const periodData = filteredVehicles.map((vehicleInfo: any) => {
+      // Find current active assignment for this vehicle
+      const currentAssignment = assignments.find((a: any) =>
+        a.vehicleId === vehicleInfo.vehicle.id && a.status === 'active'
+      );
+
       let cumulativeEarnings = 0;
       let cumulativeExpenses = 0;
       let cumulativeProfit = 0;
@@ -714,6 +1505,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       let cumulativePartnerShare = 0;
       let cumulativeOwnerShare = 0;
       let cumulativeOwnerFullShare = 0;
+      let cumulativeRentCollected = 0;
 
       // Sum up data for each month in the period to get cumulative earnings and expenses
       months.forEach(monthIndex => {
@@ -741,6 +1533,19 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         cumulativeEarnings += monthEarnings;
         cumulativeExpenses += monthExpensesAmount;
       });
+
+      // Calculate rent collected in this period
+      const periodRentPayments = (companyFinancialData.payments || []).filter((p: any) =>
+        p.vehicleId === vehicleInfo.vehicle.id &&
+        p.status === 'paid' &&
+        months.some(monthIndex => {
+          const monthStart = new Date(year, monthIndex, 1);
+          const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+          const paymentDate = new Date(p.paidAt || p.collectionDate || p.createdAt);
+          return paymentDate >= monthStart && paymentDate <= monthEnd;
+        })
+      );
+      cumulativeRentCollected = periodRentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
       // Calculate cumulative profit
       cumulativeProfit = cumulativeEarnings - cumulativeExpenses;
@@ -789,6 +1594,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       return {
         ...vehicleInfo,
+        currentAssignment,
         earnings: cumulativeEarnings,
         expenses: cumulativeExpenses,
         profit: cumulativeProfit,
@@ -797,6 +1603,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         partnerShare: cumulativePartnerShare,
         ownerShare: cumulativeOwnerShare,
         ownerFullShare: cumulativeOwnerFullShare,
+        rentCollected: cumulativeRentCollected,
         gstPaid,
         serviceChargeCollected,
         partnerPaid,
@@ -816,6 +1623,16 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       totalPartnerShare: periodData.reduce((sum, v) => sum + v.partnerShare, 0),
       totalOwnerShare: periodData.reduce((sum, v) => sum + v.ownerShare, 0),
       totalOwnerFullShare: periodData.reduce((sum, v) => sum + v.ownerFullShare, 0),
+      totalRentCollected: periodData.reduce((sum, v) => sum + v.rentCollected, 0),
+      totalEMI: periodData.reduce((sum, v) => {
+        if (!v.vehicle.loanDetails?.amortizationSchedule) return sum;
+        const overdueEMIs = v.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
+          const dueDate = new Date(schedule.dueDate);
+          const now = new Date();
+          return !schedule.isPaid && dueDate <= now;
+        });
+        return sum + overdueEMIs.reduce((emiSum, schedule) => emiSum + v.vehicle.loanDetails.emiPerMonth, 0);
+      }, 0),
       vehicleCount: periodData.length
     };
 
@@ -933,6 +1750,16 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 <User className="h-4 w-4" />
                 Collect Owner Shares ({periodTotals.totalOwnerShare.toLocaleString()})
               </Button>
+              <Button
+                onClick={() => openBulkPaymentDialog('emi')}
+                disabled={periodTotals.totalEMI === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <CreditCard className="h-4 w-4" />
+                Pay Overdue EMIs ({periodTotals.totalEMI.toLocaleString()})
+              </Button>
             </div>
             <div className="text-xs text-gray-500 text-center mt-2">
               Bulk payments allow you to process multiple vehicles at once. You can deselect vehicles in the dialog.
@@ -947,16 +1774,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           <Card key={vehicleInfo.vehicle.id} className="flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Car className="h-4 w-4" />
-                  <span className="text-sm">{vehicleInfo.vehicle.registrationNumber}</span>
+                <div>
+                  <div className="text-lg font-semibold">
+                    {vehicleInfo.vehicle.vehicleName || `${vehicleInfo.vehicle.make} ${vehicleInfo.vehicle.model}`}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {vehicleInfo.vehicle.year} • {vehicleInfo.vehicle.registrationNumber}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {getStatusBadge(vehicleInfo.vehicle.status)}
                   <Badge variant="outline" className="text-xs">
                     {vehicleInfo.vehicle.ownershipType === 'partner' ? 'Partner' : 'Company'}
                   </Badge>
+                  <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"}>
+                    {vehicleInfo.profit >= 0 ? 'Profit' : 'Loss'}
+                  </Badge>
                 </div>
-                <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"}>
-                  {vehicleInfo.profit >= 0 ? 'Profit' : 'Loss'}
-                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col space-y-4">
@@ -1156,6 +1990,35 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       )}
                     </div>
                   )}
+
+                  {/* EMI Payments - Only for financed vehicles */}
+                  {vehicleInfo.vehicle.financingType === 'loan' && vehicleInfo.vehicle.loanDetails && (
+                    <EMIPaymentSection 
+                      vehicle={vehicleInfo.vehicle} 
+                      onPayEMI={(monthIndex, emi) => markEMIPaid(vehicleInfo.vehicle, monthIndex, emi)}
+                      onShowMore={() => openEMIDialog(vehicleInfo.vehicle)}
+                      periodType={companyFinancialData.filterType}
+                      selectedYear={companyFinancialData.selectedYear}
+                      selectedMonth={companyFinancialData.selectedMonth}
+                      selectedQuarter={companyFinancialData.selectedQuarter}
+                    />
+                  )}
+
+                  {/* Rent Collection - Only for assigned vehicles */}
+                  {assignments.some((a: any) => a.vehicleId === vehicleInfo.vehicle.id) && (
+                    <RentCollectionSection 
+                      assignments={assignments}
+                      vehicle={vehicleInfo.vehicle}
+                      onCollectRent={(weekIndex, assignment, weekStartDate) => markRentCollected(weekIndex, assignment, weekStartDate)}
+                      onShowMore={() => {}} // TODO: Implement show more for rent collection
+                      periodType={companyFinancialData.filterType}
+                      selectedYear={companyFinancialData.selectedYear}
+                      selectedMonth={companyFinancialData.selectedMonth}
+                      selectedQuarter={companyFinancialData.selectedQuarter}
+                      payments={companyFinancialData.payments || []}
+                      isProcessingRentPayment={isProcessingRentPayment}
+                    />
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1174,6 +2037,151 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         onConfirm={handleBulkPaymentConfirm}
         isLoading={isBulkProcessing}
       />
+
+      {/* EMI Payment Dialog */}
+      <Dialog open={emiDialogOpen} onOpenChange={setEmiDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>EMI Payments - {selectedVehicleForEMI?.registrationNumber}</DialogTitle>
+            <DialogDescription>
+              Select EMIs to mark as paid. Only unpaid EMIs that can be paid now are shown.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedVehicleForEMI && (
+              <div className="grid grid-cols-1 gap-3">
+                {(selectedVehicleForEMI.loanDetails?.amortizationSchedule || [])
+                  .map((emi: any, index: number) => {
+                    const dueDate = new Date(emi.dueDate);
+                    const today = new Date();
+                    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    const threeDaysFromNow = new Date();
+                    threeDaysFromNow.setDate(today.getDate() + 3);
+                    const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
+
+                    if (emi.isPaid || !canPayNow) return null;
+
+                    let statusText = '';
+                    let statusColor = 'text-gray-500';
+
+                    if (daysDiff < 0) {
+                      statusText = `${Math.abs(daysDiff)} days overdue`;
+                      statusColor = 'text-red-600';
+                    } else if (daysDiff <= 7) {
+                      statusText = daysDiff === 0 ? 'Due Today' : `${daysDiff} days left`;
+                      statusColor = 'text-yellow-600';
+                    } else {
+                      statusText = `Due ${dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+                    }
+
+                    return (
+                      <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <Checkbox
+                          id={`emi-${index}`}
+                          checked={selectedEMIs.has(index)}
+                          onCheckedChange={(checked) => {
+                            const newSelected = new Set(selectedEMIs);
+                            if (checked) {
+                              newSelected.add(index);
+                            } else {
+                              newSelected.delete(index);
+                            }
+                            setSelectedEMIs(newSelected);
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">EMI {emi.month}</div>
+                          <div className={`text-sm ${statusColor}`}>{statusText}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">₹{(selectedVehicleForEMI.loanDetails?.emiPerMonth || 0).toLocaleString()}</div>
+                          {daysDiff < 0 && (
+                            <div className="text-xs text-red-500">
+                              +₹{Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02).toLocaleString()} penalty
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            
+            {selectedEMIs.size > 0 && (
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div>
+                  <div className="font-medium">{selectedEMIs.size} EMI{selectedEMIs.size > 1 ? 's' : ''} selected</div>
+                  <div className="text-sm text-gray-600">
+                    Total: ₹{Array.from(selectedEMIs).reduce((total, index) => {
+                      const emi = selectedVehicleForEMI?.loanDetails?.amortizationSchedule?.[index];
+                      if (!emi) return total;
+                      const dueDate = new Date(emi.dueDate);
+                      const today = new Date();
+                      const daysPastDue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const penalty = daysPastDue > 0 ? Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02) : 0;
+                      return total + (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
+                    }, 0).toLocaleString()}
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleEMIBulkPayment}
+                  disabled={isProcessingEMI}
+                >
+                  {isProcessingEMI ? 'Processing...' : 'Mark as Paid'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Penalty Dialog for Individual EMI Payments */}
+      <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter Penalty Amount</DialogTitle>
+            <DialogDescription>
+              This EMI is overdue. Enter the penalty amount to be charged (leave as 0 if no penalty).
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedEMIForPenalty && (
+              <div className="p-4 bg-red-50 rounded-lg">
+                <div className="text-sm font-medium text-red-800">Overdue EMI Details</div>
+                <div className="mt-2 space-y-1 text-sm text-red-700">
+                  <div>Month: {selectedEMIForPenalty.monthIndex + 1}</div>
+                  <div>Due Date: {new Date(selectedEMIForPenalty.dueDate).toLocaleDateString()}</div>
+                  <div>EMI Amount: ₹{selectedEMIForPenalty.emiAmount.toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="penalty-amount">Penalty Amount (₹)</Label>
+              <Input
+                id="penalty-amount"
+                type="number"
+                placeholder="0"
+                value={penaltyAmount}
+                onChange={(e) => setPenaltyAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPenaltyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handlePenaltyConfirm}>
+              Confirm Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

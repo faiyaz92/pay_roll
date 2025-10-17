@@ -5,6 +5,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Calculator, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface BulkPaymentItem {
@@ -12,6 +14,7 @@ interface BulkPaymentItem {
   vehicleName: string;
   amount: number;
   monthBreakdown?: { month: string; amount: number }[];
+  overdueEMIs?: { monthIndex: number; emiAmount: number; dueDate: string }[];
   checked: boolean;
 }
 
@@ -20,9 +23,9 @@ interface BulkPaymentDialogProps {
   onClose: () => void;
   title: string;
   description: string;
-  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share';
+  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi';
   items: BulkPaymentItem[];
-  onConfirm: (selectedItems: BulkPaymentItem[]) => void;
+  onConfirm: (selectedItems: BulkPaymentItem[], emiPenalties?: Record<string, Record<number, string>>) => void;
   isLoading?: boolean;
 }
 
@@ -37,13 +40,27 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
   isLoading = false
 }) => {
   const [selectedItems, setSelectedItems] = useState<BulkPaymentItem[]>(items);
+  const [emiPenalties, setEmiPenalties] = useState<Record<string, Record<number, string>>>({});
 
   // Update selected items when dialog opens
   React.useEffect(() => {
     if (isOpen) {
       setSelectedItems(items);
+      // Initialize EMI penalties for each vehicle
+      if (paymentType === 'emi') {
+        const initialPenalties: Record<string, Record<number, string>> = {};
+        items.forEach(item => {
+          if (item.overdueEMIs) {
+            initialPenalties[item.vehicleId] = {};
+            item.overdueEMIs.forEach(emi => {
+              initialPenalties[item.vehicleId][emi.monthIndex] = '0';
+            });
+          }
+        });
+        setEmiPenalties(initialPenalties);
+      }
     }
-  }, [isOpen, items]);
+  }, [isOpen, items, paymentType]);
 
   const handleItemToggle = (vehicleId: string) => {
     setSelectedItems(prev =>
@@ -62,16 +79,37 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
     );
   };
 
-  const selectedTotal = selectedItems
-    .filter(item => item.checked)
-    .reduce((sum, item) => sum + item.amount, 0);
+  const handleEmiPenaltyChange = (vehicleId: string, monthIndex: number, penalty: string) => {
+    setEmiPenalties(prev => ({
+      ...prev,
+      [vehicleId]: {
+        ...prev[vehicleId],
+        [monthIndex]: penalty
+      }
+    }));
+  };
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
   const selectedCount = selectedItems.filter(item => item.checked).length;
 
+  const selectedTotal = selectedItems
+    .filter(item => item.checked)
+    .reduce((sum, item) => {
+      let itemTotal = item.amount;
+      if (paymentType === 'emi' && item.overdueEMIs) {
+        // Add penalties for EMI payments
+        const vehiclePenalties = emiPenalties[item.vehicleId] || {};
+        item.overdueEMIs.forEach(emi => {
+          const penalty = parseFloat(vehiclePenalties[emi.monthIndex] || '0') || 0;
+          itemTotal += penalty;
+        });
+      }
+      return sum + itemTotal;
+    }, 0);
+
   const handleConfirm = () => {
     const confirmedItems = selectedItems.filter(item => item.checked);
-    onConfirm(confirmedItems);
+    onConfirm(confirmedItems, paymentType === 'emi' ? emiPenalties : undefined);
   };
 
   const getPaymentTypeLabel = () => {
@@ -80,6 +118,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       case 'service_charge': return 'Service Charge';
       case 'partner_share': return 'Partner Share';
       case 'owner_share': return 'Owner Share';
+      case 'emi': return 'EMI';
       default: return '';
     }
   };
@@ -178,6 +217,42 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                           <div key={index} className="text-center p-2 bg-gray-50 rounded">
                             <div className="text-xs text-gray-600">{month.month}</div>
                             <div className="text-sm font-medium">₹{month.amount.toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EMI Details with Penalty Inputs */}
+                  {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Overdue EMIs & Penalties:</p>
+                      <div className="space-y-2">
+                        {item.overdueEMIs.map((emi, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
+                            <div>
+                              <div className="text-sm font-medium">Month {emi.monthIndex + 1}</div>
+                              <div className="text-xs text-gray-600">Due: {new Date(emi.dueDate).toLocaleDateString()}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <div className="text-sm font-medium">₹{emi.emiAmount.toLocaleString()}</div>
+                                <div className="text-xs text-gray-600">EMI Amount</div>
+                              </div>
+                              <div className="w-20">
+                                <Label htmlFor={`penalty-${item.vehicleId}-${emi.monthIndex}`} className="text-xs">Penalty</Label>
+                                <Input
+                                  id={`penalty-${item.vehicleId}-${emi.monthIndex}`}
+                                  type="number"
+                                  placeholder="0"
+                                  value={emiPenalties[item.vehicleId]?.[emi.monthIndex] || '0'}
+                                  onChange={(e) => handleEmiPenaltyChange(item.vehicleId, emi.monthIndex, e.target.value)}
+                                  className="h-8 text-xs"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>

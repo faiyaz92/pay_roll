@@ -4169,6 +4169,16 @@ The EMITab component displays EMI payment schedule management and tracking for f
                    : `${daysDiff} days left`
 - `displayValue` = status
 
+#### Payment Action Button
+**Label**: "Pay Now" button
+**Visibility**: Appears when payment can be made (3 days before due date OR overdue)
+**Logic**: `canPayNow = (dueDate <= threeDaysFromNow) || (daysDiff < 0)`
+**Restrictions**:
+- Cannot mark payment more than 3 days before due date
+- Can mark payment starting 3 days before due date
+- Can always mark overdue payments
+- Shows "Available in X days" message when payment is too early
+
 #### Payment Date (when paid)
 **Label**: Part of status text
 **Value**: `Paid [date]` format
@@ -4194,10 +4204,17 @@ The EMITab component displays EMI payment schedule management and tracking for f
 - `outstandingAmount` = financialData.outstandingLoan.toLocaleString()
 - `displayValue` = `EMIs Paid: ${paidCount} of ${totalCount}\nCompletion: ${completionPercentage}%\nRemaining: ${totalCount - paidCount} installments\nOutstanding: ₹${outstandingAmount}`
 
+#### EMI Payment Timing Note
+**Label**: Footer note in Quick Actions section
+**Value**: "Note: EMI payments can be marked as paid starting 3 days before due date. Overdue payments can include penalty charges."
+**Purpose**: Informs users about payment timing restrictions and penalty possibilities
+
 ### Data Source Summary for EMITab.tsx
 - **Primary Collections**: `vehicles` collection (loan details and amortization schedule)
 - **Calculated Props**: `financialData` (VehicleFinancialData interface from calculateVehicleFinancials function)
 - **Key Functions**: `calculateVehicleFinancials()` (outstanding loan, days until EMI calculations)
+- **Payment Restrictions**: EMI payments can only be marked as paid starting 3 days before due date; overdue payments can include penalty charges
+- **Payment Logic**: `canPayNow = (dueDate <= threeDaysFromNow) || (daysDiff < 0)` - allows payment 3 days before due or when overdue
 - **Prepayment Behavior**: Prepayments trigger complete loan restructuring where remaining balance becomes a fresh loan starting from EMI 1, ignoring all previous payment history
 - **Schedule Integrity**: Paid EMI records remain unchanged; only future EMIs are recalculated as new loan structure
 
