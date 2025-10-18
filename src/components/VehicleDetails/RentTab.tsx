@@ -1,10 +1,21 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle, AlertCircle, DollarSign, Calendar } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Clock, CheckCircle, AlertCircle, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
 import { Vehicle } from '@/types/user';
 import { VehicleFinancialData, Payment } from '@/hooks/useFirebaseData';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface RentTabProps {
   vehicle: Vehicle;
@@ -25,6 +36,138 @@ export const RentTab: React.FC<RentTabProps> = ({
   markRentCollected,
   isProcessingRentPayment
 }) => {
+  const [confirmPaymentDialog, setConfirmPaymentDialog] = React.useState(false);
+  const [selectedPaymentWeek, setSelectedPaymentWeek] = React.useState<{
+    weekIndex: number;
+    assignment: any;
+    weekStartDate: Date;
+    willSettleWeek?: number;
+  } | null>(null);
+
+  // Calculate overdue and due amounts
+  const rentSummary = useMemo(() => {
+    if (!vehicle.assignedDriverId || !financialData.currentAssignment) {
+      return { overdueWeeks: [], currentWeekDue: null, totalOverdue: 0, dueTodayAmount: 0, totalDue: 0 };
+    }
+
+    const currentAssignment = financialData.currentAssignment;
+    const assignmentStartDate = new Date(
+      typeof currentAssignment.startDate === 'string'
+        ? currentAssignment.startDate
+        : currentAssignment.startDate?.toDate?.() || currentAssignment.startDate
+    );
+    
+    const agreementEndDate = new Date(assignmentStartDate);
+    agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
+    const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    const today = new Date();
+    
+    const overdueWeeks: Array<{ weekIndex: number; weekStartDate: Date; amount: number }> = [];
+    let currentWeekDue: { weekIndex: number; weekStartDate: Date; amount: number } | null = null;
+
+    for (let weekIndex = 0; weekIndex < Math.min(totalWeeks, 52); weekIndex++) {
+      const weekStartDate = new Date(assignmentStartDate);
+      weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+      weekStartDate.setHours(0, 0, 0, 0);
+
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+
+      // Check if paid
+      const weekRentPayment = firebasePayments.find(payment => {
+        if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart);
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+
+      if (!weekRentPayment) {
+        const isPastWeek = weekEndDate < today;
+        const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
+
+        if (isPastWeek) {
+          overdueWeeks.push({
+            weekIndex,
+            weekStartDate,
+            amount: currentAssignment.weeklyRent
+          });
+        } else if (isCurrentWeek) {
+          currentWeekDue = {
+            weekIndex,
+            weekStartDate,
+            amount: currentAssignment.weeklyRent
+          };
+        }
+      }
+    }
+
+    const totalOverdue = overdueWeeks.reduce((sum, week) => sum + week.amount, 0);
+    const dueTodayAmount = currentWeekDue ? currentWeekDue.amount : 0;
+    const totalDue = totalOverdue + dueTodayAmount;
+
+    return { overdueWeeks, currentWeekDue, totalOverdue, dueTodayAmount, totalDue };
+  }, [vehicle, vehicleId, firebasePayments, financialData]);
+
+  const handleMarkPaidClick = (weekIndex: number, assignment: any, weekStartDate: Date) => {
+    // Check if there are overdue weeks and this is not the oldest overdue
+    if (rentSummary.overdueWeeks.length > 0) {
+      const oldestOverdueWeek = rentSummary.overdueWeeks[0];
+      
+      setSelectedPaymentWeek({
+        weekIndex,
+        assignment,
+        weekStartDate,
+        willSettleWeek: oldestOverdueWeek.weekIndex
+      });
+      setConfirmPaymentDialog(true);
+    } else {
+      // No overdue, proceed directly
+      markRentCollected(weekIndex, assignment, weekStartDate);
+    }
+  };
+
+  const confirmPayment = async () => {
+    if (selectedPaymentWeek) {
+      // Check if this is bulk payment (weekIndex === -1)
+      if (selectedPaymentWeek.weekIndex === -1) {
+        // Pay all due weeks sequentially (overdue + current week)
+        const weeksToPay = [...rentSummary.overdueWeeks];
+        if (rentSummary.currentWeekDue) {
+          weeksToPay.push(rentSummary.currentWeekDue);
+        }
+        
+        for (const week of weeksToPay) {
+          await markRentCollected(
+            week.weekIndex,
+            selectedPaymentWeek.assignment,
+            week.weekStartDate
+          );
+          // Small delay between payments for better UX
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      } else {
+        // Single payment - Always settle the oldest overdue week first
+        if (rentSummary.overdueWeeks.length > 0) {
+          const oldestOverdueWeek = rentSummary.overdueWeeks[0];
+          markRentCollected(
+            oldestOverdueWeek.weekIndex,
+            selectedPaymentWeek.assignment,
+            oldestOverdueWeek.weekStartDate
+          );
+        } else {
+          // No overdue, mark the selected week
+          markRentCollected(
+            selectedPaymentWeek.weekIndex,
+            selectedPaymentWeek.assignment,
+            selectedPaymentWeek.weekStartDate
+          );
+        }
+      }
+    }
+    setConfirmPaymentDialog(false);
+    setSelectedPaymentWeek(null);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -35,9 +178,29 @@ export const RentTab: React.FC<RentTabProps> = ({
           </Badge>
         </div>
 
+        {/* Overdue Alert */}
+        {vehicle.assignedDriverId && rentSummary.overdueWeeks.length > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Overdue Rent Payments!</AlertTitle>
+            <AlertDescription>
+              <div className="mt-2">
+                <p className="font-semibold">
+                  {rentSummary.overdueWeeks.length} week{rentSummary.overdueWeeks.length > 1 ? 's' : ''} overdue - 
+                  Total: ₹{rentSummary.totalOverdue.toLocaleString()}
+                </p>
+                <p className="text-xs mt-1">
+                  ⚠️ <strong>Important:</strong> Any payment will automatically settle the oldest overdue week first 
+                  (Week {rentSummary.overdueWeeks[0].weekIndex + 1} - {rentSummary.overdueWeeks[0].weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}).
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Rent Collection Summary */}
         {vehicle.assignedDriverId && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
@@ -57,20 +220,58 @@ export const RentTab: React.FC<RentTabProps> = ({
                 <div className="text-sm text-blue-700">Total Collected</div>
               </CardContent>
             </Card>
-            <Card className="bg-yellow-50">
+            <Card className={`${rentSummary.totalOverdue > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-yellow-600">
-                  ₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString() || '0'}
+                <div className={`text-2xl font-bold ${rentSummary.totalOverdue > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                  ₹{rentSummary.totalOverdue.toLocaleString()}
                 </div>
-                <div className="text-sm text-yellow-700">Weekly Rate</div>
+                <div className={`text-sm ${rentSummary.totalOverdue > 0 ? 'text-red-700' : 'text-gray-700'}`}>
+                  Total Overdue
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`${rentSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between h-full">
+                  <div className="text-center flex-1">
+                    <div className={`text-2xl font-bold ${rentSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
+                      ₹{rentSummary.totalDue.toLocaleString()}
+                    </div>
+                    <div className={`text-sm ${rentSummary.totalDue > 0 ? 'text-orange-700' : 'text-gray-700'}`}>
+                      Total Due Now
+                    </div>
+                  </div>
+                  {rentSummary.totalDue > 0 && (
+                    <div 
+                      className="flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors h-full px-3 rounded-md ml-2"
+                      onClick={() => {
+                        // Prepare all weeks to pay (overdue + current week due)
+                        const weeksToPay = [...rentSummary.overdueWeeks];
+                        if (rentSummary.currentWeekDue) {
+                          weeksToPay.push(rentSummary.currentWeekDue);
+                        }
+                        
+                        setSelectedPaymentWeek({
+                          weekIndex: -1, // Special flag for bulk payment
+                          assignment: financialData.currentAssignment,
+                          weekStartDate: new Date(),
+                          willSettleWeek: -1
+                        });
+                        setConfirmPaymentDialog(true);
+                      }}
+                    >
+                      Pay
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
             <Card className="bg-purple-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {Math.round(((getCurrentAssignmentDetails()?.weeklyRent || 0) * 52) / 12).toLocaleString()}
+                  ₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString() || '0'}
                 </div>
-                <div className="text-sm text-purple-700">Est. Monthly</div>
+                <div className="text-sm text-purple-700">Weekly Rate</div>
               </CardContent>
             </Card>
           </div>
@@ -232,7 +433,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                                 disabled={isProcessingRentPayment === weekIndex}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  markRentCollected(weekIndex, currentAssignment, weekStartDate);
+                                  handleMarkPaidClick(weekIndex, currentAssignment, weekStartDate);
                                 }}
                               >
                                 {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Paid'}
@@ -272,6 +473,114 @@ export const RentTab: React.FC<RentTabProps> = ({
           </Card>
         )}
       </div>
+
+      {/* Payment Confirmation Dialog */}
+      <AlertDialog open={confirmPaymentDialog} onOpenChange={setConfirmPaymentDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Overdue Payment Settlement
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              {selectedPaymentWeek && rentSummary.overdueWeeks.length > 0 && (
+                <>
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                    <p className="font-semibold text-red-800">
+                      ⚠️ You have {rentSummary.overdueWeeks.length} overdue week{rentSummary.overdueWeeks.length > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-sm text-red-700 mt-1">
+                      Total Overdue: ₹{rentSummary.totalOverdue.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {selectedPaymentWeek.weekIndex === -1 ? (
+                    // Bulk payment dialog
+                    <>
+                      <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                        <p className="font-semibold text-green-800">
+                          Pay All Due Weeks
+                        </p>
+                        <p className="text-sm text-green-700 mt-2">
+                          This will settle ALL due weeks (overdue + current):
+                        </p>
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                          {(() => {
+                            const weeksToPay = [...rentSummary.overdueWeeks];
+                            if (rentSummary.currentWeekDue) {
+                              weeksToPay.push(rentSummary.currentWeekDue);
+                            }
+                            return weeksToPay.map((week, index) => (
+                              <div key={index} className="bg-white border border-green-300 rounded p-2 text-xs">
+                                <span className="font-semibold">Week {week.weekIndex + 1}</span> - {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ₹{week.amount.toLocaleString()}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                        <p className="text-sm font-bold text-green-800 mt-2">
+                          Total Amount: ₹{rentSummary.totalDue.toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                        <p className="text-xs text-yellow-700">
+                          <strong>Note:</strong> All due weeks will be paid sequentially from oldest to newest. This will clear all outstanding payments.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    // Single payment dialog
+                    <>
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p className="font-semibold text-blue-800">
+                          Payment Settlement Order:
+                        </p>
+                        <p className="text-sm text-blue-700 mt-2">
+                          This payment of <strong>₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString()}</strong> will be settled for:
+                        </p>
+                        <div className="mt-2 bg-white border border-blue-300 rounded p-2">
+                          <p className="font-semibold text-blue-900">
+                            Week {rentSummary.overdueWeeks[0].weekIndex + 1}
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            Due Date: {rentSummary.overdueWeeks[0].weekStartDate.toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </p>
+                          <Badge variant="destructive" className="mt-1 text-xs">
+                            Oldest Overdue
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {rentSummary.overdueWeeks.length > 1 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                          <p className="text-xs text-yellow-700">
+                            <strong>Note:</strong> After this payment, you will still have {rentSummary.overdueWeeks.length - 1} overdue week{rentSummary.overdueWeeks.length - 1 > 1 ? 's' : ''} remaining 
+                            (₹{(rentSummary.totalOverdue - (getCurrentAssignmentDetails()?.weeklyRent || 0)).toLocaleString()}).
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    Do you want to proceed with this payment?
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPayment} className="bg-blue-600 hover:bg-blue-700">
+              Confirm Payment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

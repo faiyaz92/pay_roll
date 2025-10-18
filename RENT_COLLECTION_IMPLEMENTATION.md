@@ -1,7 +1,105 @@
-# Rent Collection System Implementation Summary
+# Rent Collection Implementation - Enhanced with Overdue Settlement Logic
+
+## 🎯 Latest Update: Automatic Overdue Settlement
+**Date**: October 18, 2025
+
+The rent collection system now includes **automatic overdue settlement** logic that ensures payments are always applied to the oldest unpaid week first, maintaining proper payment order and preventing skipping of overdue weeks.
+
+---
 
 ## Overview
 The rent collection system has been completely overhauled to use dynamic database-driven calculations instead of static/mock data. All rent collections are now properly recorded as transactions in Firebase and affect financial calculations across the entire application.
+
+## 🆕 New Features (October 18, 2025)
+
+### 1. **Real-Time Overdue & Due Calculation**
+The system continuously calculates:
+- **Total Overdue Amount**: Sum of all past unpaid weeks
+- **Due Today Amount**: Current week's rent (if unpaid)
+- **Total Due Now**: Overdue + Due Today
+
+### 2. **Visual Alert System**
+- **Red Alert Banner**: Appears when there are overdue payments
+- Shows number of overdue weeks and total amount
+- Warns users that payments will settle oldest week first
+
+### 3. **Enhanced Summary Cards** (6 Cards Total)
+1. **Weeks Collected** (Green) - Count of paid weeks
+2. **Total Collected** (Blue) - Total amount collected
+3. **Total Overdue** (Red/Gray) - Sum of all overdue weeks
+4. **Due Today** (Yellow/Gray) - Current week amount
+5. **Total Due Now** (Orange/Gray) - Combined overdue + due today
+6. **Weekly Rate** (Purple) - Standard weekly rent
+
+### 4. **Payment Confirmation Dialog**
+When clicking "Mark Paid" with overdue weeks:
+- Shows overdue warning with count and amount
+- Displays which week will be settled (oldest overdue)
+- Shows remaining overdue after this payment
+- Requires explicit confirmation
+
+---
+
+## 💡 Payment Settlement Example
+
+### Scenario:
+**Assignment Start**: October 1, 2025  
+**Weekly Rent**: ₹5,000  
+**Today**: October 22, 2025
+
+**Payment Status:**
+| Week | Due Date | Status | Amount |
+|------|----------|--------|--------|
+| Week 1 | Oct 1 | ❌ Overdue | ₹5,000 |
+| Week 2 | Oct 8 | ❌ Overdue | ₹5,000 |
+| Week 3 | Oct 15 | ❌ Overdue | ₹5,000 |
+| Week 4 | Oct 22 | ⚠️ Due Now | ₹5,000 |
+
+**Summary Cards Display:**
+- **Total Overdue**: ₹15,000 (3 weeks)
+- **Due Today**: ₹5,000 (1 week)
+- **Total Due Now**: ₹20,000 (4 weeks total)
+
+### What Happens When You Click "Mark Paid"?
+
+**User clicks on Week 4 (Current Week)**
+
+**Confirmation Dialog Shows:**
+```
+⚠️ You have 3 overdue weeks
+Total Overdue: ₹15,000
+
+Payment Settlement Order:
+This payment of ₹5,000 will be settled for:
+
+┌─────────────────────────────┐
+│ Week 1                      │
+│ Due Date: October 1, 2025   │
+│ [Oldest Overdue]            │
+└─────────────────────────────┘
+
+Note: After this payment, you will still have 
+2 overdue weeks remaining (₹10,000).
+```
+
+**After Confirming:**
+- ✅ **Week 1** is marked as paid (NOT Week 4!)
+- ❌ Weeks 2, 3, 4 remain unpaid
+- 💰 Cash balance increases by ₹5,000
+- 📊 Summary updates: Total Overdue = ₹10,000
+
+**Database Record:**
+```javascript
+{
+  weekStart: "2025-10-01",    // Week 1 (oldest), not Week 4
+  weekNumber: 1,
+  amountPaid: 5000,
+  paidAt: "2025-10-22T14:30:00Z",
+  status: "paid"
+}
+```
+
+---
 
 ## Key Changes Implemented
 
