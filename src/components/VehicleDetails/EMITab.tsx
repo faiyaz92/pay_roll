@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Vehicle } from '@/types/user';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,52 @@ interface EMITabProps {
 
 export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid }) => {
   const { toast } = useToast();
+
+  // Calculate overdue and due EMIs
+  const emiSummary = useMemo(() => {
+    if (!vehicle.loanDetails?.amortizationSchedule) {
+      return { overdueEMIs: [], dueSoonEMIs: [], totalOverdue: 0, totalDueSoon: 0, totalDue: 0 };
+    }
+
+    const today = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    const overdueEMIs: Array<{ index: number; emi: any; daysPastDue: number; amount: number }> = [];
+    const dueSoonEMIs: Array<{ index: number; emi: any; daysUntilDue: number; amount: number }> = [];
+
+    vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
+      if (emi.isPaid) return;
+
+      const dueDate = new Date(emi.dueDate);
+      const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const emiAmount = vehicle.loanDetails?.emiPerMonth || 0;
+
+      if (daysDiff < 0) {
+        // Overdue
+        overdueEMIs.push({
+          index,
+          emi,
+          daysPastDue: Math.abs(daysDiff),
+          amount: emiAmount
+        });
+      } else if (daysDiff <= 3) {
+        // Due soon (within 3 days)
+        dueSoonEMIs.push({
+          index,
+          emi,
+          daysUntilDue: daysDiff,
+          amount: emiAmount
+        });
+      }
+    });
+
+    const totalOverdue = overdueEMIs.reduce((sum, emi) => sum + emi.amount, 0);
+    const totalDueSoon = dueSoonEMIs.reduce((sum, emi) => sum + emi.amount, 0);
+    const totalDue = totalOverdue + totalDueSoon;
+
+    return { overdueEMIs, dueSoonEMIs, totalOverdue, totalDueSoon, totalDue };
+  }, [vehicle]);
 
   return (
     <div className="space-y-4">
@@ -37,38 +84,71 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             </div>
           </div>
 
+          {/* Overdue Alert */}
+          {emiSummary.overdueEMIs.length > 0 && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Overdue EMI Payments!</AlertTitle>
+              <AlertDescription>
+                <div className="mt-2">
+                  <p className="font-semibold">
+                    {emiSummary.overdueEMIs.length} EMI{emiSummary.overdueEMIs.length > 1 ? 's' : ''} overdue - 
+                    Total: ₹{emiSummary.totalOverdue.toLocaleString()}
+                  </p>
+                  <p className="text-xs mt-1">
+                    ⚠️ <strong>Important:</strong> Any payment will automatically settle the oldest overdue EMI first 
+                    (EMI {emiSummary.overdueEMIs[0].emi.month} - Due: {new Date(emiSummary.overdueEMIs[0].emi.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, {emiSummary.overdueEMIs[0].daysPastDue} days overdue). 
+                    Overdue payments may include penalty charges.
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* EMI Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-blue-50">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {vehicle.loanDetails.paidInstallments?.length || 0}
-                </div>
-                <div className="text-sm text-blue-700">EMIs Paid</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-yellow-50">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {financialData.daysUntilEMI >= 0 ? financialData.daysUntilEMI : 'Overdue'}
-                </div>
-                <div className="text-sm text-yellow-700">Days to Next EMI</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-red-50">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  ₹{Math.round(financialData.outstandingLoan / 100000).toFixed(1)}L
-                </div>
-                <div className="text-sm text-red-700">Outstanding</div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
+                  {vehicle.loanDetails.paidInstallments?.length || 0}
+                </div>
+                <div className="text-sm text-green-700">EMIs Paid</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  ₹{Math.round(financialData.outstandingLoan / 100000).toFixed(1)}L
+                </div>
+                <div className="text-sm text-blue-700">Outstanding Loan</div>
+              </CardContent>
+            </Card>
+            <Card className={`${emiSummary.totalOverdue > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
+              <CardContent className="p-4 text-center">
+                <div className={`text-2xl font-bold ${emiSummary.totalOverdue > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                  ₹{emiSummary.totalOverdue.toLocaleString()}
+                </div>
+                <div className={`text-sm ${emiSummary.totalOverdue > 0 ? 'text-red-700' : 'text-gray-700'}`}>
+                  Total Overdue
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`${emiSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+              <CardContent className="p-4 text-center">
+                <div className={`text-2xl font-bold ${emiSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
+                  ₹{emiSummary.totalDue.toLocaleString()}
+                </div>
+                <div className={`text-sm ${emiSummary.totalDue > 0 ? 'text-orange-700' : 'text-gray-700'}`}>
+                  Total Due Now
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-purple-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-purple-600">
                   {((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
                 </div>
-                <div className="text-sm text-green-700">Completed</div>
+                <div className="text-sm text-purple-700">Completed</div>
               </CardContent>
             </Card>
           </div>

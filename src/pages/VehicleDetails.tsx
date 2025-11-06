@@ -781,6 +781,35 @@ const VehicleDetails: React.FC = () => {
       return;
     }
 
+    // Check for overdue EMIs - always settle oldest first (like RentTab)
+    const schedule = vehicle.loanDetails?.amortizationSchedule || [];
+    const overdueEMIs = schedule
+      .map((emi, index) => ({ emi, index }))
+      .filter(({ emi }) => {
+        if (emi.isPaid) return false;
+        const emiDueDate = new Date(emi.dueDate);
+        const daysDiff = Math.ceil((emiDueDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+        return daysDiff < 0; // Overdue
+      })
+      .sort((a, b) => {
+        // Sort by due date (oldest first)
+        return new Date(a.emi.dueDate).getTime() - new Date(b.emi.dueDate).getTime();
+      });
+
+    // If there are overdue EMIs and user is trying to pay a different one
+    if (overdueEMIs.length > 0 && overdueEMIs[0].index !== monthIndex) {
+      const oldestEMI = overdueEMIs[0];
+      const oldestDueDate = new Date(oldestEMI.emi.dueDate);
+      const oldestDaysPastDue = Math.ceil((currentDate.getTime() - oldestDueDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      toast({
+        title: 'Must Settle Oldest Overdue First',
+        description: `You must pay the oldest overdue EMI first (EMI ${oldestEMI.emi.month} - ${oldestDaysPastDue} days overdue). Click on that EMI to proceed.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     // Handle overdue payments with penalty option
     if (daysPastDue > 0) {
       // Set up penalty dialog

@@ -15,6 +15,7 @@ interface BulkPaymentItem {
   amount: number;
   monthBreakdown?: { month: string; amount: number }[];
   overdueEMIs?: { monthIndex: number; emiAmount: number; dueDate: string }[];
+  overdueWeeks?: { weekIndex: number; weekStartDate: string; rentAmount: number }[];
   checked: boolean;
 }
 
@@ -23,7 +24,7 @@ interface BulkPaymentDialogProps {
   onClose: () => void;
   title: string;
   description: string;
-  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi';
+  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi' | 'rent';
   items: BulkPaymentItem[];
   onConfirm: (selectedItems: BulkPaymentItem[], emiPenalties?: Record<string, Record<number, string>>) => void;
   isLoading?: boolean;
@@ -45,11 +46,42 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
   // Update selected items when dialog opens
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedItems(items);
+      // Sort items by oldest overdue due date for smart selection
+      let sortedItems = [...items];
+      if (paymentType === 'emi' || paymentType === 'rent') {
+        sortedItems.sort((a, b) => {
+          let aDate: Date | null = null;
+          let bDate: Date | null = null;
+
+          if (paymentType === 'emi') {
+            if (a.overdueEMIs && a.overdueEMIs.length > 0) {
+              aDate = new Date(a.overdueEMIs[0].dueDate);
+            }
+            if (b.overdueEMIs && b.overdueEMIs.length > 0) {
+              bDate = new Date(b.overdueEMIs[0].dueDate);
+            }
+          } else if (paymentType === 'rent') {
+            if (a.overdueWeeks && a.overdueWeeks.length > 0) {
+              aDate = new Date(a.overdueWeeks[0].weekStartDate);
+            }
+            if (b.overdueWeeks && b.overdueWeeks.length > 0) {
+              bDate = new Date(b.overdueWeeks[0].weekStartDate);
+            }
+          }
+
+          // Sort by oldest overdue date first (null dates go to end)
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return 1;
+          if (!bDate) return -1;
+          return aDate.getTime() - bDate.getTime();
+        });
+      }
+
+      setSelectedItems(sortedItems);
       // Initialize EMI penalties for each vehicle
       if (paymentType === 'emi') {
         const initialPenalties: Record<string, Record<number, string>> = {};
-        items.forEach(item => {
+        sortedItems.forEach(item => {
           if (item.overdueEMIs) {
             initialPenalties[item.vehicleId] = {};
             item.overdueEMIs.forEach(emi => {
@@ -70,6 +102,29 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           : item
       )
     );
+  };
+
+  // Smart checkbox toggle - can only unselect from newest to oldest based on oldest overdue item
+  const handleSmartToggle = (itemIndex: number) => {
+    setSelectedItems(prev => {
+      const item = prev[itemIndex];
+      if (!item) return prev;
+
+      // If trying to uncheck, verify all items with newer oldest-overdue dates are already unchecked
+      if (item.checked) {
+        // Check if any item after this one in the sorted list is still checked
+        for (let i = itemIndex + 1; i < prev.length; i++) {
+          if (prev[i].checked) {
+            return prev; // Don't allow unchecking - there are items with newer oldest-overdue that are still checked
+          }
+        }
+      }
+
+      // Toggle the checkbox
+      const newItems = [...prev];
+      newItems[itemIndex] = { ...item, checked: !item.checked };
+      return newItems;
+    });
   };
 
   const handleSelectAll = () => {
@@ -114,6 +169,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
   const getPaymentTypeLabel = () => {
     switch (paymentType) {
+      case 'rent': return 'Rent';
       case 'gst': return 'GST';
       case 'service_charge': return 'Service Charge';
       case 'partner_share': return 'Partner Share';
@@ -137,6 +193,22 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Alert for EMI/Rent oldest-first settlement */}
+          {(paymentType === 'emi' || paymentType === 'rent') && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <div className="text-sm text-orange-800">
+                    <strong>Important:</strong> {paymentType === 'emi' ? 'EMI' : 'Rent'} payments will automatically settle the oldest overdue {paymentType === 'emi' ? 'EMI' : 'week'} first for each vehicle. 
+                    Vehicles are sorted by their oldest overdue due date. You can only unselect vehicles starting from those with newer oldest-overdue dates. 
+                    If you unselect a vehicle with an older oldest-overdue date, all {paymentType === 'emi' ? 'EMIs' : 'rent weeks'} for that vehicle will be skipped.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Summary */}
           <Card>
             <CardHeader className="pb-3">
@@ -179,19 +251,36 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           {/* Vehicle Breakdown */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Vehicle Breakdown</h3>
-            {selectedItems.map((item) => (
+            {selectedItems.map((item, index) => (
               <Card key={item.vehicleId} className={`transition-all ${item.checked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={item.checked}
-                        onCheckedChange={() => handleItemToggle(item.vehicleId)}
+                        onCheckedChange={() => {
+                          if (paymentType === 'emi' || paymentType === 'rent') {
+                            // Use smart toggle for EMI/Rent payments
+                            handleSmartToggle(index);
+                          } else {
+                            handleItemToggle(item.vehicleId);
+                          }
+                        }}
                       />
                       <div>
                         <h4 className="font-medium">{item.vehicleName}</h4>
                         <p className="text-sm text-gray-600">
                           {getPaymentTypeLabel()}: ₹{item.amount.toLocaleString()}
+                          {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (
+                            <span className="ml-2 text-red-600 font-medium">
+                              ({item.overdueEMIs.length} overdue EMI{item.overdueEMIs.length > 1 ? 's' : ''})
+                            </span>
+                          )}
+                          {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (
+                            <span className="ml-2 text-red-600 font-medium">
+                              ({item.overdueWeeks.length} overdue week{item.overdueWeeks.length > 1 ? 's' : ''})
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -252,6 +341,27 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                                   step="0.01"
                                 />
                               </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rent Week Details */}
+                  {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Overdue Rent Weeks:</p>
+                      <div className="space-y-2">
+                        {item.overdueWeeks.map((week, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
+                            <div>
+                              <div className="text-sm font-medium">Week {week.weekIndex + 1}</div>
+                              <div className="text-xs text-gray-600">Start: {new Date(week.weekStartDate).toLocaleDateString()}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-medium">₹{week.rentAmount.toLocaleString()}</div>
+                              <div className="text-xs text-gray-600">Weekly Rent</div>
                             </div>
                           </div>
                         ))}
