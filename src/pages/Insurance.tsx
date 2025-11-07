@@ -54,13 +54,38 @@ const Insurance: React.FC = () => {
   // Calculate vehicles with expiring insurance (next 30 days)
   const now = new Date();
   const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const expiringInsurance = vehicles.filter(vehicle => {
-    if (vehicle.insuranceExpiryDate) {
-      const expiryDate = new Date(vehicle.insuranceExpiryDate);
-      return expiryDate >= now && expiryDate <= thirtyDaysFromNow;
-    }
-    return false;
-  }).length;
+
+  // Get insurance policies grouped by vehicle and type
+  const getVehicleInsurancePolicies = (vehicleId: string) => {
+    const vehicleInsurances = insuranceRecords.filter(record => record.vehicleId === vehicleId);
+
+    // Group by insurance type and get the latest record for each type
+    const policiesByType: { [key: string]: any } = {};
+
+    vehicleInsurances.forEach(record => {
+      const insuranceType = record.insuranceDetails?.insuranceType || record.insuranceType || 'third_party';
+      if (!policiesByType[insuranceType] ||
+          new Date(record.insuranceDetails?.endDate || record.endDate) > new Date(policiesByType[insuranceType].insuranceDetails?.endDate || policiesByType[insuranceType].endDate)) {
+        policiesByType[insuranceType] = record;
+      }
+    });
+
+    return Object.values(policiesByType);
+  };
+
+  // Calculate expiring policies count (not vehicles)
+  const expiringPoliciesCount = vehicles.reduce((count, vehicle) => {
+    const policies = getVehicleInsurancePolicies(vehicle.id);
+    const expiringCount = policies.filter((policy: any) => {
+      const endDate = policy.insuranceDetails?.endDate || policy.endDate;
+      if (endDate) {
+        const expiryDate = new Date(endDate);
+        return expiryDate >= now && expiryDate <= thirtyDaysFromNow;
+      }
+      return false;
+    }).length;
+    return count + expiringCount;
+  }, 0);
 
   if (loading) {
     return (
@@ -96,7 +121,7 @@ const Insurance: React.FC = () => {
               ₹{totalInsuranceCost.toLocaleString()} Total Cost
             </Badge>
             <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-              {expiringInsurance} Expiring Soon
+              {expiringPoliciesCount} Expiring Soon
             </Badge>
           </div>
         </div>
@@ -200,7 +225,7 @@ const Insurance: React.FC = () => {
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{expiringInsurance}</div>
+            <div className="text-2xl font-bold text-amber-600">{expiringPoliciesCount}</div>
             <p className="text-xs text-muted-foreground">
               Next 30 days
             </p>
@@ -229,14 +254,11 @@ const Insurance: React.FC = () => {
           ) : (
             <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {vehicles.map((vehicle) => {
-                const expiryDate = vehicle.insuranceExpiryDate ? new Date(vehicle.insuranceExpiryDate) : null;
-                const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                const isExpired = daysLeft !== null && daysLeft < 0;
-                const isExpiring = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0;
-                
+                const vehiclePolicies = getVehicleInsurancePolicies(vehicle.id);
+
                 return (
                   <Card key={vehicle.id} className="p-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                           <Car className="h-6 w-6 text-blue-600" />
@@ -248,114 +270,158 @@ const Insurance: React.FC = () => {
                           <p className="text-sm text-gray-600">
                             {vehicle.make} {vehicle.model} ({vehicle.year})
                           </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Policy Number</div>
-                          <div className="font-medium">
-                            {vehicle.insurancePolicyNumber || 'Not Set'}
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Provider</div>
-                          <div className="font-medium">
-                            {vehicle.insuranceProvider || 'Not Set'}
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Premium</div>
-                          <div className="font-medium">
-                            {vehicle.insurancePremium ? `₹${vehicle.insurancePremium.toLocaleString()}` : 'Not Set'}
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Expiry Date</div>
-                          <div className="font-medium">
-                            {expiryDate ? expiryDate.toLocaleDateString() : 'Not Set'}
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Status</div>
-                          <div className="font-medium">
-                            <Badge 
-                              variant={
-                                isExpired ? 'destructive' : 
-                                isExpiring ? 'secondary' : 
-                                'default'
-                              }
-                            >
-                              {isExpired ? 'Expired' : isExpiring ? 'Expiring Soon' : 'Active'}
+                          <div className="flex gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {vehiclePolicies.length} Insurance{vehiclePolicies.length !== 1 ? 's' : ''}
                             </Badge>
                           </div>
                         </div>
-                        
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Days Left</div>
-                          <div className={`font-medium ${
-                            isExpired ? 'text-red-600' : 
-                            isExpiring ? 'text-amber-600' : 
-                            'text-green-600'
-                          }`}>
-                            {daysLeft !== null ? (
-                              isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`
-                            ) : (
-                              'Not Set'
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewPolicyDetails(vehicle)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Details
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Find the latest insurance record for this vehicle to get start date
-                              const vehicleInsuranceRecords = expenses.filter(expense =>
-                                expense.vehicleId === vehicle.id &&
-                                (expense.expenseType === 'insurance' || expense.type === 'insurance')
-                              );
-                              const latestRecord = vehicleInsuranceRecords.sort(
-                                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                              )[0];
+                      </div>
 
-                              // Create a mock insurance record for editing
-                              const mockRecord = {
-                                id: `vehicle-${vehicle.id}`,
-                                vehicleId: vehicle.id,
-                                insuranceDetails: {
-                                  policyNumber: vehicle.insurancePolicyNumber || '',
-                                  startDate: vehicle.insuranceStartDate || latestRecord?.insuranceDetails?.startDate || '',
-                                  endDate: vehicle.insuranceExpiryDate || '',
-                                },
-                                vendor: vehicle.insuranceProvider || '',
-                                notes: latestRecord?.notes || '',
-                                insuranceDocuments: vehicle.insuranceDocuments || latestRecord?.insuranceDocuments || {},
-                              };
-                              setEditingRecord(mockRecord);
-                              setIsModalOpen(true);
-                            }}
-                            disabled={!vehicle.insuranceExpiryDate}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </Button>
-                        </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewPolicyDetails(vehicle)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Details
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingRecord(null);
+                            setIsModalOpen(true);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Insurance
+                        </Button>
                       </div>
                     </div>
+
+                    {/* Insurance Policies for this vehicle */}
+                    {vehiclePolicies.length === 0 ? (
+                      <div className="text-center py-4 border-t">
+                        <Shield className="mx-auto h-8 w-8 text-gray-400" />
+                        <p className="text-sm text-gray-500 mt-2">No insurance policies found</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() => setIsModalOpen(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add First Insurance
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 border-t pt-4">
+                        {vehiclePolicies.map((policy: any, index: number) => {
+                          const endDate = policy.insuranceDetails?.endDate || policy.endDate;
+                          const startDate = policy.insuranceDetails?.startDate || policy.startDate;
+                          const insuranceType = policy.insuranceDetails?.insuranceType || policy.insuranceType || 'third_party';
+                          const policyNumber = policy.insuranceDetails?.policyNumber || policy.policyNumber || 'N/A';
+                          const provider = policy.vendor || policy.insuranceProvider || 'N/A';
+                          const premium = policy.amount || policy.insurancePremium || 0;
+
+                          const expiryDate = endDate ? new Date(endDate) : null;
+                          const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                          const isExpired = daysLeft !== null && daysLeft < 0;
+                          const isExpiring = daysLeft !== null && daysLeft <= 30 && daysLeft >= 0;
+
+                          // Format insurance type display name
+                          const getInsuranceTypeDisplay = (type: string) => {
+                            const typeMap: { [key: string]: string } = {
+                              'fix_insurance': 'Fix Insurance',
+                              'rego': 'REGO',
+                              'green_slip': 'Green Slip',
+                              'pink_slip': 'Pink Slip',
+                              'third_party': 'Third Party'
+                            };
+                            return typeMap[type] || type;
+                          };
+
+                          return (
+                            <div key={`${policy.id}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border">
+                                  <Shield className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <h4 className="font-medium text-sm">
+                                    {getInsuranceTypeDisplay(insuranceType)}
+                                  </h4>
+                                  <p className="text-xs text-gray-600">
+                                    Policy: {policyNumber}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-6 text-sm">
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-600">Provider</div>
+                                  <div className="font-medium">{provider}</div>
+                                </div>
+
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-600">Premium</div>
+                                  <div className="font-medium">₹{premium.toLocaleString()}</div>
+                                </div>
+
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-600">Expiry</div>
+                                  <div className="font-medium">
+                                    {expiryDate ? expiryDate.toLocaleDateString() : 'Not Set'}
+                                  </div>
+                                </div>
+
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-600">Status</div>
+                                  <Badge
+                                    variant={
+                                      isExpired ? 'destructive' :
+                                      isExpiring ? 'secondary' :
+                                      'default'
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {isExpired ? 'Expired' : isExpiring ? 'Expiring Soon' : 'Active'}
+                                  </Badge>
+                                </div>
+
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-600">Days Left</div>
+                                  <div className={`font-medium text-sm ${
+                                    isExpired ? 'text-red-600' :
+                                    isExpiring ? 'text-amber-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {daysLeft !== null ? (
+                                      isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`
+                                    ) : (
+                                      'Not Set'
+                                    )}
+                                  </div>
+                                </div>
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingRecord(policy);
+                                    setIsModalOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </Card>
                 );
               })}

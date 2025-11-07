@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment, setDoc, Timestamp } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
@@ -91,8 +91,8 @@ export interface Expense {
   odometerReading?: number;
   // Proration fields for advance payments
   isAdvance?: boolean;
-  coverageStartDate?: string;
-  coverageEndDate?: string;
+  coverageStartDate?: any; // Firebase Timestamp
+  coverageEndDate?: any; // Firebase Timestamp
   coverageMonths?: number;
   proratedMonthly?: number;
   [key: string]: any; // Allow additional fields
@@ -490,10 +490,17 @@ export const useExpenses = () => {
   const addExpense = async (expenseData: Omit<Expense, 'id'>) => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const expensesRef = collection(firestore, paths.getExpensesPath());
-    const now = new Date().toISOString();
+    const now = Timestamp.fromDate(new Date());
+
+    // Filter out undefined values to prevent Firebase errors
+    const cleanExpenseData = Object.fromEntries(
+      Object.entries(expenseData).filter(([_, value]) => value !== undefined)
+    );
+
+    console.log('Sending to Firebase:', JSON.stringify(cleanExpenseData, null, 2));
 
     const expenseDoc = await addDoc(expensesRef, {
-      ...expenseData,
+      ...cleanExpenseData,
       companyId: userInfo.companyId,
       createdAt: now,
       updatedAt: now

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +14,36 @@ import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { Expense } from '@/hooks/useFirebaseData';
 import InsuranceDocumentUploader from './InsuranceDocumentUploader';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { firestore } from '@/config/firebase';
+import { addDoc, collection } from 'firebase/firestore';
+
+// Define schema outside component to avoid recreation on every render
+const createInsuranceRecordSchema = (editingRecord: Expense | undefined, isCorrection: boolean) => z.object({
+  vehicleId: editingRecord ? z.string().optional() : z.string().min(1, 'Vehicle is required'),
+  driverId: z.string().optional(),
+  insuranceType: editingRecord ? z.string().optional() : z.enum(['fix_insurance', 'rego', 'green_slip', 'pink_slip']),
+  policyNumber: editingRecord ? z.string().optional() : z.string().min(1, 'Policy number is required'),
+  description: editingRecord ? z.string().optional() : z.string().min(1, 'Description is required'),
+  amount: editingRecord ? z.string().optional() : z.string().min(1, 'Amount is required'),
+  vendor: editingRecord ? z.string().optional() : z.string().min(1, 'Insurance provider is required'),
+  startDate: z.string().min(1, 'Insurance start date is required'),
+  endDate: z.string().min(1, 'Insurance end date is required'),
+  receiptNumber: z.string().optional(),
+  notes: z.string().optional(),
+  // Proration field
+  isAdvance: z.boolean().optional(),
+  // Correction fields - required when isCorrection is true
+  originalTransactionRef: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // If this is a correction form, originalTransactionRef is required
+  if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Original transaction ID is required for corrections',
+      path: ['originalTransactionRef'],
+    });
+  }
+});
 
 interface InsuranceRecordData {
   vehicleId: string;
@@ -51,12 +81,28 @@ interface AddInsuranceRecordFormProps {
 }
 
 const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSuccess, editingRecord, isCorrection = false }) => {
-  const [insuranceDocuments, setInsuranceDocuments] = useState({
-    policyCopy: null as any,
-    rcCopy: null as any,
-    previousYearPolicy: null as any,
-    additional: [] as any[],
-  });
+  console.log('AddInsuranceRecordForm rendered with editingRecord:', editingRecord, 'isCorrection:', isCorrection);
+interface InsuranceDocument {
+  id: string;
+  name: string;
+  url: string;
+  type: 'policy' | 'rc' | 'previous' | 'additional';
+  uploadedAt: string;
+  size: number;
+  file?: File;
+}
+
+const [insuranceDocuments, setInsuranceDocuments] = useState<{
+  policyCopy: InsuranceDocument | null;
+  rcCopy: InsuranceDocument | null;
+  previousYearPolicy: InsuranceDocument | null;
+  additional: InsuranceDocument[];
+}>({
+  policyCopy: null,
+  rcCopy: null,
+  previousYearPolicy: null,
+  additional: [],
+});
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
   const [prorationValues, setProrationValues] = useState({
     coverageMonths: 0,
@@ -66,39 +112,41 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   // Current month checkbox state
   const [useCurrentMonth, setUseCurrentMonth] = useState(false);
 
-  // Define schema inside component to access isCorrection prop and editingRecord
-  const insuranceRecordSchema = z.object({
-    vehicleId: editingRecord ? z.string().optional() : z.string().min(1, 'Vehicle is required'),
-    driverId: z.string().optional(),
-    insuranceType: editingRecord ? z.string().optional() : z.enum(['fix_insurance', 'rego', 'green_slip', 'pink_slip']),
-    policyNumber: editingRecord ? z.string().optional() : z.string().min(1, 'Policy number is required'),
-    description: editingRecord ? z.string().optional() : z.string().min(1, 'Description is required'),
-    amount: editingRecord ? z.string().optional() : z.string().min(1, 'Amount is required'),
-    vendor: editingRecord ? z.string().optional() : z.string().min(1, 'Insurance provider is required'),
-    startDate: z.string().min(1, 'Insurance start date is required'),
-    endDate: z.string().min(1, 'Insurance end date is required'),
-    receiptNumber: z.string().optional(),
-    notes: z.string().optional(),
-    // Proration field
-    isAdvance: z.boolean().optional(),
-    // Correction fields - required when isCorrection is true
-    originalTransactionRef: z.string().optional(),
-  }).superRefine((data, ctx) => {
-    // If this is a correction form, originalTransactionRef is required
-    if (isCorrection && (!data.originalTransactionRef || data.originalTransactionRef.trim() === '')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Original transaction ID is required for corrections',
-        path: ['originalTransactionRef'],
-      });
-    }
-  });
+  // Create schema based on current props
+  const insuranceRecordSchema = useMemo(() => createInsuranceRecordSchema(editingRecord, isCorrection), [editingRecord, isCorrection]);
 
   type InsuranceRecordFormData = z.infer<typeof insuranceRecordSchema>;
 
-  const { vehicles, drivers, addExpense, updateExpense, updateVehicle } = useFirebaseData();
+  const { vehicles, drivers, expenses, addExpense, updateExpense, updateVehicle } = useFirebaseData();
   const { userInfo } = useAuth();
   const { toast } = useToast();
+
+  // Check for overlapping insurance policies of the same type
+  const checkInsuranceOverlap = (vehicleId: string, insuranceType: string, startDate: string, endDate: string, excludeRecordId?: string): boolean => {
+    const vehicleInsurances = expenses.filter(expense =>
+      expense.vehicleId === vehicleId &&
+      (expense.expenseType === 'insurance' || expense.type === 'insurance') &&
+      expense.id !== excludeRecordId // Exclude current record when editing
+    );
+
+    const newStart = new Date(startDate);
+    const newEnd = new Date(endDate);
+
+    for (const insurance of vehicleInsurances) {
+      const existingType = insurance.insuranceDetails?.insuranceType || insurance.insuranceType;
+      if (existingType === insuranceType) {
+        const existingStart = new Date(insurance.insuranceDetails?.startDate || insurance.startDate);
+        const existingEnd = new Date(insurance.insuranceDetails?.endDate || insurance.endDate);
+
+        // Check for date overlap
+        if (newStart <= existingEnd && newEnd >= existingStart) {
+          return true; // Overlap found
+        }
+      }
+    }
+
+    return false; // No overlap
+  };
 
   // Calculate proration values
   const calculateProration = (startDate: string, endDate: string, amount: number) => {
@@ -137,13 +185,31 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
     const uploadedDocuments: Record<string, string> = {};
 
     for (const [type, doc] of Object.entries(insuranceDocuments)) {
-      if (doc && doc.file) {
-        try {
-          const cloudinaryUrl = await uploadToCloudinary(doc.file);
-          uploadedDocuments[type] = cloudinaryUrl;
-        } catch (error) {
-          console.error(`Failed to upload ${type} document:`, error);
-          throw new Error(`Failed to upload ${type} document`);
+      if (type === 'additional') {
+        // Handle additional documents array
+        const additionalDocs = doc as InsuranceDocument[];
+        for (const additionalDoc of additionalDocs) {
+          if (additionalDoc && additionalDoc.file) {
+            try {
+              const cloudinaryUrl = await uploadToCloudinary(additionalDoc.file);
+              uploadedDocuments[`additional_${additionalDoc.id}`] = cloudinaryUrl;
+            } catch (error) {
+              console.error(`Failed to upload additional document ${additionalDoc.name}:`, error);
+              throw new Error(`Failed to upload additional document ${additionalDoc.name}`);
+            }
+          }
+        }
+      } else {
+        // Handle single document properties
+        const singleDoc = doc as InsuranceDocument | null;
+        if (singleDoc && singleDoc.file) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(singleDoc.file);
+            uploadedDocuments[type] = cloudinaryUrl;
+          } catch (error) {
+            console.error(`Failed to upload ${type} document:`, error);
+            throw new Error(`Failed to upload ${type} document`);
+          }
         }
       }
     }
@@ -153,7 +219,9 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
 
   // Populate form when editing
   useEffect(() => {
+    console.log('Form useEffect triggered, editingRecord:', editingRecord);
     if (editingRecord) {
+      console.log('Populating form for editing:', editingRecord);
       // Helper function to format date for HTML input
       const formatDateForInput = (dateString: string | undefined) => {
         if (!dateString) return '';
@@ -188,22 +256,28 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         Object.entries(editingRecord.insuranceDocuments).forEach(([key, url]) => {
           if (key === 'policyCopy' && url) {
             existingDocs.policyCopy = {
+              id: `policy-${Date.now()}`,
               url: url as string,
               name: 'Insurance Policy Copy',
+              type: 'policy',
               size: 0, // We don't have size info for existing docs
               uploadedAt: new Date().toISOString()
             };
           } else if (key === 'rcCopy' && url) {
             existingDocs.rcCopy = {
+              id: `rc-${Date.now()}`,
               url: url as string,
-              name: 'RC Copy (Registration Certificate)',
+              name: 'RC Copy',
+              type: 'rc',
               size: 0,
               uploadedAt: new Date().toISOString()
             };
           } else if (key === 'previousYearPolicy' && url) {
             existingDocs.previousYearPolicy = {
+              id: `previous-${Date.now()}`,
               url: url as string,
               name: 'Previous Year Policy',
+              type: 'previous',
               size: 0,
               uploadedAt: new Date().toISOString()
             };
@@ -212,6 +286,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         setInsuranceDocuments(existingDocs);
       }
     } else {
+      console.log('Resetting form for new record');
       form.reset();
       setInsuranceDocuments({
         policyCopy: null,
@@ -261,6 +336,27 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
   }, [useCurrentMonth, form]);
 
   const onSubmit = async (data: InsuranceRecordFormData) => {
+    console.log('Form submitted with data:', JSON.stringify(data, null, 2));
+
+    // Validate required fields
+    if (!data.startDate || !data.endDate) {
+      console.error('Missing required date fields');
+      toast({
+        title: 'Validation Error',
+        description: 'Start date and end date are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Temporary fallback dates while we resolve upstream data issues
+    const normalizedStartDate = typeof data.startDate === 'string' && data.startDate.trim()
+      ? data.startDate.trim()
+      : '2025-01-01';
+    const normalizedEndDate = typeof data.endDate === 'string' && data.endDate.trim()
+      ? data.endDate.trim()
+      : '2025-12-31';
+
     try {
       setIsUploadingDocuments(true);
 
@@ -275,6 +371,26 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           variant: 'destructive',
         });
         return;
+      }
+
+      // Check for overlapping insurance policies (only for new records, not edits)
+      if (!editingRecord) {
+        const hasOverlap = checkInsuranceOverlap(
+          data.vehicleId,
+          data.insuranceType,
+          data.startDate,
+          data.endDate
+        );
+
+        if (hasOverlap) {
+          toast({
+            title: 'Insurance Overlap Detected',
+            description: `A ${data.insuranceType.replace('_', ' ').toUpperCase()} policy already exists for this vehicle with overlapping dates. Please choose different dates or edit the existing policy.`,
+            variant: 'destructive',
+          });
+          setIsUploadingDocuments(false);
+          return;
+        }
       }
 
       if (editingRecord) {
@@ -296,10 +412,24 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         });
       } else {
         // Handle new record creation
+        console.log('Creating expense data:', {
+          isAdvance: data.isAdvance,
+          isAdvanceType: typeof data.isAdvance,
+          isAdvanceTruthy: !!data.isAdvance,
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
+          startDateLength: normalizedStartDate.length,
+          endDateLength: normalizedEndDate.length,
+          startDateTrimmed: normalizedStartDate,
+          endDateTrimmed: normalizedEndDate,
+          prorationValues
+        });
+
+        // Build expense data object step by step to avoid undefined values
         const expenseData: Omit<Expense, 'id'> = {
           vehicleId: data.vehicleId,
-          amount: isCorrection ? parseFloat(data.amount) : parseFloat(data.amount), // Allow negative amounts for corrections
-          description: isCorrection 
+          amount: isCorrection ? parseFloat(data.amount) : parseFloat(data.amount),
+          description: isCorrection
             ? `Insurance correction - Ref: ${data.originalTransactionRef} - ${data.description}`
             : data.description,
           billUrl: '',
@@ -309,38 +439,105 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           adjustmentWeeks: 0,
           type: 'insurance',
           verifiedKm: 0,
-          companyId: '',
-          createdAt: '',
-          updatedAt: '',
+          companyId: userInfo.companyId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           paymentType: 'expenses',
           expenseType: 'insurance',
-          // Additional insurance-specific fields
           vendor: data.vendor,
-          receiptNumber: data.receiptNumber,
-          notes: data.notes,
           insuranceDetails: {
             insuranceType: data.insuranceType,
             policyNumber: data.policyNumber,
-            startDate: data.startDate,
-            endDate: data.endDate,
+            startDate: new Date(normalizedStartDate).toISOString(),
+            endDate: new Date(normalizedEndDate).toISOString(),
           },
-          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
-          // Proration fields - use insurance dates for coverage period
           isAdvance: data.isAdvance || false,
-          coverageStartDate: data.isAdvance ? data.startDate : undefined,
-          coverageEndDate: data.isAdvance ? data.endDate : undefined,
-          coverageMonths: prorationValues.coverageMonths || undefined,
-          proratedMonthly: prorationValues.proratedMonthly || undefined,
           isCorrection: isCorrection,
-          originalTransactionRef: data.originalTransactionRef,
         };
+
+        // Conditionally add optional fields only if they have valid values
+        if (data.receiptNumber && data.receiptNumber.trim()) {
+          expenseData.receiptNumber = data.receiptNumber;
+        }
+        if (data.notes && data.notes.trim()) {
+          expenseData.notes = data.notes;
+        }
+        if (Object.keys(uploadedDocuments).length > 0) {
+          expenseData.insuranceDocuments = uploadedDocuments;
+        }
+
+        // Only add coverage fields if isAdvance is true and dates are valid
+        console.log('Checking coverage conditions:', {
+          isAdvance: data.isAdvance,
+          isAdvanceType: typeof data.isAdvance,
+          startDate: normalizedStartDate,
+          startDateType: typeof normalizedStartDate,
+          endDate: normalizedEndDate,
+          endDateType: typeof normalizedEndDate,
+          startDateTrimmed: normalizedStartDate,
+          endDateTrimmed: normalizedEndDate
+        });
+
+        const shouldAddCoverage = data.isAdvance === true &&
+                                  typeof normalizedStartDate === 'string' &&
+                                  typeof normalizedEndDate === 'string' &&
+                                  normalizedStartDate.length > 0 &&
+                                  normalizedEndDate.length > 0;
+
+        console.log('Should add coverage fields:', shouldAddCoverage);
+
+        if (shouldAddCoverage) {
+          expenseData.coverageStartDate = Timestamp.fromDate(new Date(normalizedStartDate));
+          expenseData.coverageEndDate = Timestamp.fromDate(new Date(normalizedEndDate));
+          expenseData.coverageMonths = prorationValues.coverageMonths;
+          expenseData.proratedMonthly = prorationValues.proratedMonthly;
+          console.log('Added coverage fields:', {
+            coverageStartDate: expenseData.coverageStartDate,
+            coverageEndDate: expenseData.coverageEndDate
+          });
+        } else {
+          console.log('Skipping coverage fields - condition not met');
+        }
+
+        // Add correction reference if this is a correction
+        if (isCorrection && data.originalTransactionRef && data.originalTransactionRef.trim()) {
+          expenseData.originalTransactionRef = data.originalTransactionRef;
+        }
+
+        console.log('Final expenseData before submission:', JSON.stringify(expenseData, null, 2));
+
+        // Show exactly what will be stored in Firebase
+        console.log('=== FIREBASE DOCUMENT STRUCTURE ===');
+        console.log('Collection Path:', `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
+        console.log('Document ID: [AUTO-GENERATED]');
+        console.log('Document Data:');
+        Object.entries(expenseData).forEach(([key, value]) => {
+          console.log(`  ${key}:`, typeof value === 'object' ? JSON.stringify(value, null, 2) : value);
+        });
+        console.log('=====================================');
+
+        // Test: Create a minimal document to verify Firebase connection
+        console.log('Testing Firebase connection with minimal document...');
+        try {
+          const testDoc = {
+            test: true,
+            timestamp: new Date().toISOString(),
+            companyId: userInfo.companyId
+          };
+          console.log('Test document:', testDoc);
+          await addDoc(collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`), testDoc);
+          console.log('✅ Firebase connection works!');
+        } catch (testError) {
+          console.error('❌ Firebase connection failed:', testError);
+          throw testError; // Re-throw to stop submission
+        }
 
         await addExpense(expenseData);
 
         // Also update the vehicle record with insurance details
         await updateVehicle(data.vehicleId, {
-          insuranceExpiryDate: data.endDate,
-          insuranceStartDate: data.startDate,
+          insuranceExpiryDate: normalizedEndDate,
+          insuranceStartDate: normalizedStartDate,
           insurancePolicyNumber: data.policyNumber,
           insuranceProvider: data.vendor,
           insurancePremium: parseFloat(data.amount),
@@ -357,16 +554,16 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
         });
       }
 
-      // Reset form on successful submission
-      form.reset();
-      setUseCurrentMonth(false);
-      setInsuranceDocuments({
-        policyCopy: null,
-        rcCopy: null,
-        previousYearPolicy: null,
-        additional: [],
-      });
-      setIsUploadingDocuments(false);
+      // Reset form on successful submission - COMMENTED OUT to prevent auto-clearing
+      // form.reset();
+      // setUseCurrentMonth(false);
+      // setInsuranceDocuments({
+      //   policyCopy: null,
+      //   rcCopy: null,
+      //   previousYearPolicy: null,
+      //   additional: [],
+      // });
+      // setIsUploadingDocuments(false);
     } catch (error) {
       console.error('Error in insurance form submission:', error);
       toast({
@@ -389,7 +586,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Vehicle</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vehicle" />
@@ -414,7 +611,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Driver (Optional)</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select driver" />
@@ -441,7 +638,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Insurance Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!editingRecord}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select insurance type" />
@@ -466,7 +663,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Policy Number</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., POL12345678" {...field} disabled={!!editingRecord} />
+                  <Input placeholder="e.g., POL12345678" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -538,7 +735,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Premium Amount (₹)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} disabled={!!editingRecord} />
+                  <Input type="number" step="0.01" placeholder="e.g., 15000" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -552,7 +749,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
               <FormItem>
                 <FormLabel>Insurance Provider</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} disabled={!!editingRecord} />
+                  <Input placeholder="e.g., HDFC ERGO, ICICI Lombard" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -585,7 +782,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
                         setProrationValues({ coverageMonths: 0, proratedMonthly: 0 });
                       }
                     }}
-                    disabled={!!editingRecord}
+                    disabled={false}
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
@@ -623,7 +820,7 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe the insurance transaction..." {...field} disabled={!!editingRecord} />
+                <Textarea placeholder="Describe the insurance transaction..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -637,9 +834,9 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Receipt Number (Optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Receipt/Transaction number" {...field} disabled={!!editingRecord} />
-                </FormControl>
+                  <FormControl>
+                    <Input placeholder="Receipt/Transaction number" {...field} />
+                  </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -688,9 +885,28 @@ const AddInsuranceRecordForm: React.FC<AddInsuranceRecordFormProps> = ({ onSucce
           </div>
         )}
 
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || isUploadingDocuments}>
-          {isUploadingDocuments ? 'Uploading Documents...' : form.formState.isSubmitting ? (editingRecord ? 'Updating Insurance Dates...' : 'Adding Insurance Record...') : (editingRecord ? 'Update Insurance Dates' : isCorrection ? 'Record Correction' : 'Add Insurance Record')}
-        </Button>
+        <div className="flex gap-4">
+          <Button type="submit" className="flex-1" disabled={form.formState.isSubmitting || isUploadingDocuments}>
+            {isUploadingDocuments ? 'Uploading Documents...' : form.formState.isSubmitting ? (editingRecord ? 'Updating Insurance Dates...' : 'Adding Insurance Record...') : (editingRecord ? 'Update Insurance Dates' : isCorrection ? 'Record Correction' : 'Add Insurance Record')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              form.reset();
+              setUseCurrentMonth(false);
+              setInsuranceDocuments({
+                policyCopy: null,
+                rcCopy: null,
+                previousYearPolicy: null,
+                additional: [],
+              });
+            }}
+            disabled={form.formState.isSubmitting || isUploadingDocuments}
+          >
+            Clear Form
+          </Button>
+        </div>
       </form>
     </Form>
   );
