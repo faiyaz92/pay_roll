@@ -487,8 +487,8 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
         console.log('Should add coverage fields:', shouldAddCoverage);
 
         if (shouldAddCoverage) {
-          expenseData.coverageStartDate = Timestamp.fromDate(new Date(normalizedStartDate));
-          expenseData.coverageEndDate = Timestamp.fromDate(new Date(normalizedEndDate));
+          expenseData.coverageStartDate = normalizedStartDate;
+          expenseData.coverageEndDate = normalizedEndDate;
           expenseData.coverageMonths = prorationValues.coverageMonths;
           expenseData.proratedMonthly = prorationValues.proratedMonthly;
           console.log('Added coverage fields:', {
@@ -535,14 +535,20 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
         await addExpense(expenseData);
 
         // Also update the vehicle record with insurance details
-        await updateVehicle(data.vehicleId, {
+        const vehicleUpdateData: any = {
           insuranceExpiryDate: normalizedEndDate,
           insuranceStartDate: normalizedStartDate,
           insurancePolicyNumber: data.policyNumber,
           insuranceProvider: data.vendor,
           insurancePremium: parseFloat(data.amount),
-          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
-        });
+        };
+
+        // Only include insuranceDocuments if there are actual documents
+        if (Object.keys(uploadedDocuments).length > 0) {
+          vehicleUpdateData.insuranceDocuments = uploadedDocuments;
+        }
+
+        await updateVehicle(data.vehicleId, vehicleUpdateData);
 
         toast({
           title: 'Success',
@@ -554,16 +560,16 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
         });
       }
 
-      // Reset form on successful submission - COMMENTED OUT to prevent auto-clearing
-      // form.reset();
-      // setUseCurrentMonth(false);
-      // setInsuranceDocuments({
-      //   policyCopy: null,
-      //   rcCopy: null,
-      //   previousYearPolicy: null,
-      //   additional: [],
-      // });
-      // setIsUploadingDocuments(false);
+      // Reset form on successful submission
+      form.reset();
+      setUseCurrentMonth(false);
+      setInsuranceDocuments({
+        policyCopy: null,
+        rcCopy: null,
+        previousYearPolicy: null,
+        additional: [],
+      });
+      setIsUploadingDocuments(false);
     } catch (error) {
       console.error('Error in insurance form submission:', error);
       toast({

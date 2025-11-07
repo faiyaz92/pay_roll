@@ -490,7 +490,7 @@ export const useExpenses = () => {
   const addExpense = async (expenseData: Omit<Expense, 'id'>) => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const expensesRef = collection(firestore, paths.getExpensesPath());
-    const now = Timestamp.fromDate(new Date());
+    const now = new Date().toISOString();
 
     // Filter out undefined values to prevent Firebase errors
     const cleanExpenseData = Object.fromEntries(
