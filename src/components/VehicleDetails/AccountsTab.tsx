@@ -65,9 +65,14 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const [accountingTransactions, setAccountingTransactions] = useState<AccountingTransaction[]>([]);
   const [cashInHand, setCashInHand] = useState(0);
   const [confirmRentPaymentDialog, setConfirmRentPaymentDialog] = useState(false);
+  const [selectedRentPaymentWeek, setSelectedRentPaymentWeek] = useState<{
+    weekIndex: number;
+    assignment: any;
+    weekStartDate: Date;
+    willSettleWeek?: number;
+  } | null>(null);
   const [selectedRentWeekIndices, setSelectedRentWeekIndices] = useState<number[]>([]);
-  const [isProcessingBulkRent, setIsProcessingBulkRent] = useState(false);
-  const [rentDialogAssignment, setRentDialogAssignment] = useState<any>(null);
+  const [isProcessingRentPayment, setIsProcessingRentPayment] = useState(false);
   const [bulkPaymentDialog, setBulkPaymentDialog] = useState(false);
   const [penaltyAmounts, setPenaltyAmounts] = useState<Record<number, string>>({});
   const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
@@ -206,16 +211,25 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   };
 
   useEffect(() => {
-    if (confirmRentPaymentDialog) {
-      if (orderedRentWeekIndices.length > 0) {
-        setSelectedRentWeekIndices(orderedRentWeekIndices);
-      } else {
-        setSelectedRentWeekIndices([]);
+    if (confirmRentPaymentDialog && selectedRentPaymentWeek?.weekIndex === -1) {
+      if (selectedRentWeekIndices.length === 0) {
+        if (orderedRentWeekIndices.length > 0) {
+          setSelectedRentWeekIndices(orderedRentWeekIndices);
+        } else {
+          setSelectedRentWeekIndices([]);
+        }
       }
-    } else {
+    }
+
+    if (!confirmRentPaymentDialog) {
       setSelectedRentWeekIndices([]);
     }
-  }, [confirmRentPaymentDialog, orderedRentWeekIndices]);
+  }, [
+    confirmRentPaymentDialog,
+    orderedRentWeekIndices,
+    selectedRentPaymentWeek,
+    selectedRentWeekIndices.length
+  ]);
 
   const emiSummary = useMemo(() => {
     if (!vehicle?.loanDetails?.amortizationSchedule) {
@@ -438,47 +452,95 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     }
   };
 
-  const handleBulkRentPayment = async () => {
-    if (!rentDialogAssignment) {
+  const handleConfirmRentPayment = async () => {
+    if (!selectedRentPaymentWeek) {
       setConfirmRentPaymentDialog(false);
       return;
     }
 
-    const weeksToPay = allDueWeeks.filter(week => selectedRentWeekIndices.includes(week.weekIndex));
+    const assignment = selectedRentPaymentWeek.assignment || financialData?.currentAssignment;
 
-    if (weeksToPay.length === 0) {
+    if (!assignment) {
       toast({
-        title: 'No Weeks Selected',
-        description: 'Select at least one week in sequence to collect rent.',
+        title: 'Assignment Missing',
+        description: 'Unable to find an active assignment for this vehicle. Please refresh and try again.',
         variant: 'destructive'
       });
       return;
     }
 
-    setIsProcessingBulkRent(true);
+    if (selectedRentPaymentWeek.weekIndex === -1) {
+      const weeksToPay = allDueWeeks
+        .filter(week => selectedRentWeekIndices.includes(week.weekIndex))
+        .sort((a, b) => a.weekIndex - b.weekIndex);
 
-    try {
-      for (const week of weeksToPay) {
-        await markRentCollected(week.weekIndex, rentDialogAssignment, week.weekStartDate, false);
-        await new Promise(resolve => setTimeout(resolve, 300));
+      if (weeksToPay.length === 0) {
+        toast({
+          title: 'No Weeks Selected',
+          description: 'Select at least one week in sequence to collect rent.',
+          variant: 'destructive'
+        });
+        return;
       }
 
-      toast({
-        title: 'Bulk Rent Collection Completed! 🎉',
-        description: `Collected ${weeksToPay.length} week${weeksToPay.length > 1 ? 's' : ''} totaling ₹${selectedRentWeekTotal.toLocaleString()}.`
-      });
+      setIsProcessingRentPayment(true);
 
-      setConfirmRentPaymentDialog(false);
-      setRentDialogAssignment(null);
-      setSelectedRentWeekIndices([]);
-    } catch (error) {
-      toast({
-        title: 'Bulk Collection Failed',
-        description: 'Some rent payments could not be recorded. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessingBulkRent(false);
+      try {
+        for (const week of weeksToPay) {
+          await markRentCollected(week.weekIndex, assignment, week.weekStartDate, false);
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        toast({
+          title: 'Bulk Rent Collection Completed! 🎉',
+          description: `Collected ${weeksToPay.length} week${weeksToPay.length > 1 ? 's' : ''} totaling ₹${selectedRentWeekTotal.toLocaleString()}.`
+        });
+
+        setConfirmRentPaymentDialog(false);
+        setSelectedRentPaymentWeek(null);
+        setSelectedRentWeekIndices([]);
+      } catch (error) {
+        console.error('Error recording bulk rent payments:', error);
+        toast({
+          title: 'Bulk Collection Failed',
+          description: 'Some rent payments could not be recorded. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingRentPayment(false);
+      }
+    } else {
+      setIsProcessingRentPayment(true);
+
+      try {
+        if (rentSummary.overdueWeeks.length > 0) {
+          const oldestOverdueWeek = rentSummary.overdueWeeks[0];
+          await markRentCollected(
+            oldestOverdueWeek.weekIndex,
+            assignment,
+            oldestOverdueWeek.weekStartDate
+          );
+        } else {
+          await markRentCollected(
+            selectedRentPaymentWeek.weekIndex,
+            assignment,
+            selectedRentPaymentWeek.weekStartDate
+          );
+        }
+
+        setConfirmRentPaymentDialog(false);
+        setSelectedRentPaymentWeek(null);
+        setSelectedRentWeekIndices([]);
+      } catch (error) {
+        console.error('Error recording rent payment:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'The rent payment could not be recorded. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingRentPayment(false);
+      }
     }
   };
 
@@ -1448,7 +1510,15 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   return;
                 }
 
-                setRentDialogAssignment(financialData.currentAssignment);
+                const assignment = financialData.currentAssignment;
+                if (assignment) {
+                  setSelectedRentPaymentWeek({
+                    weekIndex: -1,
+                    assignment,
+                    weekStartDate: new Date(),
+                    willSettleWeek: rentSummary.overdueWeeks[0]?.weekIndex ?? -1
+                  });
+                }
                 setConfirmRentPaymentDialog(true);
               }}
               disabled={rentSummary.totalDue <= 0}
@@ -1714,10 +1784,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         onOpenChange={(open) => {
           setConfirmRentPaymentDialog(open);
           if (!open) {
-            setRentDialogAssignment(null);
             setSelectedRentWeekIndices([]);
-          } else if (financialData?.currentAssignment) {
-            setRentDialogAssignment(financialData.currentAssignment);
+            setSelectedRentPaymentWeek(null);
+            setIsProcessingRentPayment(false);
+          } else if (!selectedRentPaymentWeek && financialData?.currentAssignment) {
+            setSelectedRentPaymentWeek({
+              weekIndex: -1,
+              assignment: financialData.currentAssignment,
+              weekStartDate: new Date(),
+              willSettleWeek: rentSummary.overdueWeeks[0]?.weekIndex ?? -1
+            });
           }
         }}
       >
@@ -1728,7 +1804,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               Overdue Payment Settlement
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
-              {rentSummary.overdueWeeks.length > 0 && (
+              {selectedRentPaymentWeek && rentSummary.overdueWeeks.length > 0 && (
                 <>
                   <div className="bg-red-50 border border-red-200 rounded-md p-3">
                     <p className="font-semibold text-red-800">
@@ -1739,75 +1815,113 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     </p>
                   </div>
 
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                    <p className="font-semibold text-green-800 mb-1">
-                      Pay Due Weeks
-                    </p>
-                    <p className="text-xs text-green-700">
-                      Select consecutive weeks starting from the oldest overdue entry. Older weeks stay locked in order.
-                    </p>
-                    {allDueWeeks.length === 0 ? (
-                      <div className="mt-3 bg-white border border-dashed border-green-300 rounded p-3 text-sm text-green-700">
-                        All rent collections are up to date. There is nothing pending right now.
-                      </div>
-                    ) : (
-                      <div className="mt-3 border border-green-200 rounded">
-                        <div className="flex items-center justify-between px-3 py-2 border-b border-green-200 bg-white text-xs text-green-700">
-                          <span>Selected: {selectedRentWeekCount} of {allDueWeeks.length}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs border-green-200 text-green-700"
-                            onClick={handleSelectAllRentWeeks}
-                            disabled={selectedRentWeekCount === orderedRentWeekIndices.length}
-                          >
-                            Select All
-                          </Button>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto divide-y divide-green-100 bg-white">
-                          {allDueWeeks.map((week) => {
-                            const isSelected = selectedRentWeekIndices.includes(week.weekIndex);
-                            const checkboxId = `bulk-week-${week.weekIndex}`;
-
-                            return (
-                              <label
-                                key={week.weekIndex}
-                                htmlFor={checkboxId}
-                                className={`flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors ${isSelected ? 'bg-green-50' : ''}`}
+                  {selectedRentPaymentWeek.weekIndex === -1 ? (
+                    <>
+                      <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                        <p className="font-semibold text-green-800 mb-1">
+                          Pay Due Weeks
+                        </p>
+                        <p className="text-xs text-green-700">
+                          Select consecutive weeks starting from the oldest overdue entry. Older weeks stay locked in order.
+                        </p>
+                        {allDueWeeks.length === 0 ? (
+                          <div className="mt-3 bg-white border border-dashed border-green-300 rounded p-3 text-sm text-green-700">
+                            All rent collections are up to date. There is nothing pending right now.
+                          </div>
+                        ) : (
+                          <div className="mt-3 border border-green-200 rounded">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-green-200 bg-white text-xs text-green-700">
+                              <span>Selected: {selectedRentWeekCount} of {allDueWeeks.length}</span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-xs border-green-200 text-green-700"
+                                onClick={handleSelectAllRentWeeks}
+                                disabled={selectedRentWeekCount === orderedRentWeekIndices.length}
                               >
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={checkboxId}
-                                    checked={isSelected}
-                                    onCheckedChange={() => handleToggleRentWeekSelection(week.weekIndex)}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span className="font-medium text-green-900">Week {week.weekIndex + 1}</span>
-                                    <span className="text-xs text-gray-500">
-                                      Start {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="text-sm font-medium text-gray-700">
-                                  ₹{week.amount.toLocaleString()}
-                                </div>
-                              </label>
-                            );
-                          })}
+                                Select All
+                              </Button>
+                            </div>
+                            <div className="max-h-40 overflow-y-auto divide-y divide-green-100 bg-white">
+                              {allDueWeeks.map((week) => {
+                                const isSelected = selectedRentWeekIndices.includes(week.weekIndex);
+                                const checkboxId = `bulk-week-${week.weekIndex}`;
+
+                                return (
+                                  <label
+                                    key={week.weekIndex}
+                                    htmlFor={checkboxId}
+                                    className={`flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors ${isSelected ? 'bg-green-50' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        id={checkboxId}
+                                        checked={isSelected}
+                                        onCheckedChange={() => handleToggleRentWeekSelection(week.weekIndex)}
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-green-900">Week {week.weekIndex + 1}</span>
+                                        <span className="text-xs text-gray-500">
+                                          Start {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="text-sm font-medium text-gray-700">
+                                      ₹{week.amount.toLocaleString()}
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-green-900">
+                          <span>Selected Amount</span>
+                          <span>₹{selectedRentWeekTotal.toLocaleString()}</span>
                         </div>
                       </div>
-                    )}
-                    <div className="mt-3 flex items-center justify-between text-sm font-semibold text-green-900">
-                      <span>Selected Amount</span>
-                      <span>₹{selectedRentWeekTotal.toLocaleString()}</span>
-                    </div>
-                  </div>
 
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                    <p className="text-xs text-yellow-700">
-                      <strong>Note:</strong> Selected weeks will be collected sequentially from oldest to newest. Unselecting a week clears all newer selections to keep the order intact.
-                    </p>
-                  </div>
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                        <p className="text-xs text-yellow-700">
+                          <strong>Note:</strong> Selected weeks will be collected sequentially from oldest to newest. Unselecting a week clears all newer selections to keep the order intact.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p className="font-semibold text-blue-800">
+                          Payment Settlement Order:
+                        </p>
+                        <p className="text-sm text-blue-700 mt-2">
+                          This payment of <strong>₹{(selectedRentPaymentWeek.assignment?.weeklyRent || financialData?.currentAssignment?.weeklyRent || 0).toLocaleString()}</strong> will be settled for:
+                        </p>
+                        <div className="mt-2 bg-white border border-blue-300 rounded p-2">
+                          <p className="font-semibold text-blue-900">
+                            Week {rentSummary.overdueWeeks[0].weekIndex + 1}
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            Due Date: {rentSummary.overdueWeeks[0].weekStartDate.toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </p>
+                          <Badge variant="destructive" className="mt-1 text-xs">
+                            Oldest Overdue
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {rentSummary.overdueWeeks.length > 1 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                          <p className="text-xs text-yellow-700">
+                            <strong>Note:</strong> After this payment, you will still have {rentSummary.overdueWeeks.length - 1} overdue week{rentSummary.overdueWeeks.length - 1 > 1 ? 's' : ''} remaining (₹{(rentSummary.totalOverdue - (selectedRentPaymentWeek.assignment?.weeklyRent || financialData?.currentAssignment?.weeklyRent || 0)).toLocaleString()}).
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   <p className="text-sm text-gray-600 mt-2">
                     Do you want to proceed with this payment?
@@ -1817,13 +1931,20 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessingBulkRent}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessingRentPayment}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleBulkRentPayment}
+              onClick={handleConfirmRentPayment}
               className="bg-blue-600 hover:bg-blue-700"
-              disabled={isProcessingBulkRent || selectedRentWeekCount === 0}
+              disabled={
+                isProcessingRentPayment ||
+                (selectedRentPaymentWeek?.weekIndex === -1 && selectedRentWeekCount === 0)
+              }
             >
-              {isProcessingBulkRent ? 'Processing...' : selectedRentWeekCount > 0 ? `Collect ${selectedRentWeekCount} Week${selectedRentWeekCount > 1 ? 's' : ''}` : 'Select Weeks to Collect'}
+              {isProcessingRentPayment
+                ? 'Processing...'
+                : selectedRentPaymentWeek?.weekIndex === -1 && selectedRentWeekCount > 0
+                ? `Collect ${selectedRentWeekCount} Week${selectedRentWeekCount > 1 ? 's' : ''}`
+                : 'Confirm Payment'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
