@@ -394,7 +394,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   setAccountingTransactions
 }) => {
   const { userInfo } = useAuth();
-  const { vehicles, assignments, payments } = useFirebaseData();
+  const { vehicles, assignments, payments, addExpense } = useFirebaseData();
   const navigate = useNavigate();
   const [vehicleCashBalances, setVehicleCashBalances] = useState<Record<string, number>>({});
 
@@ -1469,11 +1469,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       }
 
       // Add expense entries
-      const expenseRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
       await expenseEntries.reduce(
         (chain, entry) =>
           chain.then(() =>
-            addDoc(expenseRef, {
+            addExpense({
               vehicleId: vehicle.id,
               amount: entry.amount,
               description: entry.description,
@@ -1484,10 +1483,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               adjustmentWeeks: 0,
               type: entry.type,
               paymentType: entry.paymentType,
-              verifiedKm: 0,
-              companyId: userInfo.companyId,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              verifiedKm: 0
             })
           ),
         Promise.resolve()
