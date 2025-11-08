@@ -540,7 +540,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium text-orange-700">
-                        Selected: {selectedCount} of {emiSummary.allDueEMIs.length}
+                        Selected: {selectedCount} of {emiSummary.allDueEMIs.length} (₹{emiSummary.totalDue.toLocaleString()})
                       </span>
                       {emiSummary.allDueEMIs.length > 0 && (
                         <Button
@@ -558,7 +558,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                   <p className="text-sm text-orange-700">
                     Choose consecutive EMIs starting from the oldest overdue instalment. Selecting a later EMI will automatically include every older due EMI.
                   </p>
-                  <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                  <div className="mt-3 space-y-2 overflow-visible">
                     {(() => {
                       const dueEMIs = emiSummary.allDueEMIs;
                       if (dueEMIs.length === 0) {
@@ -636,7 +636,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                   </div>
                   <div className="mt-3 pt-3 border-t border-orange-300 space-y-1">
                     <div className="flex justify-between items-center font-bold text-orange-900">
-                      <span>Selected EMI Amount:</span>
+                      <span>Selected EMIs: {selectedCount} of {emiSummary.allDueEMIs.length}</span>
                       <span>₹{totalSelectedEmiAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm text-red-700">
