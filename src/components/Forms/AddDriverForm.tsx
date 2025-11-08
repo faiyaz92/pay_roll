@@ -106,15 +106,15 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess, driver = null,
         return;
       }
 
-      // Validate required documents for add mode only
-      if (mode === 'add' && (!documents.drivingLicense || !documents.idCard || !documents.photo)) {
-        toast({
-          title: 'Missing Documents',
-          description: 'Please upload Driving License, ID Card, and Driver Photo.',
-          variant: 'destructive',
-        });
-        return;
-      }
+      // Documents are now optional - no validation required
+      // if (mode === 'add' && (!documents.drivingLicense || !documents.idCard || !documents.photo)) {
+      //   toast({
+      //     title: 'Missing Documents',
+      //     description: 'Please upload Driving License, ID Card, and Driver Photo.',
+      //     variant: 'destructive',
+      //   });
+      //   return;
+      // }
 
       console.log('Using company ID:', userInfo.companyId);
       setIsUploading(true);
@@ -232,7 +232,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess, driver = null,
         
         toast({
           title: 'Success',
-          description: 'Driver added successfully with all documents uploaded securely.',
+          description: 'Driver added successfully. Documents can be uploaded later if needed.',
         });
       }
       
@@ -346,7 +346,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess, driver = null,
         {/* Document Upload Section */}
         <div className="space-y-4">
           <div className="border-t pt-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">📋 Required Documents</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">📋 Optional Documents</h3>
             <DocumentUploader
               documents={documents}
               onDocumentsChange={setDocuments}
@@ -364,7 +364,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ onSuccess, driver = null,
             ? 'Uploading Documents...' 
             : form.formState.isSubmitting 
               ? (mode === 'edit' ? 'Updating Driver...' : 'Adding Driver...') 
-              : (mode === 'edit' ? 'Update Driver' : 'Add Driver with Documents')
+              : (mode === 'edit' ? 'Update Driver' : 'Add Driver')
           }
         </Button>
       </form>

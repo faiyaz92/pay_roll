@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
@@ -14,10 +15,17 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc, updateDoc, doc, increment } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, getDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
+
+// Import types
 import { Vehicle, Assignment } from '@/types/user';
+
+// Import components
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
+import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
+import InsuranceDocumentUploader from '@/components/Forms/InsuranceDocumentUploader';
 
 // Import tab components
 import OverviewTab from '@/components/VehicleDetails/OverviewTab';
@@ -94,6 +102,17 @@ import {
   Download
 } from 'lucide-react';
 
+// Define InsuranceDocument type
+type InsuranceDocument = {
+  id: string;
+  name: string;
+  url: string;
+  type: 'policy' | 'rc' | 'previous' | 'additional';
+  uploadedAt: string;
+  size: number;
+  file?: File;
+};
+
 const VehicleDetails: React.FC = () => {
   const { vehicleId } = useParams();
   const navigate = useNavigate();
@@ -101,9 +120,11 @@ const VehicleDetails: React.FC = () => {
   const { toast } = useToast();
   const { userInfo } = useAuth();
   const { vehicles, drivers, expenses, getVehicleFinancialData, updateVehicle, addExpense, loading, markPaymentCollected, payments: firebasePayments, assignments: allAssignments } = useFirebaseData();
+  const paths = useFirestorePaths(userInfo?.companyId);
   const [prepaymentAmount, setPrepaymentAmount] = useState('');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
+  const [addInsuranceDialogOpen, setAddInsuranceDialogOpen] = useState(false);
   const [penaltyAmount, setPenaltyAmount] = useState('');
   const [selectedEMI, setSelectedEMI] = useState<{monthIndex: number, scheduleItem: EMIScheduleItem} | null>(null);
   const [prepaymentResults, setPrepaymentResults] = useState<{
@@ -124,6 +145,87 @@ const VehicleDetails: React.FC = () => {
     coverageEndDate: '',
     coverageMonths: 0
   });
+  
+  // Insurance-specific state for expense form
+  const [insuranceExpenseData, setInsuranceExpenseData] = useState({
+    driverId: '',
+    insuranceType: 'fix_insurance' as 'fix_insurance' | 'rego' | 'green_slip' | 'pink_slip',
+    policyNumber: '',
+    vendor: '',
+    startDate: '',
+    endDate: '',
+    receiptNumber: '',
+    notes: '',
+    isAdvance: false
+  });
+
+  // Insurance document upload state
+  const [insuranceDocuments, setInsuranceDocuments] = useState<{
+    policyCopy: any;
+    rcCopy: any;
+    previousYearPolicy: any;
+    additional: any[];
+  }>({
+    policyCopy: null,
+    rcCopy: null,
+    previousYearPolicy: null,
+    additional: [],
+  });
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+
+  // Proration calculation state
+  const [prorationValues, setProrationValues] = useState({
+    coverageMonths: 0,
+    proratedMonthly: 0,
+  });
+
+  // Current month checkbox state
+  const [useCurrentMonth, setUseCurrentMonth] = useState(false);
+
+  // Calculate proration values when insurance dates or amount change
+  React.useEffect(() => {
+    if (insuranceExpenseData.isAdvance && insuranceExpenseData.startDate && insuranceExpenseData.endDate && newExpense.amount) {
+      const start = new Date(insuranceExpenseData.startDate);
+      const end = new Date(insuranceExpenseData.endDate);
+      const amount = parseFloat(newExpense.amount || '0');
+      
+      if (amount > 0) {
+        const months = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+        const proratedMonthly = amount / months;
+        
+        setProrationValues({
+          coverageMonths: months,
+          proratedMonthly
+        });
+      }
+    } else {
+      setProrationValues({ coverageMonths: 0, proratedMonthly: 0 });
+    }
+  }, [insuranceExpenseData.startDate, insuranceExpenseData.endDate, insuranceExpenseData.isAdvance, newExpense.amount]);
+
+  // Auto-set insurance dates for current month
+  useEffect(() => {
+    if (useCurrentMonth) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      // First day of current month
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const firstDayString = firstDay.toISOString().split('T')[0];
+
+      // Last day of current month
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const lastDayString = lastDay.toISOString().split('T')[0];
+
+      setInsuranceExpenseData(prev => ({
+        ...prev,
+        startDate: firstDayString,
+        endDate: lastDayString
+      }));
+    }
+  }, [useCurrentMonth]);
+
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [paymentDateFilter, setPaymentDateFilter] = useState('');
   // New 3-level filtering states
@@ -822,79 +924,134 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
-  const processEMIPayment = async (monthIndex: number, scheduleItem: EMIScheduleItem, penalty: number = 0) => {
+  const processEMIPayment = async (monthIndex: number, scheduleItem: EMIScheduleItem, penalty: number = 0, suppressToast: boolean = false) => {
     try {
-      // Update the amortization schedule
-      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
+      if (!vehicleId) {
+        throw new Error('Vehicle not found');
+      }
+
+      // Always use the latest snapshot to avoid overwriting earlier bulk updates
+      let latestLoanDetails = vehicle.loanDetails;
+      try {
+        const vehiclesPath = paths.getVehiclesPath();
+        if (vehiclesPath) {
+          const vehicleRef = doc(firestore, vehiclesPath, vehicleId);
+          const vehicleSnapshot = await getDoc(vehicleRef);
+          if (vehicleSnapshot.exists()) {
+            const latestData = vehicleSnapshot.data() as Vehicle;
+            if (latestData.loanDetails) {
+              latestLoanDetails = latestData.loanDetails;
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI update:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+      const targetEMI = updatedSchedule[monthIndex];
+
+      if (!targetEMI) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
       updatedSchedule[monthIndex] = {
-        ...scheduleItem,
+        ...targetEMI,
         isPaid: true,
-        paidAt: new Date().toISOString().split('T')[0]
+        paidAt: paymentDate
       };
 
-      // Update paid installments array with payment date
-      const updatedPaidInstallments = [...(vehicle.loanDetails?.paidInstallments || [])];
-      const paymentDate = new Date().toISOString().split('T')[0];
+      // Keep the passed schedule reference in sync for immediate UI feedback
+      scheduleItem.isPaid = true;
+      scheduleItem.paidAt = paymentDate;
+
+      const updatedPaidInstallments = [...(latestLoanDetails.paidInstallments || [])];
       if (!updatedPaidInstallments.includes(paymentDate)) {
         updatedPaidInstallments.push(paymentDate);
       }
 
-      // Update vehicle in Firestore
-      await updateVehicle(vehicleId!, {
+      await updateVehicle(vehicleId, {
         loanDetails: {
-          ...vehicle.loanDetails!,
+          ...latestLoanDetails,
           amortizationSchedule: updatedSchedule,
           paidInstallments: updatedPaidInstallments
         }
       });
 
-      // Add EMI payment as expense record for Payments screen visibility
-      await addExpense({
-        vehicleId: vehicleId!,
-        amount: vehicle.loanDetails?.emiPerMonth || 0,
-        description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
-        billUrl: '',
-        submittedBy: 'owner',
-        status: 'approved' as const,
-        approvedAt: new Date().toISOString(),
-        adjustmentWeeks: 0,
-        type: 'paid' as const,
-        paymentType: 'emi' as const,
-        verifiedKm: 0,
-        companyId: '',
-        createdAt: '',
-        updatedAt: ''
-      });
+      // Mutate local cache so subsequent bulk iterations work with the updated snapshot
+      if (vehicle.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        };
+      }
 
-      // Add penalty as expense if applicable
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+
+      const expenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: emiAmount,
+          description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid' as const,
+          paymentType: 'emi' as const
+        }
+      ];
+
       if (penalty > 0) {
-        await addExpense({
-          vehicleId: vehicleId!,
+        expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          billUrl: '',
-          submittedBy: 'owner',
-          status: 'approved' as const,
-          approvedAt: new Date().toISOString(),
-          adjustmentWeeks: 0,
           type: 'general' as const,
-          verifiedKm: 0,
-          companyId: '',
-          createdAt: '',
-          updatedAt: ''
+          paymentType: undefined
         });
       }
 
-      const totalPaid = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
-      
-      toast({
-        title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
-        description: penalty > 0 
-          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
-          : `EMI for month ${monthIndex + 1} (₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}) has been marked as paid.`,
-      });
+      // Firestore write batching keeps the UI responsive during bulk processing
+      await expenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addExpense({
+              vehicleId,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved' as const,
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0,
+              companyId: '',
+              createdAt: '',
+              updatedAt: ''
+            })
+          ),
+        Promise.resolve()
+      );
 
-      // Close penalty dialog if open
+      const totalPaid = emiAmount + penalty;
+
+      if (!suppressToast) {
+        toast({
+          title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
+          description: penalty > 0
+            ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${emiAmount.toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
+            : `EMI for month ${monthIndex + 1} (₹${emiAmount.toLocaleString()}) has been marked as paid.`,
+        });
+      }
+
       setPenaltyDialogOpen(false);
       setSelectedEMI(null);
       setPenaltyAmount('');
@@ -930,41 +1087,208 @@ const VehicleDetails: React.FC = () => {
         return;
       }
 
-      // Build the expense object conditionally
-      const expenseData: any = {
-        vehicleId: vehicleId!,
-        amount: amount,
-        description: newExpense.description.trim(),
-        billUrl: '',
-        submittedBy: 'owner',
-        status: 'approved' as const,
-        approvedAt: new Date().toISOString(),
-        adjustmentWeeks: 0,
-        expenseType: selectedExpenseType,
-        type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel' | 'emi' | 'prepayment'),
-        verifiedKm: 0,
-        companyId: '',
-        createdAt: '',
-        updatedAt: '',
-        paymentType: 'expenses',
-        // Proration fields for advance payments
-        isAdvance: newExpense.isAdvance
-      };
+      // Handle insurance expenses with full insurance data structure
+      if (selectedExpenseType === 'insurance') {
+        // Validate insurance-specific fields
+        if (!insuranceExpenseData.policyNumber.trim()) {
+          toast({
+            title: 'Missing Policy Number',
+            description: 'Please enter the insurance policy number.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        if (!insuranceExpenseData.vendor.trim()) {
+          toast({
+            title: 'Missing Insurance Provider',
+            description: 'Please enter the insurance provider name.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        if (!insuranceExpenseData.startDate) {
+          toast({
+            title: 'Missing Start Date',
+            description: 'Please enter the insurance start date.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        if (!insuranceExpenseData.endDate) {
+          toast({
+            title: 'Missing End Date',
+            description: 'Please enter the insurance end date.',
+            variant: 'destructive'
+          });
+          return;
+        }
 
-      // Only include proration fields if it's an advance payment
-      if (newExpense.isAdvance) {
-        expenseData.coverageStartDate = newExpense.coverageStartDate;
-        expenseData.coverageEndDate = newExpense.coverageEndDate;
-        expenseData.coverageMonths = newExpense.coverageMonths;
-        expenseData.proratedMonthly = amount / newExpense.coverageMonths;
+        setIsUploadingDocuments(true);
+
+        // Upload insurance documents first
+        let uploadedDocuments = {};
+        try {
+          // Upload documents to Cloudinary
+          for (const [type, doc] of Object.entries(insuranceDocuments)) {
+            if (type === 'additional') {
+              // Handle additional documents array
+              const additionalDocs = doc as InsuranceDocument[];
+              for (const additionalDoc of additionalDocs) {
+                if (additionalDoc && additionalDoc.file) {
+                  const cloudinaryUrl = await uploadToCloudinary(additionalDoc.file);
+                  uploadedDocuments[`additional_${additionalDoc.id}`] = cloudinaryUrl;
+                }
+              }
+            } else {
+              // Handle single document properties
+              const singleDoc = doc as InsuranceDocument | null;
+              if (singleDoc && singleDoc.file) {
+                const cloudinaryUrl = await uploadToCloudinary(singleDoc.file);
+                uploadedDocuments[type] = cloudinaryUrl;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to upload insurance documents:', error);
+          toast({
+            title: 'Document Upload Failed',
+            description: 'Failed to upload insurance documents. Please try again.',
+            variant: 'destructive'
+          });
+          setIsUploadingDocuments(false);
+          return;
+        }
+
+        // Calculate proration for insurance if it's an advance payment
+        let coverageMonths = 0;
+        let proratedMonthly = 0;
+        if (insuranceExpenseData.isAdvance) {
+          const start = new Date(insuranceExpenseData.startDate);
+          const end = new Date(insuranceExpenseData.endDate);
+          coverageMonths = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+          proratedMonthly = amount / coverageMonths;
+        }
+
+        // Create insurance expense with full structure matching AddInsuranceRecordForm
+        const insuranceExpenseDataFull: any = {
+          vehicleId: vehicleId!,
+          driverId: insuranceExpenseData.driverId || undefined,
+          amount: amount,
+          description: newExpense.description.trim(),
+          billUrl: '',
+          submittedBy: 'owner',
+          status: 'approved' as const,
+          approvedAt: new Date().toISOString(),
+          adjustmentWeeks: 0,
+          expenseType: 'insurance',
+          type: 'insurance',
+          verifiedKm: 0,
+          companyId: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          paymentType: 'expenses',
+          vendor: insuranceExpenseData.vendor.trim(),
+          receiptNumber: insuranceExpenseData.receiptNumber || '',
+          notes: insuranceExpenseData.notes || '',
+          insuranceDetails: {
+            insuranceType: insuranceExpenseData.insuranceType,
+            policyNumber: insuranceExpenseData.policyNumber.trim(),
+            startDate: insuranceExpenseData.startDate,
+            endDate: insuranceExpenseData.endDate,
+          },
+          isAdvance: insuranceExpenseData.isAdvance,
+          coverageStartDate: insuranceExpenseData.isAdvance ? insuranceExpenseData.startDate : undefined,
+          coverageEndDate: insuranceExpenseData.isAdvance ? insuranceExpenseData.endDate : undefined,
+          coverageMonths: insuranceExpenseData.isAdvance ? coverageMonths : undefined,
+          proratedMonthly: insuranceExpenseData.isAdvance ? proratedMonthly : undefined,
+          // Include uploaded documents
+          insuranceDocuments: Object.keys(uploadedDocuments).length > 0 ? uploadedDocuments : undefined,
+        };
+
+        await addExpense(insuranceExpenseDataFull);
+
+        // Also update the vehicle record with insurance details (same as AddInsuranceRecordForm)
+        const normalizedStartDate = insuranceExpenseData.startDate;
+        const normalizedEndDate = insuranceExpenseData.endDate;
+
+        const vehicleUpdateData: any = {
+          insuranceExpiryDate: normalizedEndDate,
+          insuranceStartDate: normalizedStartDate,
+          insurancePolicyNumber: insuranceExpenseData.policyNumber.trim(),
+          insuranceProvider: insuranceExpenseData.vendor.trim(),
+          insurancePremium: amount,
+        };
+
+        // Only include insuranceDocuments if there are actual documents
+        if (Object.keys(uploadedDocuments).length > 0) {
+          vehicleUpdateData.insuranceDocuments = uploadedDocuments;
+        }
+
+        await updateVehicle(vehicleId!, vehicleUpdateData);
+
+        toast({
+          title: 'Insurance Expense Added',
+          description: `Insurance expense of ₹${amount.toLocaleString()} has been recorded and vehicle insurance details updated.`,
+        });
+
+        // Reset insurance form and documents
+        setInsuranceExpenseData({
+          driverId: '',
+          insuranceType: 'fix_insurance',
+          policyNumber: '',
+          vendor: '',
+          startDate: '',
+          endDate: '',
+          receiptNumber: '',
+          notes: '',
+          isAdvance: false
+        });
+        setInsuranceDocuments({
+          policyCopy: null,
+          rcCopy: null,
+          previousYearPolicy: null,
+          additional: [],
+        });
+        setIsUploadingDocuments(false);
+        setUseCurrentMonth(false);
+      } else {
+        // Handle non-insurance expenses (existing logic)
+        // Build the expense object conditionally
+        const expenseData: any = {
+          vehicleId: vehicleId!,
+          amount: amount,
+          description: newExpense.description.trim(),
+          billUrl: '',
+          submittedBy: 'owner',
+          status: 'approved' as const,
+          approvedAt: new Date().toISOString(),
+          adjustmentWeeks: 0,
+          expenseType: selectedExpenseType,
+          type: selectedExpenseType as ('general' | 'maintenance' | 'insurance' | 'penalties' | 'fuel' | 'emi' | 'prepayment'),
+          verifiedKm: 0,
+          companyId: '',
+          createdAt: '',
+          updatedAt: '',
+          paymentType: 'expenses',
+          // Proration fields for advance payments
+          isAdvance: newExpense.isAdvance
+        };
+
+        // Only include proration fields if it's an advance payment
+        if (newExpense.isAdvance) {
+          expenseData.coverageStartDate = newExpense.coverageStartDate;
+          expenseData.coverageEndDate = newExpense.coverageEndDate;
+          expenseData.coverageMonths = newExpense.coverageMonths;
+          expenseData.proratedMonthly = amount / newExpense.coverageMonths;
+        }
+
+        await addExpense(expenseData);
+
+        toast({
+          title: 'Expense Added',
+          description: `${selectedExpenseType} expense of ₹${amount.toLocaleString()} has been recorded.`,
+        });
       }
-
-      await addExpense(expenseData);
-
-      toast({
-        title: 'Expense Added',
-        description: `${selectedExpenseType} expense of ₹${amount.toLocaleString()} has been recorded.`,
-      });
 
       // Reset form and close dialog AFTER successful save
       setNewExpense({
@@ -1013,6 +1337,30 @@ const VehicleDetails: React.FC = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Handle insurance expense addition
+  const handleAddInsuranceExpense = async (insuranceData: any) => {
+    try {
+      // The AddInsuranceRecordForm already handles all the logic including Firebase operations
+      // We just need to close the dialog and reset the form
+      setSelectedExpenseType('fuel');
+      setShowExpenseForm(false);
+    } catch (error) {
+      console.error('Error in insurance expense callback:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process insurance expense. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInsuranceAdded = () => {
+    // Refresh the vehicle data to show the new insurance record
+    // The AddInsuranceRecordForm handles all the Firebase operations
+    // We just need to trigger a re-render of the component
+    window.location.reload();
   };
 
   const markRentCollected = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
@@ -1598,6 +1946,7 @@ const VehicleDetails: React.FC = () => {
             vehicle={vehicle}
             financialData={financialData}
             markEMIPaid={markEMIPaid}
+            processEMIPayment={processEMIPayment}
           />
         </TabsContent>
 
@@ -1621,6 +1970,9 @@ const VehicleDetails: React.FC = () => {
             financialData={financialData}
             addExpenseDialogOpen={addExpenseDialogOpen}
             setAddExpenseDialogOpen={setAddExpenseDialogOpen}
+            addInsuranceDialogOpen={addInsuranceDialogOpen}
+            setAddInsuranceDialogOpen={setAddInsuranceDialogOpen}
+            onInsuranceAdded={handleInsuranceAdded}
           />
         </TabsContent>
 
@@ -2038,10 +2390,21 @@ const VehicleDetails: React.FC = () => {
             coverageEndDate: '',
             coverageMonths: 0
           });
+          setInsuranceExpenseData({
+            driverId: '',
+            insuranceType: 'fix_insurance',
+            policyNumber: '',
+            vendor: '',
+            startDate: '',
+            endDate: '',
+            receiptNumber: '',
+            notes: '',
+            isAdvance: false
+          });
         }
         // Remove state reset when dialog closes - let handleAddExpense handle it after successful save
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Expense</DialogTitle>
           </DialogHeader>
@@ -2056,7 +2419,6 @@ const VehicleDetails: React.FC = () => {
               >
                 <option value="fuel">Fuel</option>
                 <option value="maintenance">Maintenance</option>
-                <option value="insurance">Insurance</option>
                 <option value="penalties">Penalty/Fine</option>
                 <option value="general">General</option>
               </select>

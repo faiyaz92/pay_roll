@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Clock, CheckCircle, AlertCircle, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
 import { Vehicle } from '@/types/user';
 import { VehicleFinancialData, Payment } from '@/hooks/useFirebaseData';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +44,7 @@ export const RentTab: React.FC<RentTabProps> = ({
     weekStartDate: Date;
     willSettleWeek?: number;
   } | null>(null);
+  const [selectedWeekIndices, setSelectedWeekIndices] = React.useState<number[]>([]);
 
   // Calculate overdue and due amounts
   const rentSummary = useMemo(() => {
@@ -108,6 +110,70 @@ export const RentTab: React.FC<RentTabProps> = ({
     return { overdueWeeks, currentWeekDue, totalOverdue, dueTodayAmount, totalDue };
   }, [vehicle, vehicleId, firebasePayments, financialData]);
 
+  const allDueWeeks = React.useMemo(() => {
+    const combined = [...rentSummary.overdueWeeks];
+    if (rentSummary.currentWeekDue) {
+      combined.push(rentSummary.currentWeekDue);
+    }
+    return combined;
+  }, [rentSummary.overdueWeeks, rentSummary.currentWeekDue]);
+
+  const orderedDueWeekIndices = React.useMemo(
+    () => allDueWeeks.map(week => week.weekIndex),
+    [allDueWeeks]
+  );
+
+  const selectedWeeks = React.useMemo(
+    () => allDueWeeks.filter(week => selectedWeekIndices.includes(week.weekIndex)),
+    [allDueWeeks, selectedWeekIndices]
+  );
+
+  const selectedWeekTotal = React.useMemo(
+    () => selectedWeeks.reduce((sum, week) => sum + week.amount, 0),
+    [selectedWeeks]
+  );
+
+  const selectedWeekCount = selectedWeekIndices.length;
+
+  const handleToggleWeekSelection = (weekIndex: number) => {
+    const orderedIndices = orderedDueWeekIndices;
+    const position = orderedIndices.indexOf(weekIndex);
+    if (position === -1) {
+      return;
+    }
+
+    const isSelected = selectedWeekIndices.includes(weekIndex);
+
+    if (!isSelected) {
+      setSelectedWeekIndices(orderedIndices.slice(0, position + 1));
+    } else {
+      const retained = orderedIndices.slice(0, position);
+      setSelectedWeekIndices(retained);
+    }
+  };
+
+  const handleSelectAllWeeks = () => {
+    if (orderedDueWeekIndices.length === 0) {
+      setSelectedWeekIndices([]);
+      return;
+    }
+    setSelectedWeekIndices([...orderedDueWeekIndices]);
+  };
+
+  React.useEffect(() => {
+    if (confirmPaymentDialog && selectedPaymentWeek?.weekIndex === -1) {
+      if (orderedDueWeekIndices.length > 0) {
+        setSelectedWeekIndices(orderedDueWeekIndices);
+      } else {
+        setSelectedWeekIndices([]);
+      }
+    }
+
+    if (!confirmPaymentDialog) {
+      setSelectedWeekIndices([]);
+    }
+  }, [confirmPaymentDialog, orderedDueWeekIndices, selectedPaymentWeek]);
+
   const handleMarkPaidClick = (weekIndex: number, assignment: any, weekStartDate: Date) => {
     // Check if there are overdue weeks and this is not the oldest overdue
     if (rentSummary.overdueWeeks.length > 0) {
@@ -130,12 +196,12 @@ export const RentTab: React.FC<RentTabProps> = ({
     if (selectedPaymentWeek) {
       // Check if this is bulk payment (weekIndex === -1)
       if (selectedPaymentWeek.weekIndex === -1) {
-        // Pay all due weeks sequentially (overdue + current week)
-        const weeksToPay = [...rentSummary.overdueWeeks];
-        if (rentSummary.currentWeekDue) {
-          weeksToPay.push(rentSummary.currentWeekDue);
+        const weeksToPay = allDueWeeks.filter(week => selectedWeekIndices.includes(week.weekIndex));
+
+        if (weeksToPay.length === 0) {
+          return;
         }
-        
+
         for (const week of weeksToPay) {
           await markRentCollected(
             week.weekIndex,
@@ -166,6 +232,7 @@ export const RentTab: React.FC<RentTabProps> = ({
     }
     setConfirmPaymentDialog(false);
     setSelectedPaymentWeek(null);
+    setSelectedWeekIndices([]);
   };
 
   return (
@@ -260,7 +327,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                         setConfirmPaymentDialog(true);
                       }}
                     >
-                      Pay
+                      Collect
                     </div>
                   )}
                 </div>
@@ -436,7 +503,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                                   handleMarkPaidClick(weekIndex, currentAssignment, weekStartDate);
                                 }}
                               >
-                                {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Paid'}
+                                {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Collected'}
                               </Button>
                             ) : (
                               <div className={`text-xs ${textColor} mt-1`}>
@@ -476,7 +543,7 @@ export const RentTab: React.FC<RentTabProps> = ({
 
       {/* Payment Confirmation Dialog */}
       <AlertDialog open={confirmPaymentDialog} onOpenChange={setConfirmPaymentDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-2xl max-h-[75vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -498,33 +565,72 @@ export const RentTab: React.FC<RentTabProps> = ({
                     // Bulk payment dialog
                     <>
                       <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                        <p className="font-semibold text-green-800">
-                          Pay All Due Weeks
+                        <p className="font-semibold text-green-800 mb-1">
+                          Pay Due Weeks
                         </p>
-                        <p className="text-sm text-green-700 mt-2">
-                          This will settle ALL due weeks (overdue + current):
+                        <p className="text-xs text-green-700">
+                          Select consecutive weeks starting from the oldest overdue entry. Older weeks stay locked in order.
                         </p>
-                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                          {(() => {
-                            const weeksToPay = [...rentSummary.overdueWeeks];
-                            if (rentSummary.currentWeekDue) {
-                              weeksToPay.push(rentSummary.currentWeekDue);
-                            }
-                            return weeksToPay.map((week, index) => (
-                              <div key={index} className="bg-white border border-green-300 rounded p-2 text-xs">
-                                <span className="font-semibold">Week {week.weekIndex + 1}</span> - {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ₹{week.amount.toLocaleString()}
-                              </div>
-                            ));
-                          })()}
+                        {allDueWeeks.length === 0 ? (
+                          <div className="mt-3 bg-white border border-dashed border-green-300 rounded p-3 text-sm text-green-700">
+                            All rent collections are up to date. There is nothing pending right now.
+                          </div>
+                        ) : (
+                          <div className="mt-3 border border-green-200 rounded">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-green-200 bg-white text-xs text-green-700">
+                              <span>Selected: {selectedWeekCount} of {allDueWeeks.length}</span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-xs border-green-200 text-green-700"
+                                onClick={handleSelectAllWeeks}
+                                disabled={selectedWeekCount === orderedDueWeekIndices.length}
+                              >
+                                Select All
+                              </Button>
+                            </div>
+                            <div className="max-h-40 overflow-y-auto divide-y divide-green-100 bg-white">
+                              {allDueWeeks.map((week) => {
+                                const isSelected = selectedWeekIndices.includes(week.weekIndex);
+                                const checkboxId = `bulk-week-${week.weekIndex}`;
+
+                                return (
+                                  <label
+                                    key={week.weekIndex}
+                                    htmlFor={checkboxId}
+                                    className={`flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors ${isSelected ? 'bg-green-50' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        id={checkboxId}
+                                        checked={isSelected}
+                                        onCheckedChange={() => handleToggleWeekSelection(week.weekIndex)}
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-green-900">Week {week.weekIndex + 1}</span>
+                                        <span className="text-xs text-gray-500">
+                                          Start {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="text-sm font-medium text-gray-700">
+                                      ₹{week.amount.toLocaleString()}
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-green-900">
+                          <span>Selected Amount</span>
+                          <span>₹{selectedWeekTotal.toLocaleString()}</span>
                         </div>
-                        <p className="text-sm font-bold text-green-800 mt-2">
-                          Total Amount: ₹{rentSummary.totalDue.toLocaleString()}
-                        </p>
                       </div>
 
                       <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                         <p className="text-xs text-yellow-700">
-                          <strong>Note:</strong> All due weeks will be paid sequentially from oldest to newest. This will clear all outstanding payments.
+                          <strong>Note:</strong> Selected weeks will be collected sequentially from oldest to newest. Unselecting a week clears all newer selections to keep the order intact.
                         </p>
                       </div>
                     </>
@@ -575,8 +681,14 @@ export const RentTab: React.FC<RentTabProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmPayment} className="bg-blue-600 hover:bg-blue-700">
-              Confirm Payment
+            <AlertDialogAction
+              onClick={confirmPayment}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={selectedPaymentWeek?.weekIndex === -1 && selectedWeekCount === 0}
+            >
+              {selectedPaymentWeek?.weekIndex === -1 && selectedWeekCount > 0
+                ? `Collect ${selectedWeekCount} Week${selectedWeekCount > 1 ? 's' : ''}`
+                : 'Confirm Payment'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

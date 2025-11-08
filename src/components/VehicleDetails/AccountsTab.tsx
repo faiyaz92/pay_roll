@@ -3,9 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { useFirestorePaths } from '@/hooks/useFirestorePaths';
+import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, getDoc, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -19,7 +33,8 @@ import {
   Calendar,
   CheckCircle,
   Clock,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 
 interface AccountsTabProps {
@@ -41,13 +56,634 @@ interface AccountingTransaction {
 
 const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const { userInfo } = useAuth();
-  const { expenses, payments } = useFirebaseData();
+  const { expenses, payments, addExpense, updateVehicle, getVehicleFinancialData } = useFirebaseData();
+  const paths = useFirestorePaths(userInfo?.companyId);
   const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
   const [selectedQuarter, setSelectedQuarter] = useState('1');
   const [accountingTransactions, setAccountingTransactions] = useState<AccountingTransaction[]>([]);
   const [cashInHand, setCashInHand] = useState(0);
+  const [confirmRentPaymentDialog, setConfirmRentPaymentDialog] = useState(false);
+  const [selectedRentWeekIndices, setSelectedRentWeekIndices] = useState<number[]>([]);
+  const [isProcessingBulkRent, setIsProcessingBulkRent] = useState(false);
+  const [rentDialogAssignment, setRentDialogAssignment] = useState<any>(null);
+  const [bulkPaymentDialog, setBulkPaymentDialog] = useState(false);
+  const [penaltyAmounts, setPenaltyAmounts] = useState<Record<number, string>>({});
+  const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
+  const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
+
+  const financialData = useMemo(() => {
+    if (!getVehicleFinancialData) {
+      return null;
+    }
+    return getVehicleFinancialData(vehicleId) || null;
+  }, [getVehicleFinancialData, vehicleId, payments, expenses, vehicle]);
+
+  const vehiclePayments = useMemo(() => {
+    return payments.filter((payment: any) => payment.vehicleId === vehicleId);
+  }, [payments, vehicleId]);
+
+  const rentSummary = useMemo(() => {
+    if (!vehicle?.assignedDriverId || !financialData?.currentAssignment) {
+      return {
+        overdueWeeks: [] as Array<{ weekIndex: number; weekStartDate: Date; amount: number }> ,
+        currentWeekDue: null as { weekIndex: number; weekStartDate: Date; amount: number } | null,
+        totalOverdue: 0,
+        dueTodayAmount: 0,
+        totalDue: 0
+      };
+    }
+
+    const currentAssignment = financialData.currentAssignment;
+    const startDateRaw = currentAssignment.startDate;
+    const assignmentStartDate = new Date(
+      typeof startDateRaw === 'string'
+        ? startDateRaw
+        : startDateRaw?.toDate?.() || startDateRaw
+    );
+
+    const agreementEndDate = new Date(assignmentStartDate);
+    agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
+    const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    const today = new Date();
+
+    const overdueWeeks: Array<{ weekIndex: number; weekStartDate: Date; amount: number }> = [];
+    let currentWeekDue: { weekIndex: number; weekStartDate: Date; amount: number } | null = null;
+
+    for (let weekIndex = 0; weekIndex < Math.min(totalWeeks, 52); weekIndex++) {
+      const weekStartDate = new Date(assignmentStartDate);
+      weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+      weekStartDate.setHours(0, 0, 0, 0);
+
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+
+      const weekRentPayment = vehiclePayments.find((payment: any) => {
+        if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart);
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+
+      if (weekRentPayment) {
+        continue;
+      }
+
+      const isPastWeek = weekEndDate < today;
+      const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
+
+      if (isPastWeek) {
+        overdueWeeks.push({
+          weekIndex,
+          weekStartDate,
+          amount: currentAssignment.weeklyRent
+        });
+      } else if (isCurrentWeek) {
+        currentWeekDue = {
+          weekIndex,
+          weekStartDate,
+          amount: currentAssignment.weeklyRent
+        };
+      }
+    }
+
+    const totalOverdue = overdueWeeks.reduce((sum, week) => sum + week.amount, 0);
+    const dueTodayAmount = currentWeekDue ? currentWeekDue.amount : 0;
+
+    return {
+      overdueWeeks,
+      currentWeekDue,
+      totalOverdue,
+      dueTodayAmount,
+      totalDue: totalOverdue + dueTodayAmount
+    };
+  }, [vehicle, vehicleId, vehiclePayments, financialData]);
+
+  const allDueWeeks = useMemo(() => {
+    const combined = [...rentSummary.overdueWeeks];
+    if (rentSummary.currentWeekDue) {
+      combined.push(rentSummary.currentWeekDue);
+    }
+    return combined;
+  }, [rentSummary.overdueWeeks, rentSummary.currentWeekDue]);
+
+  const orderedRentWeekIndices = useMemo(() => allDueWeeks.map(week => week.weekIndex), [allDueWeeks]);
+
+  const selectedRentWeeks = useMemo(() => {
+    return allDueWeeks.filter(week => selectedRentWeekIndices.includes(week.weekIndex));
+  }, [allDueWeeks, selectedRentWeekIndices]);
+
+  const selectedRentWeekTotal = useMemo(() => {
+    return selectedRentWeeks.reduce((sum, week) => sum + week.amount, 0);
+  }, [selectedRentWeeks]);
+
+  const selectedRentWeekCount = selectedRentWeekIndices.length;
+
+  const handleToggleRentWeekSelection = (weekIndex: number) => {
+    const orderedIndices = orderedRentWeekIndices;
+    const position = orderedIndices.indexOf(weekIndex);
+    if (position === -1) {
+      return;
+    }
+
+    const isSelected = selectedRentWeekIndices.includes(weekIndex);
+
+    if (!isSelected) {
+      setSelectedRentWeekIndices(orderedIndices.slice(0, position + 1));
+    } else {
+      const retained = orderedIndices.slice(0, position);
+      setSelectedRentWeekIndices(retained);
+    }
+  };
+
+  const handleSelectAllRentWeeks = () => {
+    if (orderedRentWeekIndices.length === 0) {
+      setSelectedRentWeekIndices([]);
+      return;
+    }
+    setSelectedRentWeekIndices([...orderedRentWeekIndices]);
+  };
+
+  useEffect(() => {
+    if (!confirmRentPaymentDialog) {
+      setSelectedRentWeekIndices([]);
+    }
+  }, [confirmRentPaymentDialog]);
+
+  const emiSummary = useMemo(() => {
+    if (!vehicle?.loanDetails?.amortizationSchedule) {
+      return {
+        overdueEMIs: [] as Array<{ index: number; emi: any; daysPastDue: number; amount: number }> ,
+        dueSoonEMIs: [] as Array<{ index: number; emi: any; daysUntilDue: number; amount: number }> ,
+        totalOverdue: 0,
+        totalDueSoon: 0,
+        totalDue: 0,
+        allDueEMIs: [] as Array<{ index: number; emi: any; amount: number; daysPastDue?: number; daysUntilDue?: number }>
+      };
+    }
+
+    const today = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    const overdueEMIs: Array<{ index: number; emi: any; daysPastDue: number; amount: number }> = [];
+    const dueSoonEMIs: Array<{ index: number; emi: any; daysUntilDue: number; amount: number }> = [];
+    const allDueEMIs: Array<{ index: number; emi: any; amount: number; daysPastDue?: number; daysUntilDue?: number }> = [];
+
+    vehicle.loanDetails.amortizationSchedule.forEach((emi: any, index: number) => {
+      if (emi.isPaid) return;
+
+      const dueDate = new Date(emi.dueDate);
+      const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const emiAmount = vehicle.loanDetails?.emiPerMonth || 0;
+
+      if (daysDiff < 0) {
+        overdueEMIs.push({
+          index,
+          emi,
+          daysPastDue: Math.abs(daysDiff),
+          amount: emiAmount
+        });
+        allDueEMIs.push({
+          index,
+          emi,
+          amount: emiAmount,
+          daysPastDue: Math.abs(daysDiff)
+        });
+      } else if (daysDiff <= 3) {
+        dueSoonEMIs.push({
+          index,
+          emi,
+          daysUntilDue: daysDiff,
+          amount: emiAmount
+        });
+        allDueEMIs.push({
+          index,
+          emi,
+          amount: emiAmount,
+          daysUntilDue: daysDiff
+        });
+      }
+    });
+
+    const totalOverdue = overdueEMIs.reduce((sum, item) => sum + item.amount, 0);
+    const totalDueSoon = dueSoonEMIs.reduce((sum, item) => sum + item.amount, 0);
+
+    return {
+      overdueEMIs,
+      dueSoonEMIs,
+      totalOverdue,
+      totalDueSoon,
+      totalDue: totalOverdue + totalDueSoon,
+      allDueEMIs
+    };
+  }, [vehicle]);
+
+  const orderedDueEmiIndices = useMemo(
+    () => emiSummary.allDueEMIs.map(item => item.index),
+    [emiSummary.allDueEMIs]
+  );
+
+  useEffect(() => {
+    if (bulkPaymentDialog) {
+      if (orderedDueEmiIndices.length > 0) {
+        setSelectedEmiIndices(orderedDueEmiIndices);
+      } else {
+        setSelectedEmiIndices([]);
+      }
+    } else {
+      setSelectedEmiIndices([]);
+      setPenaltyAmounts({});
+    }
+  }, [bulkPaymentDialog, orderedDueEmiIndices]);
+
+  const selectedEmis = useMemo(
+    () => emiSummary.allDueEMIs.filter(emi => selectedEmiIndices.includes(emi.index)),
+    [emiSummary.allDueEMIs, selectedEmiIndices]
+  );
+
+  const totalSelectedEmiAmount = useMemo(
+    () => selectedEmis.reduce((sum, emi) => sum + emi.amount, 0),
+    [selectedEmis]
+  );
+
+  const totalSelectedPenalties = useMemo(
+    () => selectedEmis.reduce((sum, emi) => sum + (parseFloat(penaltyAmounts[emi.index]) || 0), 0),
+    [selectedEmis, penaltyAmounts]
+  );
+
+  const grandTotal = totalSelectedEmiAmount + totalSelectedPenalties;
+  const selectedCount = selectedEmiIndices.length;
+
+  const handleToggleEmiSelection = (emiIndex: number) => {
+    const orderedIndices = orderedDueEmiIndices;
+    const position = orderedIndices.indexOf(emiIndex);
+    if (position === -1) {
+      return;
+    }
+
+    const isSelected = selectedEmiIndices.includes(emiIndex);
+
+    if (!isSelected) {
+      setSelectedEmiIndices(orderedIndices.slice(0, position + 1));
+    } else {
+      const retained = orderedIndices.slice(0, position);
+      setSelectedEmiIndices(retained);
+      setPenaltyAmounts(prev => {
+        const updated = { ...prev };
+        orderedIndices.slice(position).forEach(idx => {
+          if (updated[idx] !== undefined) {
+            delete updated[idx];
+          }
+        });
+        return updated;
+      });
+    }
+  };
+
+  const handleSelectAllEmis = () => {
+    if (orderedDueEmiIndices.length === 0) {
+      return;
+    }
+    setSelectedEmiIndices(orderedDueEmiIndices);
+  };
+
+  const markRentCollected = async (weekIndex: number, assignment: any, weekStartDate: Date, showToast: boolean = true) => {
+    try {
+      if (!assignment || !vehicle?.assignedDriverId) {
+        toast({
+          title: 'Error',
+          description: 'No active assignment found for this vehicle.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (!userInfo?.companyId) {
+        toast({
+          title: 'Error',
+          description: 'Company information not found.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const existingPayment = vehiclePayments.find((payment: any) => {
+        if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart);
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+
+      if (existingPayment) {
+        toast({
+          title: 'Already Collected',
+          description: `Rent for week ${weekIndex + 1} has already been recorded on ${new Date(existingPayment.paidAt || existingPayment.createdAt).toLocaleDateString()}.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+
+      const paymentData = {
+        assignmentId: assignment.id || '',
+        vehicleId: vehicleId,
+        driverId: vehicle.assignedDriverId,
+        weekStart: weekStartDate.toISOString().split('T')[0],
+        weekNumber: weekIndex + 1,
+        amountDue: assignment.weeklyRent,
+        amountPaid: assignment.weeklyRent,
+        paidAt: new Date().toISOString(),
+        collectionDate: new Date().toISOString(),
+        nextDueDate: new Date(weekEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        daysLeft: 7,
+        status: 'paid' as const,
+        companyId: userInfo.companyId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/payments`);
+      await addDoc(paymentsRef, paymentData);
+
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(assignment.weeklyRent),
+        lastUpdated: new Date().toISOString()
+      });
+
+      if (showToast) {
+        toast({
+          title: 'Rent Collected Successfully! 🎉',
+          description: `Weekly rent of ₹${assignment.weeklyRent.toLocaleString()} for assignment week ${weekIndex + 1} (${weekStartDate.toLocaleDateString('en-IN')}) has been recorded.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error recording rent payment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record rent payment. Please try again.',
+        variant: 'destructive'
+      });
+      throw error;
+    }
+  };
+
+  const handleBulkRentPayment = async () => {
+    if (!rentDialogAssignment) {
+      setConfirmRentPaymentDialog(false);
+      return;
+    }
+
+    const weeksToPay = allDueWeeks.filter(week => selectedRentWeekIndices.includes(week.weekIndex));
+
+    if (weeksToPay.length === 0) {
+      toast({
+        title: 'No Weeks Selected',
+        description: 'Select at least one week in sequence to collect rent.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsProcessingBulkRent(true);
+
+    try {
+      for (const week of weeksToPay) {
+        await markRentCollected(week.weekIndex, rentDialogAssignment, week.weekStartDate, false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      toast({
+        title: 'Bulk Rent Collection Completed! 🎉',
+        description: `Collected ${weeksToPay.length} week${weeksToPay.length > 1 ? 's' : ''} totaling ₹${selectedRentWeekTotal.toLocaleString()}.`
+      });
+
+      setConfirmRentPaymentDialog(false);
+      setRentDialogAssignment(null);
+      setSelectedRentWeekIndices([]);
+    } catch (error) {
+      toast({
+        title: 'Bulk Collection Failed',
+        description: 'Some rent payments could not be recorded. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingBulkRent(false);
+    }
+  };
+
+  const processEMIPayment = async (monthIndex: number, scheduleItem: any, penalty: number = 0, suppressToast: boolean = false) => {
+    try {
+      if (!vehicleId) {
+        throw new Error('Vehicle not found');
+      }
+
+      let latestLoanDetails = vehicle?.loanDetails;
+      try {
+        const vehiclesPath = paths?.getVehiclesPath?.();
+        if (vehiclesPath) {
+          const vehicleRef = doc(firestore, vehiclesPath, vehicleId);
+          const vehicleSnapshot = await getDoc(vehicleRef);
+          if (vehicleSnapshot.exists()) {
+            const latestData = vehicleSnapshot.data() as any;
+            if (latestData.loanDetails) {
+              latestLoanDetails = latestData.loanDetails;
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI update:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+      const targetEMI = updatedSchedule[monthIndex];
+
+      if (!targetEMI) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
+      updatedSchedule[monthIndex] = {
+        ...targetEMI,
+        isPaid: true,
+        paidAt: paymentDate
+      };
+
+      if (scheduleItem) {
+        scheduleItem.isPaid = true;
+        scheduleItem.paidAt = paymentDate;
+      }
+
+      const updatedPaidInstallments = [...(latestLoanDetails.paidInstallments || [])];
+      if (!updatedPaidInstallments.includes(paymentDate)) {
+        updatedPaidInstallments.push(paymentDate);
+      }
+
+      await updateVehicle(vehicleId, {
+        loanDetails: {
+          ...latestLoanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        }
+      });
+
+      if (vehicle?.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        };
+      }
+
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+
+      const expenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: emiAmount,
+          description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid',
+          paymentType: 'emi'
+        }
+      ];
+
+      if (penalty > 0) {
+        expenseEntries.push({
+          amount: penalty,
+          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem?.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
+          type: 'general'
+        });
+      }
+
+      await expenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addExpense({
+              vehicleId,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved',
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0,
+              companyId: '',
+              createdAt: '',
+              updatedAt: ''
+            })
+          ),
+        Promise.resolve()
+      );
+
+      const totalPaid = emiAmount + penalty;
+
+      if (!suppressToast) {
+        toast({
+          title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
+          description: penalty > 0
+            ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${emiAmount.toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
+            : `EMI for month ${monthIndex + 1} (₹${emiAmount.toLocaleString()}) has been marked as paid.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error updating EMI payment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record EMI payment. Please try again.',
+        variant: 'destructive'
+      });
+      throw error;
+    }
+  };
+
+  const handleBulkEMIPayment = async () => {
+    if (!vehicle?.loanDetails?.amortizationSchedule) {
+      toast({
+        title: 'Error',
+        description: 'Bulk payment functionality not available.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const emisToProcess = emiSummary.allDueEMIs.filter(emi => selectedEmiIndices.includes(emi.index));
+
+    if (emisToProcess.length === 0) {
+      toast({
+        title: 'No EMIs Selected',
+        description: 'Select at least one EMI in sequence to process the payment.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsProcessingBulkPayment(true);
+    let successCount = 0;
+    let totalAmount = 0;
+
+    try {
+      for (const emi of emisToProcess) {
+        const penalty = parseFloat(penaltyAmounts[emi.index]) || 0;
+
+        try {
+          await processEMIPayment(emi.index, emi.emi, penalty, true);
+          successCount++;
+          totalAmount += emi.amount + penalty;
+
+          toast({
+            title: `EMI ${emi.emi.month} Paid ✅`,
+            description: `₹${(emi.amount + penalty).toLocaleString()} paid successfully.`
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error processing EMI ${emi.emi.month}:`, error);
+          toast({
+            title: `Error on EMI ${emi.emi.month}`,
+            description: 'Failed to process this EMI payment.',
+            variant: 'destructive'
+          });
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: 'Bulk EMI Payment Completed! 🎉',
+          description: `Successfully paid ${successCount} of ${emisToProcess.length} selected EMIs totaling ₹${totalAmount.toLocaleString()}.`
+        });
+      } else {
+        throw new Error('No payments were processed successfully');
+      }
+
+      setBulkPaymentDialog(false);
+      setPenaltyAmounts({});
+      setSelectedEmiIndices([]);
+    } catch (error) {
+      console.error('Error processing bulk EMI payment:', error);
+      toast({
+        title: 'Bulk Payment Failed',
+        description: `Only ${successCount} payments were processed. Please try again.`,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingBulkPayment(false);
+    }
+  };
 
   // Load accounting transactions
   useEffect(() => {
@@ -747,54 +1383,111 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               </div>
             </div>
 
-            {/* Cumulative Payment Actions */}
-            <div className="mt-6 pt-4 border-t">
-              <div className="flex flex-wrap gap-2 justify-center">
-                <Button
-                  onClick={() => handleCumulativeGstPayment()}
-                  disabled={cumulativeData.totalGst === 0}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  Pay GST ({cumulativeData.totalGst.toLocaleString()})
-                </Button>
-                <Button
-                  onClick={() => handleCumulativeServiceChargeCollection()}
-                  disabled={cumulativeData.totalServiceCharge === 0}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  Collect Service Charges ({cumulativeData.totalServiceCharge.toLocaleString()})
-                </Button>
-                <Button
-                  onClick={() => handleCumulativePartnerPayment()}
-                  disabled={cumulativeData.totalPartnerShare === 0}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Users className="h-4 w-4" />
-                  Pay Partner ({cumulativeData.totalPartnerShare.toLocaleString()})
-                </Button>
-                <Button
-                  onClick={() => handleCumulativeOwnerShareCollection()}
-                  disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Banknote className="h-4 w-4" />
-                  Collect Owner Share ({(cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString()})
-                </Button>
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Quick Financial Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Financial Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2 justify-center">
+            <Button
+              onClick={() => handleCumulativeGstPayment()}
+              disabled={cumulativeData.totalGst === 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <CreditCard className="h-4 w-4" />
+              Pay GST ({cumulativeData.totalGst.toLocaleString()})
+            </Button>
+            <Button
+              onClick={() => handleCumulativeServiceChargeCollection()}
+              disabled={cumulativeData.totalServiceCharge === 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Collect Service Charges ({cumulativeData.totalServiceCharge.toLocaleString()})
+            </Button>
+            <Button
+              onClick={() => handleCumulativePartnerPayment()}
+              disabled={cumulativeData.totalPartnerShare === 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Pay Partner ({cumulativeData.totalPartnerShare.toLocaleString()})
+            </Button>
+            <Button
+              onClick={() => {
+                if (rentSummary.totalDue <= 0) {
+                  toast({
+                    title: 'No Rent Due',
+                    description: 'There are no overdue rent weeks to collect right now.',
+                    variant: 'destructive'
+                  });
+                  return;
+                }
+
+                if (!financialData?.currentAssignment) {
+                  toast({
+                    title: 'Assignment Not Found',
+                    description: 'No active assignment available for rent collection.',
+                    variant: 'destructive'
+                  });
+                  return;
+                }
+
+                setRentDialogAssignment(financialData.currentAssignment);
+                setConfirmRentPaymentDialog(true);
+              }}
+              disabled={rentSummary.totalDue <= 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Collect Overdue Rent (₹{rentSummary.totalDue.toLocaleString()})
+            </Button>
+            <Button
+              onClick={() => {
+                if (emiSummary.totalDue <= 0) {
+                  toast({
+                    title: 'No EMI Due',
+                    description: 'There are no overdue or due-soon EMIs to pay.',
+                    variant: 'destructive'
+                  });
+                  return;
+                }
+                setBulkPaymentDialog(true);
+              }}
+              disabled={emiSummary.totalDue <= 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <CreditCard className="h-4 w-4" />
+              Pay Overdue EMI (₹{emiSummary.totalDue.toLocaleString()})
+            </Button>
+            <Button
+              onClick={() => handleCumulativeOwnerShareCollection()}
+              disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Banknote className="h-4 w-4" />
+              Collect Owner Share ({(cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString()})
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Monthly Accounting Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1011,6 +1704,286 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           </Card>
         ))}
       </div>
+
+      <AlertDialog
+        open={confirmRentPaymentDialog}
+        onOpenChange={(open) => {
+          setConfirmRentPaymentDialog(open);
+          if (!open) {
+            setRentDialogAssignment(null);
+            setSelectedRentWeekIndices([]);
+          } else if (financialData?.currentAssignment) {
+            setRentDialogAssignment(financialData.currentAssignment);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-2xl max-h-[75vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Overdue Payment Settlement
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              {rentSummary.overdueWeeks.length > 0 && (
+                <>
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                    <p className="font-semibold text-red-800">
+                      ⚠️ You have {rentSummary.overdueWeeks.length} overdue week{rentSummary.overdueWeeks.length > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-sm text-red-700 mt-1">
+                      Total Overdue: ₹{rentSummary.totalOverdue.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                    <p className="font-semibold text-green-800 mb-1">
+                      Pay Due Weeks
+                    </p>
+                    <p className="text-xs text-green-700">
+                      Select consecutive weeks starting from the oldest overdue entry. Older weeks stay locked in order.
+                    </p>
+                    {allDueWeeks.length === 0 ? (
+                      <div className="mt-3 bg-white border border-dashed border-green-300 rounded p-3 text-sm text-green-700">
+                        All rent collections are up to date. There is nothing pending right now.
+                      </div>
+                    ) : (
+                      <div className="mt-3 border border-green-200 rounded">
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-green-200 bg-white text-xs text-green-700">
+                          <span>Selected: {selectedRentWeekCount} of {allDueWeeks.length}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 text-xs border-green-200 text-green-700"
+                            onClick={handleSelectAllRentWeeks}
+                            disabled={selectedRentWeekCount === orderedRentWeekIndices.length}
+                          >
+                            Select All
+                          </Button>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto divide-y divide-green-100 bg-white">
+                          {allDueWeeks.map((week) => {
+                            const isSelected = selectedRentWeekIndices.includes(week.weekIndex);
+                            const checkboxId = `bulk-week-${week.weekIndex}`;
+
+                            return (
+                              <label
+                                key={week.weekIndex}
+                                htmlFor={checkboxId}
+                                className={`flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors ${isSelected ? 'bg-green-50' : ''}`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={checkboxId}
+                                    checked={isSelected}
+                                    onCheckedChange={() => handleToggleRentWeekSelection(week.weekIndex)}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-green-900">Week {week.weekIndex + 1}</span>
+                                    <span className="text-xs text-gray-500">
+                                      Start {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-sm font-medium text-gray-700">
+                                  ₹{week.amount.toLocaleString()}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3 flex items-center justify-between text-sm font-semibold text-green-900">
+                      <span>Selected Amount</span>
+                      <span>₹{selectedRentWeekTotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                    <p className="text-xs text-yellow-700">
+                      <strong>Note:</strong> Selected weeks will be collected sequentially from oldest to newest. Unselecting a week clears all newer selections to keep the order intact.
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    Do you want to proceed with this payment?
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingBulkRent}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkRentPayment}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={isProcessingBulkRent || selectedRentWeekCount === 0}
+            >
+              {isProcessingBulkRent ? 'Processing...' : selectedRentWeekCount > 0 ? `Collect ${selectedRentWeekCount} Week${selectedRentWeekCount > 1 ? 's' : ''}` : 'Select Weeks to Collect'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkPaymentDialog}
+        onOpenChange={(open) => {
+          setBulkPaymentDialog(open);
+          if (!open) {
+            setPenaltyAmounts({});
+            setSelectedEmiIndices([]);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Pay All Due EMIs
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                    <p className="font-semibold text-orange-800">
+                      Select Due EMIs (Oldest First)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-orange-700">
+                        Selected: {selectedCount} of {emiSummary.allDueEMIs.length}
+                      </span>
+                      {emiSummary.allDueEMIs.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs border-orange-300 text-orange-700"
+                          onClick={handleSelectAllEmis}
+                          disabled={isProcessingBulkPayment}
+                        >
+                          Select All
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-orange-700">
+                    Choose consecutive EMIs starting from the oldest overdue instalment. Selecting a later EMI will automatically include every older due EMI.
+                  </p>
+                  <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                    {(() => {
+                      const dueEMIs = emiSummary.allDueEMIs;
+                      if (dueEMIs.length === 0) {
+                        return (
+                          <div className="bg-white border border-dashed border-orange-300 rounded p-3 text-sm text-orange-700">
+                            All EMIs are up to date. There is nothing pending right now.
+                          </div>
+                        );
+                      }
+
+                      return dueEMIs.map((emi) => {
+                        const isSelected = selectedEmiIndices.includes(emi.index);
+                        const checkboxId = `bulk-emi-${emi.index}`;
+                        const isOverdue = !!(emi.daysPastDue && emi.daysPastDue > 0);
+                        const isDueSoon = !isOverdue && typeof emi.daysUntilDue === 'number';
+
+                        return (
+                          <div
+                            key={emi.index}
+                            className={`bg-white border rounded p-3 transition-all ${isSelected ? 'border-orange-400 ring-1 ring-orange-400 shadow-sm' : 'border-orange-300'}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isSelected}
+                                onCheckedChange={() => handleToggleEmiSelection(emi.index)}
+                                disabled={isProcessingBulkPayment}
+                              />
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor={checkboxId} className="font-semibold text-orange-900 cursor-pointer">
+                                    EMI {emi.emi.month}
+                                  </label>
+                                  <span className="text-sm text-orange-600">
+                                    Due: {new Date(emi.emi.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-sm text-gray-600">
+                                    ₹{emi.amount.toLocaleString()}
+                                  </span>
+                                  {isOverdue && (
+                                    <div className="flex items-center gap-2">
+                                      <Label htmlFor={`penalty-${emi.index}`} className="text-xs text-red-600">
+                                        Penalty (₹):
+                                      </Label>
+                                      <Input
+                                        id={`penalty-${emi.index}`}
+                                        type="number"
+                                        placeholder="0"
+                                        className="w-20 h-7 text-xs"
+                                        value={penaltyAmounts[emi.index] || ''}
+                                        onChange={(e) => setPenaltyAmounts(prev => ({ ...prev, [emi.index]: e.target.value }))}
+                                        disabled={!isSelected || isProcessingBulkPayment}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                {isOverdue && (
+                                  <div className="text-xs text-red-600">
+                                    {emi.daysPastDue} days overdue
+                                  </div>
+                                )}
+                                {isDueSoon && (
+                                  <div className="text-xs text-amber-600">
+                                    Due in {emi.daysUntilDue === 0 ? 'today' : `${emi.daysUntilDue} day${emi.daysUntilDue === 1 ? '' : 's'}`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-orange-300 space-y-1">
+                    <div className="flex justify-between items-center font-bold text-orange-900">
+                      <span>Selected EMI Amount:</span>
+                      <span>₹{totalSelectedEmiAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-red-700">
+                      <span>Selected Penalties:</span>
+                      <span>₹{totalSelectedPenalties.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center font-bold text-orange-900 pt-1 border-t border-orange-400">
+                      <span>Grand Total:</span>
+                      <span>₹{grandTotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <p className="text-xs text-yellow-700">
+                    <strong>Note:</strong> Selected EMIs will be paid sequentially from oldest to newest. Unselecting an EMI automatically clears all newer selections to keep the order intact.
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Do you want to proceed with this bulk payment?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingBulkPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkEMIPayment}
+              disabled={isProcessingBulkPayment || selectedCount === 0}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {isProcessingBulkPayment ? 'Processing...' : selectedCount > 0 ? `Pay ${selectedCount} EMI${selectedCount > 1 ? 's' : ''}` : 'Select EMIs to Pay'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
