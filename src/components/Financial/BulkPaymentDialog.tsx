@@ -44,25 +44,27 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
   const [emiPenalties, setEmiPenalties] = useState<Record<string, Record<number, string>>>({});
   const [emiSelections, setEmiSelections] = useState<Record<string, number[]>>({});
   const [rentSelections, setRentSelections] = useState<Record<string, number[]>>({});
+  const isEmi = paymentType === 'emi';
+  const isRent = paymentType === 'rent';
 
   // Update selected items when dialog opens
   useEffect(() => {
     if (isOpen) {
       // Sort items by oldest overdue due date for smart selection
       let sortedItems = [...items];
-      if (paymentType === 'emi' || paymentType === 'rent') {
+      if (isEmi || isRent) {
         sortedItems.sort((a, b) => {
           let aDate: Date | null = null;
           let bDate: Date | null = null;
 
-          if (paymentType === 'emi') {
+          if (isEmi) {
             if (a.overdueEMIs && a.overdueEMIs.length > 0) {
               aDate = new Date(a.overdueEMIs[0].dueDate);
             }
             if (b.overdueEMIs && b.overdueEMIs.length > 0) {
               bDate = new Date(b.overdueEMIs[0].dueDate);
             }
-          } else if (paymentType === 'rent') {
+          } else if (isRent) {
             if (a.overdueWeeks && a.overdueWeeks.length > 0) {
               aDate = new Date(a.overdueWeeks[0].weekStartDate);
             }
@@ -81,7 +83,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
       setSelectedItems(sortedItems);
       // Initialize EMI penalties for each vehicle
-      if (paymentType === 'emi') {
+      if (isEmi) {
         const initialPenalties: Record<string, Record<number, string>> = {};
         const initialSelections: Record<string, number[]> = {};
         sortedItems.forEach(item => {
@@ -101,7 +103,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         setEmiPenalties(initialPenalties);
         setEmiSelections(initialSelections);
         setRentSelections({});
-      } else if (paymentType === 'rent') {
+      } else if (isRent) {
         const initialRentSelections: Record<string, number[]> = {};
         sortedItems.forEach(item => {
           if (item.overdueWeeks && item.overdueWeeks.length > 0) {
@@ -141,7 +143,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       )
     );
 
-    if (paymentType === 'emi') {
+    if (isEmi) {
       const orderedIndices = currentItem.overdueEMIs
         ? [...currentItem.overdueEMIs]
             .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
@@ -180,7 +182,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           return updated;
         });
       }
-    } else if (paymentType === 'rent') {
+    } else if (isRent) {
       const orderedIndices = currentItem.overdueWeeks
         ? [...currentItem.overdueWeeks]
             .sort((a, b) => a.weekIndex - b.weekIndex)
@@ -415,12 +417,12 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       if (!item.checked) {
         return false;
       }
-      if (paymentType === 'emi') {
+      if (isEmi) {
         const orderedIndices = getOrderedEmiIndices(item);
         const selection = emiSelections[item.vehicleId] || [];
         return orderedIndices.length > 0 ? selection.length === orderedIndices.length : true;
       }
-      if (paymentType === 'rent') {
+      if (isRent) {
         const orderedIndices = getOrderedRentIndices(item);
         const selection = rentSelections[item.vehicleId] || [];
         return orderedIndices.length > 0 ? selection.length === orderedIndices.length : true;
@@ -430,11 +432,11 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
     if (areAllVehiclesFullySelected) {
       setSelectedItems(prev => prev.map(item => ({ ...item, checked: false })));
-      if (paymentType === 'emi') {
+      if (isEmi) {
         setEmiSelections({});
         setEmiPenalties({});
       }
-      if (paymentType === 'rent') {
+      if (isRent) {
         setRentSelections({});
       }
       return;
@@ -442,7 +444,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
     setSelectedItems(prev => prev.map(item => ({ ...item, checked: true })));
 
-    if (paymentType === 'emi') {
+    if (isEmi) {
       const updatedSelections: Record<string, number[]> = {};
       const updatedPenalties: Record<string, Record<number, string>> = {};
 
@@ -461,7 +463,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
       setEmiSelections(updatedSelections);
       setEmiPenalties(updatedPenalties);
-    } else if (paymentType === 'rent') {
+    } else if (isRent) {
       const updatedSelections: Record<string, number[]> = {};
 
       selectedItems.forEach(item => {
@@ -491,11 +493,11 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
     if (!item.checked) {
       return count;
     }
-    if (paymentType === 'emi') {
+    if (isEmi) {
       const selection = emiSelections[item.vehicleId] || [];
       return selection.length > 0 ? count + 1 : count;
     }
-    if (paymentType === 'rent') {
+    if (isRent) {
       const selection = rentSelections[item.vehicleId] || [];
       return selection.length > 0 ? count + 1 : count;
     }
@@ -507,7 +509,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       return sum;
     }
 
-    if (paymentType === 'emi' && item.overdueEMIs) {
+    if (isEmi && item.overdueEMIs) {
       const selection = new Set(emiSelections[item.vehicleId] || []);
       if (selection.size === 0) {
         return sum;
@@ -528,7 +530,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       return sum + emiBase + penaltySum;
     }
 
-    if (paymentType === 'rent' && item.overdueWeeks) {
+    if (isRent && item.overdueWeeks) {
       const selection = new Set(rentSelections[item.vehicleId] || []);
       if (selection.size === 0) {
         return sum;
@@ -548,7 +550,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
     const confirmedItems = selectedItems
       .filter(item => item.checked)
       .map(item => {
-        if (paymentType === 'emi' && item.overdueEMIs) {
+        if (isEmi && item.overdueEMIs) {
           const selectionSet = new Set(emiSelections[item.vehicleId] || []);
           const filteredEmis = item.overdueEMIs.filter(emi => selectionSet.has(emi.monthIndex));
           const recalculatedAmount = filteredEmis.reduce((sum, emi) => sum + emi.emiAmount, 0);
@@ -560,7 +562,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           };
         }
 
-        if (paymentType === 'rent' && item.overdueWeeks) {
+        if (isRent && item.overdueWeeks) {
           const selectionSet = new Set(rentSelections[item.vehicleId] || []);
           const filteredWeeks = item.overdueWeeks.filter(week => selectionSet.has(week.weekIndex));
           const recalculatedAmount = filteredWeeks.reduce((sum, week) => sum + week.rentAmount, 0);
@@ -575,10 +577,10 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         return item;
       })
       .filter(item => {
-        if (paymentType === 'emi') {
+        if (isEmi) {
           return !!item.overdueEMIs && item.overdueEMIs.length > 0;
         }
-        if (paymentType === 'rent') {
+        if (isRent) {
           return !!item.overdueWeeks && item.overdueWeeks.length > 0;
         }
         return true;
@@ -590,7 +592,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
     let filteredPenalties: Record<string, Record<number, string>> | undefined;
 
-    if (paymentType === 'emi') {
+    if (isEmi) {
       filteredPenalties = {};
 
       confirmedItems.forEach(item => {
@@ -650,13 +652,13 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
         <div className="space-y-4">
           {/* Alert for EMI/Rent oldest-first settlement */}
-          {(paymentType === 'emi' || paymentType === 'rent') && (
+          {(isEmi || isRent) && (
             <Card className="border-orange-200 bg-orange-50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <div className="text-sm text-orange-800">
-                    <strong>Important:</strong> {paymentType === 'emi'
+                    <strong>Important:</strong> {isEmi
                       ? 'EMI payments always settle the oldest unpaid installment first for each vehicle. You can select or deselect any vehicle, but inside a vehicle later EMIs automatically include every older due EMI.'
                       : 'Rent payments settle overdue weeks oldest-first for each vehicle. Feel free to select or deselect any vehicle before confirming the collection.'}
                   </div>
@@ -720,12 +722,12 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                         <h4 className="font-medium">{item.vehicleName}</h4>
                         <p className="text-sm text-gray-600">
                           {getPaymentTypeLabel()}: ₹{item.amount.toLocaleString()}
-                          {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (
+                          {isEmi && item.overdueEMIs && item.overdueEMIs.length > 0 && (
                             <span className="ml-2 text-red-600 font-medium">
                               ({item.overdueEMIs.length} overdue EMI{item.overdueEMIs.length > 1 ? 's' : ''})
                             </span>
                           )}
-                          {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (
+                          {isRent && item.overdueWeeks && item.overdueWeeks.length > 0 && (
                             <span className="ml-2 text-red-600 font-medium">
                               ({item.overdueWeeks.length} overdue week{item.overdueWeeks.length > 1 ? 's' : ''})
                             </span>
@@ -762,7 +764,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                   )}
 
                   {/* EMI Details with Sequential Selection */}
-                  {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (() => {
+                  {isEmi && item.overdueEMIs && item.overdueEMIs.length > 0 && (() => {
                     const sortedEmis = [...item.overdueEMIs].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
                     const orderedIndices = sortedEmis.map(emi => emi.monthIndex);
                     const selectedIndices = new Set(emiSelections[item.vehicleId] || []);
@@ -874,7 +876,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                   })()}
 
                   {/* Rent Week Details */}
-                  {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (() => {
+                  {isRent && item.overdueWeeks && item.overdueWeeks.length > 0 && (() => {
                     const orderedWeeks = [...item.overdueWeeks].sort((a, b) => a.weekIndex - b.weekIndex);
                     const orderedIndices = orderedWeeks.map(week => week.weekIndex);
                     const selectedIndices = new Set(rentSelections[item.vehicleId] || []);
