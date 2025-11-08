@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, addDoc, doc, updateDoc, onSnapshot, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, setDoc, onSnapshot, increment, getDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 import BulkPaymentDialog from './BulkPaymentDialog';
@@ -642,10 +642,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand for this vehicle
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.gstAmount,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.gstAmount),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -657,7 +657,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.gstAmount
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.gstAmount
       }));
 
       toast({
@@ -691,10 +691,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand - INCREASE when owner collects service charge (additional income)
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: currentBalance + vehicleInfo.serviceCharge,  // Service charge is additional income
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -740,10 +740,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.partnerShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.partnerShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -755,7 +755,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.partnerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.partnerShare
       }));
 
       toast({
@@ -789,10 +789,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.ownerShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.ownerShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -804,7 +804,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.ownerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerShare
       }));
 
       toast({
@@ -838,10 +838,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.ownerFullShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.ownerFullShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -853,7 +853,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.ownerFullShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerFullShare
       }));
 
       toast({
@@ -3095,46 +3095,21 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 <>
                   {/* Overdue Alert */}
                   {rentStatus.overdueWeeks.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded p-3">
+                    <div className="bg-green-50 border border-green-200 rounded p-3">
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <DollarSignIcon className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                         <div>
-                          <div className="font-semibold text-red-800">
-                            {rentStatus.overdueWeeks.length} week{rentStatus.overdueWeeks.length > 1 ? 's' : ''} overdue - 
+                          <div className="font-semibold text-green-800">
+                            {rentStatus.overdueWeeks.length} week{rentStatus.overdueWeeks.length > 1 ? 's' : ''} pending -
                             Total: ₹{rentStatus.totalOverdue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-red-700 mt-1">
-                            ⚠️ Payment will settle oldest overdue week first  
+                          <div className="text-xs text-green-700 mt-1">
+                            💰 Collection applies to the oldest pending week first
                             (Week {rentStatus.overdueWeeks[0].weekIndex + 1} - {rentStatus.overdueWeeks[0].weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
                           </div>
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Pay Total Due Button */}
-                  {rentStatus.totalDue > 0 && (
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        const weeksToPay = [...rentStatus.overdueWeeks];
-                        if (rentStatus.currentWeekDue) {
-                          weeksToPay.push(rentStatus.currentWeekDue);
-                        }
-                        setSelectedRentWeek({
-                          weekIndex: -1,
-                          assignment: selectedVehicleForRent.assignment,
-                          weekStartDate: weeksToPay[0].weekStartDate,
-                          vehicleId: selectedVehicleForRent.vehicle.id,
-                          isBulkPayment: true,
-                          overdueWeeks: weeksToPay
-                        });
-                        setRentViewAllDialog(false);
-                        setConfirmRentPaymentDialog(true);
-                      }}
-                    >
-                      Pay Total Due ({rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)} weeks) - ₹{rentStatus.totalDue.toLocaleString()}
-                    </Button>
                   )}
 
                   {/* All Weeks Grid */}
@@ -3165,11 +3140,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           icon = <CheckCircle className="h-3 w-3" />;
                           status = 'Collected';
                         } else {
-                          bgColor = 'bg-red-100';
-                          textColor = 'text-red-700';
-                          borderColor = 'border-red-200';
-                          icon = <AlertCircle className="h-3 w-3" />;
-                          status = 'Overdue';
+                          bgColor = 'bg-emerald-50';
+                          textColor = 'text-emerald-700';
+                          borderColor = 'border-emerald-200';
+                          icon = <DollarSignIcon className="h-3 w-3" />;
+                          status = 'Pending';
                         }
                       } else if (isCurrentWeek) {
                         if (weekRentPayment) {
@@ -3179,11 +3154,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           icon = <CheckCircle className="h-3 w-3" />;
                           status = 'Collected';
                         } else {
-                          bgColor = 'bg-yellow-100';
-                          textColor = 'text-yellow-700';
-                          borderColor = 'border-yellow-200';
-                          icon = <DollarSign className="h-3 w-3" />;
-                          status = 'Due Now';
+                          bgColor = 'bg-emerald-100';
+                          textColor = 'text-emerald-700';
+                          borderColor = 'border-emerald-200';
+                          icon = <DollarSignIcon className="h-3 w-3" />;
+                          status = 'Collect Now';
                         }
                       }
 
@@ -3197,19 +3172,46 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           {canMarkPaid && (
                             <Button
                               size="sm"
-                              className="w-full mt-1 h-6 text-xs"
+                              className="w-full mt-1 h-6 text-xs bg-green-600 hover:bg-green-700"
                               onClick={() => {
                                 setRentViewAllDialog(false);
                                 handleRentPaymentClick(weekIndex, selectedVehicleForRent.assignment, weekStartDate);
                               }}
                             >
-                              Pay
+                              Collect
                             </Button>
                           )}
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Collect Total Due Button */}
+                  {rentStatus.totalDue > 0 && (
+                    <div className="pt-4 mt-4 border-t border-green-100">
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        onClick={() => {
+                          const weeksToPay = [...rentStatus.overdueWeeks];
+                          if (rentStatus.currentWeekDue) {
+                            weeksToPay.push(rentStatus.currentWeekDue);
+                          }
+                          setSelectedRentWeek({
+                            weekIndex: -1,
+                            assignment: selectedVehicleForRent.assignment,
+                            weekStartDate: weeksToPay[0].weekStartDate,
+                            vehicleId: selectedVehicleForRent.vehicle.id,
+                            isBulkPayment: true,
+                            overdueWeeks: weeksToPay
+                          });
+                          setRentViewAllDialog(false);
+                          setConfirmRentPaymentDialog(true);
+                        }}
+                      >
+                        Collect Total Due ({rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)} week{(rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)) !== 1 ? 's' : ''}) - ₹{rentStatus.totalDue.toLocaleString()}
+                      </Button>
+                    </div>
+                  )}
                 </>
               );
             })()}

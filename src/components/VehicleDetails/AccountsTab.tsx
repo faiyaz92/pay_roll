@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, getDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, setDoc, getDoc, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -430,10 +430,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       await addDoc(paymentsRef, paymentData);
 
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: increment(assignment.weeklyRent),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       if (showToast) {
         toast({
@@ -927,10 +927,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - monthData.gstAmount,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'GST Paid Successfully',
@@ -962,10 +962,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand - INCREASE when owner collects service charge (additional income)
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand + monthData.serviceCharge,  // Service charge is additional income
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Service Charge Collected',
@@ -997,10 +997,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - monthData.partnerShare,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Partner Paid Successfully',
@@ -1032,10 +1032,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - monthData.ownerShare,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Owner\'s Share Collected',
@@ -1067,10 +1067,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - monthData.ownerFullShare,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Owner\'s Withdrawal Completed',
@@ -1151,10 +1151,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - cumulativeData.totalGst,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'GST Paid Successfully',
@@ -1193,10 +1193,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand - INCREASE when owner collects service charge
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand + cumulativeData.totalServiceCharge,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Service Charge Collected',
@@ -1235,10 +1235,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - cumulativeData.totalPartnerShare,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Partner Paid Successfully',
@@ -1278,10 +1278,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: cashInHand - totalOwnerAmount,
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       toast({
         title: 'Owner Share Collected',

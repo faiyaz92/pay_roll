@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
+import { useToast } from '@/hooks/use-toast';
 import { Assignment } from '@/types/user';
 import AddItemModal from '@/components/Modals/AddItemModal';
 // If the file exists at src/components/Forms/AddAssignmentForm.tsx, ensure it is exported as default.
@@ -24,7 +25,10 @@ const Assignments: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const { userInfo } = useAuth();
   const { vehicles, drivers, payments } = useFirebaseData();
-  const { assignments, loading, addAssignment } = useAssignments();
+  const { assignments, loading, addAssignment, updateAssignment, deleteAssignment } = useAssignments();
+  const { toast } = useToast();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   // Filter assignments based on search and status
   const filteredAssignments = assignments.filter((assignment) => {
@@ -286,9 +290,30 @@ const Assignments: React.FC = () => {
                             variant="outline" 
                             size="sm"
                             className="hover:bg-gray-50"
+                            onClick={() => {
+                              setSelectedAssignment(assignment);
+                              setShowEditModal(true);
+                            }}
                           >
                             <Edit className="w-4 h-4 mr-1" />
                             Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
+                              try {
+                                await deleteAssignment(assignment.id);
+                                toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
+                              } catch (error) {
+                                console.error('Error deleting assignment:', error);
+                                toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
                           </Button>
                         </div>
                       </div>
@@ -600,6 +625,27 @@ const Assignments: React.FC = () => {
           )}
         </TabsContent>
       </Tabs>
+      {/* Edit Assignment Modal */}
+      {showEditModal && selectedAssignment && (
+        <AddItemModal
+          title={`Edit Assignment - ${selectedAssignment.id}`}
+          buttonText="Edit Assignment"
+          isOpen={showEditModal}
+          onOpenChange={(open) => {
+            setShowEditModal(open);
+            if (!open) setSelectedAssignment(null);
+          }}
+        >
+          <AddAssignmentForm
+            onSuccess={() => {
+              setShowEditModal(false);
+              setSelectedAssignment(null);
+            }}
+            assignment={selectedAssignment}
+            mode="edit"
+          />
+        </AddItemModal>
+      )}
     </div>
   );
 };
