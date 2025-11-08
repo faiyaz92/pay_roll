@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -409,7 +409,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   // EMI payment dialog state
   const [emiDialogOpen, setEmiDialogOpen] = useState(false);
   const [selectedVehicleForEMI, setSelectedVehicleForEMI] = useState<any>(null);
-  const [selectedEMIs, setSelectedEMIs] = useState<Set<number>>(new Set());
+  const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
   const [isProcessingEMI, setIsProcessingEMI] = useState(false);
 
   // Penalty dialog state for individual EMI payments
@@ -433,7 +433,120 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   // EMI View All Dialog state
   const [emiViewAllDialog, setEmiViewAllDialog] = useState(false);
   const [selectedVehicleForEMIView, setSelectedVehicleForEMIView] = useState<any>(null);
-  const [emiDialogPenalties, setEmiDialogPenalties] = useState<Record<number, string>>({});
+
+  const dueEmiDetails = useMemo(() => {
+    if (!selectedVehicleForEMI?.loanDetails?.amortizationSchedule) {
+      return [] as Array<{ index: number; emi: any; dueDate: Date; daysDiff: number }>;
+    }
+
+    const schedule = selectedVehicleForEMI.loanDetails.amortizationSchedule;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    return schedule
+      .map((emi: any, index: number) => {
+        const dueDate = new Date(emi.dueDate);
+        const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
+
+        if (emi.isPaid || !canPayNow) {
+          return null;
+        }
+
+        return { index, emi, dueDate, daysDiff };
+      })
+      .filter((detail): detail is { index: number; emi: any; dueDate: Date; daysDiff: number } => detail !== null);
+  }, [selectedVehicleForEMI]);
+
+  const orderedDueEmiIndices = useMemo(() => dueEmiDetails.map(detail => detail.index), [dueEmiDetails]);
+
+  useEffect(() => {
+    if (!emiDialogOpen) {
+      setSelectedEmiIndices([]);
+      setEmiPenalties({});
+      return;
+    }
+
+    if (orderedDueEmiIndices.length === 0) {
+      setSelectedEmiIndices([]);
+      return;
+    }
+
+    setSelectedEmiIndices(prev => (prev.length > 0 ? prev : [...orderedDueEmiIndices]));
+  }, [emiDialogOpen, orderedDueEmiIndices]);
+
+  useEffect(() => {
+    setSelectedEmiIndices(prev => {
+      const filtered = prev.filter(index => orderedDueEmiIndices.includes(index));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [orderedDueEmiIndices]);
+
+  useEffect(() => {
+    setEmiPenalties(prev => {
+      if (!prev || Object.keys(prev).length === 0) {
+        return prev;
+      }
+
+      const updated: Record<number, string> = {};
+      let changed = false;
+
+      Object.keys(prev).forEach(key => {
+        const numericKey = Number(key);
+        if (orderedDueEmiIndices.includes(numericKey)) {
+          updated[numericKey] = prev[numericKey];
+        } else {
+          changed = true;
+        }
+      });
+
+      return changed ? updated : prev;
+    });
+  }, [orderedDueEmiIndices]);
+
+  const handleToggleEmiSelection = (emiIndex: number) => {
+    const orderedIndices = orderedDueEmiIndices;
+    const position = orderedIndices.indexOf(emiIndex);
+    if (position === -1) {
+      return;
+    }
+
+    const isSelected = selectedEmiIndices.includes(emiIndex);
+
+    if (!isSelected) {
+      setSelectedEmiIndices(orderedIndices.slice(0, position + 1));
+    } else {
+      const retained = orderedIndices.slice(0, position);
+      setSelectedEmiIndices(retained);
+      setEmiPenalties(prev => {
+        if (!prev || Object.keys(prev).length === 0) {
+          return prev;
+        }
+
+        const updated: Record<number, string> = {};
+        Object.keys(prev).forEach(key => {
+          const numericKey = Number(key);
+          if (retained.includes(numericKey)) {
+            updated[numericKey] = prev[numericKey];
+          }
+        });
+
+        return updated;
+      });
+    }
+  };
+
+  const handleSelectAllEmis = () => {
+    if (orderedDueEmiIndices.length === 0) {
+      setSelectedEmiIndices([]);
+      return;
+    }
+    setSelectedEmiIndices([...orderedDueEmiIndices]);
+  };
+
+  const selectedCount = selectedEmiIndices.length;
 
   // Function to navigate to vehicle details payments tab with current period criteria
   const handleViewExpenses = (vehicleId: string) => {
@@ -899,26 +1012,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         items = periodData
           .filter(vehicle => {
             if (!vehicle.vehicle.loanDetails?.amortizationSchedule) return false;
-            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
+            return vehicle.vehicle.loanDetails.amortizationSchedule.some(schedule => {
               const dueDate = new Date(schedule.dueDate);
               const now = new Date();
               return !schedule.isPaid && dueDate <= now;
             });
-            return overdueEMIs.length > 0;
           })
           .map(vehicle => {
-            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
-              const dueDate = new Date(schedule.dueDate);
-              const now = new Date();
-              return !schedule.isPaid && dueDate <= now;
-            });
-            const totalOverdueAmount = overdueEMIs.reduce((sum, schedule) => sum + vehicle.vehicle.loanDetails.emiPerMonth, 0);
+            const overdueEmisWithIndex = vehicle.vehicle.loanDetails.amortizationSchedule
+              .map((schedule: any, index: number) => ({ schedule, index }))
+              .filter(({ schedule }) => {
+                const dueDate = new Date(schedule.dueDate);
+                const now = new Date();
+                return !schedule.isPaid && dueDate <= now;
+              });
+
+            const totalOverdueAmount = overdueEmisWithIndex.length * (vehicle.vehicle.loanDetails.emiPerMonth || 0);
+
             return {
               vehicleId: vehicle.vehicle.id,
               vehicleName: vehicle.vehicle.registrationNumber,
               amount: totalOverdueAmount,
-              overdueEMIs: overdueEMIs.map(schedule => ({
-                monthIndex: schedule.month,
+              overdueEMIs: overdueEmisWithIndex.map(({ schedule, index }) => ({
+                monthIndex: index,
                 emiAmount: vehicle.vehicle.loanDetails.emiPerMonth,
                 dueDate: schedule.dueDate
               })),
@@ -1378,12 +1494,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   const openEMIDialog = (vehicle: any) => {
     setSelectedVehicleForEMI(vehicle);
-    setSelectedEMIs(new Set());
+    setSelectedEmiIndices([]);
+    setEmiPenalties({});
     setEmiDialogOpen(true);
   };
 
   const handleEMIBulkPayment = async () => {
-    if (!selectedVehicleForEMI || selectedEMIs.size === 0) return;
+    if (!selectedVehicleForEMI || selectedEmiIndices.length === 0) return;
 
     setIsProcessingEMI(true);
     try {
@@ -1391,12 +1508,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       let totalAmount = 0;
       let penaltyTotal = 0;
 
-      for (const emiIndex of Array.from(selectedEMIs).sort((a, b) => a - b)) {
+      for (const emiIndex of [...selectedEmiIndices].sort((a, b) => a - b)) {
         const emi = schedule[emiIndex];
         if (!emi || emi.isPaid) continue;
 
-        const currentDate = new Date();
-        const dueDate = new Date(emi.dueDate);
         const penalty = parseFloat(emiPenalties[emiIndex] || '0');
 
         await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
@@ -1409,12 +1524,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       toast({
         title: 'EMI Payments Completed',
-        description: `Successfully processed ${selectedEMIs.size} EMI payments totaling ₹${(totalAmount + penaltyTotal).toLocaleString()}`,
+        description: `Successfully processed ${selectedEmiIndices.length} EMI payments totaling ₹${(totalAmount + penaltyTotal).toLocaleString()}`,
       });
 
       setEmiDialogOpen(false);
       setSelectedVehicleForEMI(null);
-      setSelectedEMIs(new Set());
+      setSelectedEmiIndices([]);
       setEmiPenalties({});
     } catch (error) {
       toast({
@@ -2734,17 +2849,20 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           
           <div className="space-y-4">
             {selectedVehicleForEMI && (
-              <div className="grid grid-cols-1 gap-3">
-                {(selectedVehicleForEMI.loanDetails?.amortizationSchedule || [])
-                  .map((emi: any, index: number) => {
-                    const dueDate = new Date(emi.dueDate);
-                    const today = new Date();
-                    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    const threeDaysFromNow = new Date();
-                    threeDaysFromNow.setDate(today.getDate() + 3);
-                    const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
-
-                    if (emi.isPaid || !canPayNow) return null;
+              <>
+                {dueEmiDetails.length > 0 && (
+                  <div className="rounded border border-dashed border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                    Select EMIs oldest-first. Choosing a later EMI automatically includes every older due EMI; unselecting one clears all newer selections to keep the order intact.
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-3">
+                  {dueEmiDetails.length === 0 ? (
+                    <div className="rounded border border-dashed border-gray-300 p-4 text-sm text-gray-600">
+                      All eligible EMIs are up to date. There is nothing pending right now.
+                    </div>
+                  ) : (
+                    dueEmiDetails.map(({ index, emi, dueDate, daysDiff }) => {
+                    const isSelected = selectedEmiIndices.includes(index);
 
                     let statusText = '';
                     let statusColor = 'text-gray-500';
@@ -2759,23 +2877,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       statusText = `Due ${dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
                     }
 
+                    const checkboxId = `emi-${index}`;
+
                     return (
-                      <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <div
+                        key={index}
+                        className={`flex items-center space-x-3 p-3 border rounded-lg ${isSelected ? 'border-orange-300 bg-orange-50' : ''}`}
+                      >
                         <Checkbox
-                          id={`emi-${index}`}
-                          checked={selectedEMIs.has(index)}
-                          onCheckedChange={(checked) => {
-                            const newSelected = new Set(selectedEMIs);
-                            if (checked) {
-                              newSelected.add(index);
-                            } else {
-                              newSelected.delete(index);
-                            }
-                            setSelectedEMIs(newSelected);
-                          }}
+                          id={checkboxId}
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleEmiSelection(index)}
                         />
                         <div className="flex-1">
-                          <div className="font-medium">EMI {emi.month}</div>
+                          <label htmlFor={checkboxId} className="font-medium cursor-pointer">
+                            EMI {emi.month}
+                          </label>
                           <div className={`text-sm ${statusColor}`}>{statusText}</div>
                         </div>
                         <div className="text-right">
@@ -2788,32 +2905,47 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         </div>
                       </div>
                     );
-                  })}
-              </div>
+                  })
+                  )}
+                </div>
+              </>
             )}
             
-            {selectedEMIs.size > 0 && (
-              <div className="flex justify-between items-center pt-4 border-t">
-                <div>
-                  <div className="font-medium">{selectedEMIs.size} EMI{selectedEMIs.size > 1 ? 's' : ''} selected</div>
-                  <div className="text-sm text-gray-600">
-                    Total: ₹{Array.from(selectedEMIs).reduce((total, index) => {
-                      const emi = selectedVehicleForEMI?.loanDetails?.amortizationSchedule?.[index];
-                      if (!emi) return total;
-                      const dueDate = new Date(emi.dueDate);
-                      const today = new Date();
-                      const daysPastDue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const penalty = daysPastDue > 0 ? Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02) : 0;
-                      return total + (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
-                    }, 0).toLocaleString()}
+            {selectedCount > 0 && selectedVehicleForEMI && (
+              <div className="flex flex-col gap-3 pt-4 border-t">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{selectedCount} EMI{selectedCount > 1 ? 's' : ''} selected</div>
+                    <div className="text-sm text-gray-600">
+                      Total: ₹{selectedEmiIndices.reduce((total, index) => {
+                        const emi = selectedVehicleForEMI.loanDetails?.amortizationSchedule?.[index];
+                        if (!emi) return total;
+                        const dueDate = new Date(emi.dueDate);
+                        const today = new Date();
+                        const daysPastDue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const penalty = daysPastDue > 0 ? Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02) : 0;
+                        return total + (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
+                      }, 0).toLocaleString()}
+                    </div>
                   </div>
+                  {selectedCount < orderedDueEmiIndices.length && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllEmis}
+                    >
+                      Select Oldest Sequence
+                    </Button>
+                  )}
                 </div>
-                <Button 
-                  onClick={handleEMIBulkPayment}
-                  disabled={isProcessingEMI}
-                >
-                  {isProcessingEMI ? 'Processing...' : 'Mark as Paid'}
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleEMIBulkPayment}
+                    disabled={isProcessingEMI}
+                  >
+                    {isProcessingEMI ? 'Processing...' : 'Mark as Paid'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
