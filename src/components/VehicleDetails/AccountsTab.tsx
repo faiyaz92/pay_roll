@@ -206,10 +206,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   };
 
   useEffect(() => {
-    if (!confirmRentPaymentDialog) {
+    if (confirmRentPaymentDialog) {
+      if (orderedRentWeekIndices.length > 0) {
+        setSelectedRentWeekIndices(orderedRentWeekIndices);
+      } else {
+        setSelectedRentWeekIndices([]);
+      }
+    } else {
       setSelectedRentWeekIndices([]);
     }
-  }, [confirmRentPaymentDialog]);
+  }, [confirmRentPaymentDialog, orderedRentWeekIndices]);
 
   const emiSummary = useMemo(() => {
     if (!vehicle?.loanDetails?.amortizationSchedule) {
@@ -1328,64 +1334,62 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       </Card>
 
       {/* Cumulative Summary */}
-      {(selectedPeriod === 'quarter' || selectedPeriod === 'year') && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cumulative Summary ({selectedPeriod === 'year' ? selectedYear : `Q${selectedQuarter} ${selectedYear}`})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">₹{cumulativeData.totalEarnings.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Earnings</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">₹{cumulativeData.totalExpenses.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Expenses</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">₹{cumulativeData.totalProfit.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Total Profit</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  ₹{(cumulativeData.totalPartnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">Total Owner Share</div>
-              </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Cumulative Summary ({selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">₹{cumulativeData.totalEarnings.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Total Earnings</div>
             </div>
-
-            {/* Cumulative Payables Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
-              <div className="text-center">
-                <div className="text-lg font-semibold text-orange-600">
-                  ₹{cumulativeData.totalGst.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-600">GST Payable</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-blue-600">
-                  ₹{cumulativeData.totalServiceCharge.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-600">Service Charges</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-purple-600">
-                  ₹{cumulativeData.totalPartnerShare.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-600">Partner Shares</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-green-600">
-                  ₹{cumulativeData.totalOwnerShare.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-600">Owner Shares</div>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">₹{cumulativeData.totalExpenses.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Total Expenses</div>
             </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">₹{cumulativeData.totalProfit.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Total Profit</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                ₹{(cumulativeData.totalPartnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-600">Total Owner Share</div>
+            </div>
+          </div>
 
-          </CardContent>
-        </Card>
-      )}
+          {/* Cumulative Payables Breakdown */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-600">
+                ₹{cumulativeData.totalGst.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-600">
+                ₹{cumulativeData.totalServiceCharge.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Service Charges</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-600">
+                ₹{cumulativeData.totalPartnerShare.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Partner Shares</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-600">
+                ₹{cumulativeData.totalOwnerShare.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Owner Shares</div>
+            </div>
+          </div>
+
+        </CardContent>
+      </Card>
 
       {/* Quick Financial Actions */}
       <Card>
