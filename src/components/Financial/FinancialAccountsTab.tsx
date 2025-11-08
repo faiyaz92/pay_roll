@@ -1385,20 +1385,43 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   const handleEMIPayment = async (vehicle: any, monthIndex: number, penalty: number = 0) => {
     try {
-      const scheduleItem = vehicle.loanDetails?.amortizationSchedule?.[monthIndex];
-      if (!scheduleItem) return;
+      if (!vehicle?.id) {
+        throw new Error('Vehicle not found');
+      }
 
-      // Update the amortization schedule
-      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
+      let latestLoanDetails = vehicle?.loanDetails;
+      try {
+        const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicle.id);
+        const vehicleSnapshot = await getDoc(vehicleRef);
+        if (vehicleSnapshot.exists()) {
+          const latestData = vehicleSnapshot.data() as any;
+          if (latestData.loanDetails) {
+            latestLoanDetails = latestData.loanDetails;
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI update:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+      const targetEMI = updatedSchedule[monthIndex];
+
+      if (!targetEMI) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
       updatedSchedule[monthIndex] = {
-        ...scheduleItem,
+        ...targetEMI,
         isPaid: true,
-        paidAt: new Date().toISOString().split('T')[0]
+        paidAt: paymentDate
       };
 
-      // Update paid installments array with payment date
-      const updatedPaidInstallments = [...(vehicle.loanDetails?.paidInstallments || [])];
-      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedPaidInstallments = [...(latestLoanDetails.paidInstallments || [])];
       if (!updatedPaidInstallments.includes(paymentDate)) {
         updatedPaidInstallments.push(paymentDate);
       }
@@ -1407,79 +1430,76 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicle.id);
       await updateDoc(vehicleRef, {
         loanDetails: {
-          ...vehicle.loanDetails,
+          ...latestLoanDetails,
           amortizationSchedule: updatedSchedule,
           paidInstallments: updatedPaidInstallments
         }
       });
 
-      // Add EMI payment as expense record
-      const expenseRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
-      await addDoc(expenseRef, {
-        vehicleId: vehicle.id,
-        amount: vehicle.loanDetails?.emiPerMonth || 0,
-        description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
-        billUrl: '',
-        submittedBy: 'owner',
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-        adjustmentWeeks: 0,
-        type: 'paid',
-        paymentType: 'emi',
-        verifiedKm: 0,
-        companyId: userInfo.companyId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      if (vehicle?.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        };
+      }
 
-      // Add penalty as expense if applicable
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+
+      const expenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: emiAmount,
+          description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid',
+          paymentType: 'emi'
+        }
+      ];
+
       if (penalty > 0) {
-        await addDoc(expenseRef, {
-          vehicleId: vehicle.id,
+        expenseEntries.push({
           amount: penalty,
-          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          billUrl: '',
-          submittedBy: 'owner',
-          status: 'approved',
-          approvedAt: new Date().toISOString(),
-          adjustmentWeeks: 0,
-          type: 'general',
-          verifiedKm: 0,
-          companyId: userInfo.companyId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(targetEMI.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
+          type: 'general'
         });
       }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicle.id);
-      const currentBalance = vehicleCashBalances[vehicle.id] || 0;
-      const totalPayment = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
-      await updateDoc(cashRef, {
-        balance: currentBalance - totalPayment,
-        lastUpdated: new Date().toISOString()
-      });
+      // Add expense entries
+      const expenseRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
+      await expenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addDoc(expenseRef, {
+              vehicleId: vehicle.id,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved',
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0,
+              companyId: userInfo.companyId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })
+          ),
+        Promise.resolve()
+      );
 
-      // Update company-level cash balance
-      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-      await updateDoc(companyCashRef, {
-        balance: increment(-totalPayment),
-        lastUpdated: new Date().toISOString()
-      });
+      const totalPaid = emiAmount + penalty;
 
-      // Update local state
-      setVehicleCashBalances(prev => ({
-        ...prev,
-        [vehicle.id]: currentBalance - totalPayment
-      }));
-
-      const totalPaid = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
-      
       toast({
         title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
-        description: penalty > 0 
-          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
-          : `EMI for month ${monthIndex + 1} (₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}) has been marked as paid.`,
+        description: penalty > 0
+          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${emiAmount.toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
+          : `EMI for month ${monthIndex + 1} (₹${emiAmount.toLocaleString()}) has been marked as paid.`,
       });
 
     } catch (error) {
@@ -1489,6 +1509,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         description: 'Failed to record EMI payment. Please try again.',
         variant: 'destructive'
       });
+      throw error;
     }
   };
 
@@ -1500,41 +1521,73 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   const handleEMIBulkPayment = async () => {
-    if (!selectedVehicleForEMI || selectedEmiIndices.length === 0) return;
+    if (!selectedVehicleForEMI?.loanDetails?.amortizationSchedule) {
+      toast({
+        title: 'Error',
+        description: 'Bulk payment functionality not available.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const emisToProcess = selectedVehicleForEMI.loanDetails.amortizationSchedule.filter((_, index) => selectedEmiIndices.includes(index));
+
+    if (emisToProcess.length === 0) {
+      toast({
+        title: 'No EMIs Selected',
+        description: 'Select at least one EMI in sequence to process the payment.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     setIsProcessingEMI(true);
+    let successCount = 0;
+    let totalAmount = 0;
+
     try {
-      const schedule = selectedVehicleForEMI.loanDetails?.amortizationSchedule || [];
-      let totalAmount = 0;
-      let penaltyTotal = 0;
-
-      for (const emiIndex of [...selectedEmiIndices].sort((a, b) => a - b)) {
-        const emi = schedule[emiIndex];
-        if (!emi || emi.isPaid) continue;
-
+      for (const emiIndex of selectedEmiIndices) {
         const penalty = parseFloat(emiPenalties[emiIndex] || '0');
 
-        await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
-        totalAmount += selectedVehicleForEMI.loanDetails?.emiPerMonth || 0;
-        penaltyTotal += penalty;
+        try {
+          await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
+          successCount++;
+          totalAmount += (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
 
-        // Small delay to prevent overwhelming Firestore
-        await new Promise(resolve => setTimeout(resolve, 100));
+          toast({
+            title: `EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month} Paid ✅`,
+            description: `₹${((selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty).toLocaleString()} paid successfully.`
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error processing EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month}:`, error);
+          toast({
+            title: `Error on EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month}`,
+            description: 'Failed to process this EMI payment.',
+            variant: 'destructive'
+          });
+        }
       }
 
-      toast({
-        title: 'EMI Payments Completed',
-        description: `Successfully processed ${selectedEmiIndices.length} EMI payments totaling ₹${(totalAmount + penaltyTotal).toLocaleString()}`,
-      });
+      if (successCount > 0) {
+        toast({
+          title: 'Bulk EMI Payment Completed! 🎉',
+          description: `Successfully paid ${successCount} of ${emisToProcess.length} selected EMIs totaling ₹${totalAmount.toLocaleString()}.`
+        });
+      } else {
+        throw new Error('No payments were processed successfully');
+      }
 
       setEmiDialogOpen(false);
       setSelectedVehicleForEMI(null);
       setSelectedEmiIndices([]);
       setEmiPenalties({});
     } catch (error) {
+      console.error('Error processing bulk EMI payment:', error);
       toast({
-        title: 'EMI Payment Failed',
-        description: 'Some EMI payments may have failed. Please check vehicle details.',
+        title: 'Bulk Payment Failed',
+        description: `Only ${successCount} payments were processed. Please try again.`,
         variant: 'destructive'
       });
     } finally {
