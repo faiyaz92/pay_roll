@@ -247,7 +247,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             </div>
             <div className="text-right">
               <Badge variant="outline" className="mb-2">
-                {vehicle.loanDetails.paidInstallments?.length || 0} of {vehicle.loanDetails.totalInstallments || 0} paid
+                {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0} of {vehicle.loanDetails.totalInstallments || 0} paid
               </Badge>
               <p className="text-sm text-gray-600">
                 Outstanding: ₹{financialData.outstandingLoan.toLocaleString()}
@@ -281,7 +281,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
-                  {vehicle.loanDetails.paidInstallments?.length || 0}
+                  {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0}
                 </div>
                 <div className="text-sm text-green-700">EMIs Paid</div>
               </CardContent>
@@ -329,7 +329,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             <Card className="bg-purple-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
+                  {((vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
                 </div>
                 <div className="text-sm text-purple-700">Completed</div>
               </CardContent>

@@ -972,16 +972,10 @@ const VehicleDetails: React.FC = () => {
       scheduleItem.isPaid = true;
       scheduleItem.paidAt = paymentDate;
 
-      const updatedPaidInstallments = [...(latestLoanDetails.paidInstallments || [])];
-      if (!updatedPaidInstallments.includes(paymentDate)) {
-        updatedPaidInstallments.push(paymentDate);
-      }
-
       await updateVehicle(vehicleId, {
         loanDetails: {
           ...latestLoanDetails,
-          amortizationSchedule: updatedSchedule,
-          paidInstallments: updatedPaidInstallments
+          amortizationSchedule: updatedSchedule
         }
       });
 
@@ -989,8 +983,7 @@ const VehicleDetails: React.FC = () => {
       if (vehicle.loanDetails) {
         vehicle.loanDetails = {
           ...vehicle.loanDetails,
-          amortizationSchedule: updatedSchedule,
-          paidInstallments: updatedPaidInstallments
+          amortizationSchedule: updatedSchedule
         };
       }
 

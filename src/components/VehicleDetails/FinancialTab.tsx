@@ -285,7 +285,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
                   <span>EMIs Paid</span>
                   <div className="text-right">
                     <div className="font-medium text-green-600">
-                      {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments || 0}
+                      {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0} / {vehicle.loanDetails.totalInstallments || 0}
                     </div>
                     <div className="text-sm text-gray-600">
                       ₹{financialData.totalEmiPaid.toLocaleString()}
@@ -304,7 +304,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
                   </div>
                 )}
                 <Progress
-                  value={(vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100}
+                  value={(vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100}
                   className="mt-2"
                 />
               </div>

@@ -66,7 +66,6 @@ export interface LoanDetails {
   downPayment: number;
   loanAccountNumber: string;
   emiDueDate: number; // Day of month (1-31)
-  paidInstallments: string[]; // Array of payment dates
   amortizationSchedule: {
     month: number;
     interest: number;
