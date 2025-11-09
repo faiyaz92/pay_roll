@@ -931,7 +931,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: cashInHand - monthData.gstAmount,
+        balance: increment(-monthData.gstAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -966,7 +966,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       // Update cash in hand - INCREASE when owner collects service charge (additional income)
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: cashInHand + monthData.serviceCharge,  // Service charge is additional income
+        balance: increment(monthData.serviceCharge),  // Service charge is additional income
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -1001,7 +1001,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: cashInHand - monthData.partnerShare,
+        balance: increment(-monthData.partnerShare),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -1036,7 +1036,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: cashInHand - monthData.ownerShare,
+        balance: increment(-monthData.ownerShare),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -1071,7 +1071,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: cashInHand - monthData.ownerFullShare,
+        balance: increment(-monthData.ownerFullShare),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 

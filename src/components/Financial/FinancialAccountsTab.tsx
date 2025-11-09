@@ -2556,7 +2556,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 <div className="flex flex-col gap-1">
                   {getStatusBadge(vehicleInfo.vehicle.status)}
                   <Badge variant="outline" className="text-xs">
-                    {vehicleInfo.vehicle.ownershipType === 'partner' ? 'Partner' : 'Company'}
+                    {vehicleInfo.vehicle.isPartnership === true ? 'Partner' : 'Company'}
                   </Badge>
                   <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"}>
                     {vehicleInfo.profit >= 0 ? 'Profit' : 'Loss'}
@@ -2633,7 +2633,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 {/* Partner Share (only for partner taxis) */}
                 {vehicleInfo.partnerShare > 0 && (
                   <div className="flex justify-between text-sm border-t pt-1">
-                    <span className="font-medium">Partner Share (50%)</span>
+                    <span className="font-medium">Partner Share ({vehicleInfo.vehicle.partnershipPercentage || 50}%)</span>
                     <span className="font-bold text-purple-600">
                       ₹{vehicleInfo.partnerShare.toLocaleString()}
                     </span>
@@ -2669,13 +2669,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         disabled={vehicleInfo.gstAmount <= 0}
                       >
                         <CreditCard className="h-3 w-3 mr-1" />
-                        Pay GST
+                        Pay GST ₹{vehicleInfo.gstAmount.toLocaleString()}
                       </Button>
                     )}
                   </div>
 
                   {/* Service Charge Collection - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Service Charge</span>
                       {vehicleInfo.serviceChargeCollected ? (
@@ -2690,14 +2690,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.serviceCharge <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect
+                          Withdraw ₹{vehicleInfo.serviceCharge.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Partner Payment - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Partner Payment</span>
                       {vehicleInfo.partnerPaid ? (
@@ -2712,14 +2712,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.partnerShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner
+                          Pay Partner ₹{vehicleInfo.partnerShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Owner's Share Collection - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Collect Owner's Share</span>
                       {vehicleInfo.ownerShareCollected ? (
@@ -2734,14 +2734,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.ownerShare <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect Share
+                          Withdraw ₹{vehicleInfo.ownerShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Owner's Withdrawal - Only for company-owned taxis */}
-                  {vehicleInfo.vehicle.ownershipType !== 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership !== true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Owner's Withdrawal</span>
                       {vehicleInfo.ownerWithdrawn ? (
@@ -2756,7 +2756,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.ownerFullShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
-                          Withdraw
+                          Withdraw ₹{vehicleInfo.ownerFullShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
