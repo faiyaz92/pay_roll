@@ -673,7 +673,7 @@ const VehicleDetails: React.FC = () => {
 
       // Get current loan details
       const totalInstallments = vehicle.loanDetails?.totalInstallments || 0;
-      const paidInstallments = vehicle.loanDetails?.paidInstallments?.length || 0;
+      const paidInstallments = vehicle.loanDetails?.amortizationSchedule?.filter(emi => emi.isPaid).length || 0;
       const remainingInstallments = totalInstallments - paidInstallments;
 
       // Calculate current remaining tenure (only for unpaid EMIs)

@@ -538,7 +538,6 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
             downPayment: data.downPayment || 0,
             loanAccountNumber: data.loanAccountNumber || '',
             emiDueDate: 1, // Default to 1st of month
-            paidInstallments: Array(paidInstallments).fill(new Date().toISOString()),
             amortizationSchedule,
           },
 

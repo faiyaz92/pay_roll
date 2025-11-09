@@ -493,7 +493,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                 size="sm"
                 className="text-blue-700 border-blue-300"
                 onClick={() => {
-                  const paidCount = vehicle.loanDetails?.paidInstallments?.length || 0;
+                  const paidCount = vehicle.loanDetails?.amortizationSchedule?.filter(emi => emi.isPaid).length || 0;
                   const totalCount = vehicle.loanDetails?.totalInstallments || 0;
                   const completionPercentage = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0';
 
