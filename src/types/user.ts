@@ -195,6 +195,11 @@ export interface Assignment {
     driverPhoto?: string;
     additional?: string; // JSON string of array
   };
+  // End assignment fields:
+  endReason?: string; // Reason for ending assignment early
+  endedBy?: string; // User ID who ended the assignment
+  endedAt?: Date | string | any; // When assignment was ended
+  finalOdometer?: number; // Odometer reading when assignment ended
   // System fields:
   createdAt?: Date | string | any;
   updatedAt?: Date | string | any;

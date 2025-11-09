@@ -397,6 +397,44 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       
       if (mode === 'edit' && vehicle) {
         // Update existing vehicle
+        
+        // Regenerate amortization schedule if loan details changed
+        let amortizationSchedule = vehicle.loanDetails?.amortizationSchedule || [];
+        let outstandingLoan = vehicle.loanDetails?.outstandingLoan || 0;
+        
+        if (data.financingType === 'loan' && data.loanAmount && data.emiPerMonth && data.tenureMonths && data.firstInstallmentDate) {
+          // Calculate paid installments for historical data (if any)
+          let paidInstallments = 0;
+          if (vehicle.condition === 'new_in_operation' && vehicle.loanDetails?.amortizationSchedule) {
+            paidInstallments = vehicle.loanDetails.amortizationSchedule.filter(schedule => schedule.isPaid).length;
+          }
+          
+          // Generate fresh amortization schedule from the updated first installment date
+          amortizationSchedule = generateAmortizationSchedule(
+            data.loanAmount,
+            data.emiPerMonth,
+            data.tenureMonths,
+            data.interestRate || 8.5,
+            data.firstInstallmentDate,
+            paidInstallments
+          );
+          
+          // Calculate current outstanding
+          const unpaidInstallments = amortizationSchedule.filter(schedule => !schedule.isPaid);
+          outstandingLoan = unpaidInstallments.length > 0 ? 
+            unpaidInstallments[0].outstanding + unpaidInstallments[0].principal : 0;
+        }
+
+        // Determine financial status
+        let financialStatus: 'cash' | 'loan_active' | 'loan_cleared' = 'cash';
+        if (data.financingType === 'cash') {
+          financialStatus = 'cash';
+        } else if (outstandingLoan > 0) {
+          financialStatus = 'loan_active';
+        } else {
+          financialStatus = 'loan_cleared';
+        }
+
         const updateData: Partial<Vehicle> = {
           vehicleName: data.vehicleName,
           registrationNumber: data.registrationNumber,
@@ -427,16 +465,21 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           previousOwnerName: data.previousOwnerName || '',
           previousOwnerMobile: data.previousOwnerMobile || '',
           
-          // Update loan details if applicable
+          // Update loan details with fresh amortization schedule
           loanDetails: data.financingType === 'loan' ? {
-            ...vehicle.loanDetails,
             totalLoan: data.loanAmount || 0,
+            outstandingLoan,
             emiPerMonth: data.emiPerMonth || 0,
             totalInstallments: data.tenureMonths || 0,
             interestRate: data.interestRate || 0,
             downPayment: data.downPayment || 0,
             loanAccountNumber: data.loanAccountNumber || '',
+            emiDueDate: vehicle.loanDetails?.emiDueDate || 1,
+            amortizationSchedule,
           } : vehicle.loanDetails,
+          
+          // Update financial status
+          financialStatus,
           
           // Update images if new ones uploaded
           images: Object.keys(uploadedImages).length > 0 ? 
