@@ -21,10 +21,12 @@ import { uploadToCloudinary } from '@/lib/cloudinary';
 
 // Import types
 import { Vehicle, Assignment } from '@/types/user';
+import { Expense } from '@/hooks/useFirebaseData';
 
 // Import components
 import AddFuelRecordForm from '@/components/Forms/AddFuelRecordForm';
 import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
+import AddExpenseForm from '@/components/Forms/AddExpenseForm';
 import InsuranceDocumentUploader from '@/components/Forms/InsuranceDocumentUploader';
 
 // Import tab components
@@ -1066,6 +1068,46 @@ const VehicleDetails: React.FC = () => {
     }
   };
 
+  // Handle fuel record addition (similar to FuelRecords page)
+  const handleFuelRecordAdded = async (fuelRecordData: FuelRecordData) => {
+    try {
+      // Create expense record for the fuel
+      const expenseData: Omit<Expense, 'id'> = {
+        vehicleId: vehicleId!,
+        amount: fuelRecordData.amount,
+        description: `Fuel: ${fuelRecordData.fuelType} - ${fuelRecordData.quantity}L @ ₹${fuelRecordData.pricePerLiter}/L`,
+        billUrl: fuelRecordData.billUrl || '',
+        submittedBy: fuelRecordData.submittedBy || 'owner',
+        status: 'approved' as const,
+        approvedAt: new Date().toISOString(),
+        adjustmentWeeks: 0,
+        type: 'fuel',
+        verifiedKm: fuelRecordData.odometerReading,
+        companyId: fuelRecordData.companyId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        paymentType: 'expenses',
+        expenseType: 'fuel',
+        vendor: fuelRecordData.station,
+        expenseDate: fuelRecordData.createdAt,
+      };
+
+      await addExpense(expenseData);
+
+      toast({
+        title: 'Fuel Record Added',
+        description: `Fuel expense of ₹${fuelRecordData.amount.toLocaleString()} has been recorded.`,
+      });
+    } catch (error) {
+      console.error('Error adding fuel record:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add fuel record. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const handleAddExpense = async () => {
     try {
       const amount = parseFloat(newExpense.amount);
@@ -1310,31 +1352,6 @@ const VehicleDetails: React.FC = () => {
         title: 'Error',
         description: 'Failed to add expense. Please try again.',
         variant: 'destructive'
-      });
-    }
-  };
-
-  // Handle fuel record addition (similar to FuelRecords page)
-  const handleFuelRecordAdded = async (fuelRecordData: FuelRecordData) => {
-    try {
-      await addExpense(fuelRecordData);
-
-      toast({
-        title: "Success",
-        description: fuelRecordData.isCorrection 
-          ? "Fuel expense correction recorded successfully." 
-          : "Fuel expense recorded successfully.",
-      });
-
-      // Reset form state and close dialog AFTER successful save
-      setSelectedExpenseType('fuel');
-      setShowExpenseForm(false);
-    } catch (error) {
-      console.error('Error recording fuel expense:', error);
-      toast({
-        title: "Error",
-        description: "Failed to record fuel expense. Please try again.",
-        variant: "destructive",
       });
     }
   };
@@ -2089,156 +2106,21 @@ const VehicleDetails: React.FC = () => {
       {/* Add Expense Dialog */}
       <Dialog open={addExpenseDialogOpen} onOpenChange={(open) => {
         setAddExpenseDialogOpen(open);
-        if (open) {
-          setSelectedExpenseType('fuel');
-          setNewExpense({
-            amount: '',
-            description: '',
-            type: 'fuel',
-            // Reset proration fields
-            isAdvance: false,
-            coverageStartDate: '',
-            coverageEndDate: '',
-            coverageMonths: 0
-          });
+        if (!open) {
+          // Reset any state if needed when closing
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Expense</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="expenseType">Transaction Type</Label>
-              <Select value={selectedExpenseType} onValueChange={(value) => setSelectedExpenseType(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select transaction type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="emi">EMI Payment</SelectItem>
-                  <SelectItem value="prepayment">Prepayment</SelectItem>
-                  <SelectItem value="fuel">Fuel Expense</SelectItem>
-                  <SelectItem value="maintenance">Maintenance Expense</SelectItem>
-                  <SelectItem value="insurance">Insurance Expense</SelectItem>
-                  <SelectItem value="penalties">Penalties Expense</SelectItem>
-                  <SelectItem value="general">General Expense</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="expenseAmount">Amount (₹)</Label>
-              <Input
-                id="expenseAmount"
-                type="number"
-                value={newExpense.amount}
-                onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
-                placeholder="Enter expense amount"
-                min="0"
-              />
-            </div>
-            <div>
-              <Label htmlFor="expenseDescription">Description</Label>
-              <Input
-                id="expenseDescription"
-                value={newExpense.description}
-                onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Brief description of the expense"
-              />
-            </div>
-
-            {/* Proration fields for advance payments */}
-            {(selectedExpenseType === 'insurance' || selectedExpenseType === 'prepayment') && (
-              <div className="space-y-4 border-t pt-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="isAdvance"
-                    checked={newExpense.isAdvance}
-                    onChange={(e) => setNewExpense(prev => ({
-                      ...prev,
-                      isAdvance: e.target.checked,
-                      // Reset dates if unchecked
-                      coverageStartDate: e.target.checked ? prev.coverageStartDate : '',
-                      coverageEndDate: e.target.checked ? prev.coverageEndDate : '',
-                      coverageMonths: e.target.checked ? prev.coverageMonths : 0
-                    }))}
-                    className="rounded"
-                  />
-                  <Label htmlFor="isAdvance" className="text-sm">
-                    This is an advance payment covering multiple months
-                  </Label>
-                </div>
-
-                {newExpense.isAdvance && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="coverageStartDate" className="text-sm">Coverage Start Date</Label>
-                        <Input
-                          id="coverageStartDate"
-                          type="date"
-                          value={newExpense.coverageStartDate}
-                          onChange={(e) => {
-                            const startDate = e.target.value;
-                            const start = new Date(startDate);
-                            const end = new Date(start);
-                            end.setMonth(end.getMonth() + 12); // Default 1 year
-                            const endDateStr = end.toISOString().split('T')[0];
-                            const months = 12;
-
-                            setNewExpense(prev => ({
-                              ...prev,
-                              coverageStartDate: startDate,
-                              coverageEndDate: endDateStr,
-                              coverageMonths: months
-                            }));
-                          }}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="coverageEndDate" className="text-sm">Coverage End Date</Label>
-                        <Input
-                          id="coverageEndDate"
-                          type="date"
-                          value={newExpense.coverageEndDate}
-                          onChange={(e) => {
-                            const endDate = e.target.value;
-                            const start = new Date(newExpense.coverageStartDate);
-                            const end = new Date(endDate);
-                            const months = start && end ? Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30))) : 0;
-
-                            setNewExpense(prev => ({
-                              ...prev,
-                              coverageEndDate: endDate,
-                              coverageMonths: months
-                            }));
-                          }}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                    {newExpense.amount && newExpense.coverageMonths > 0 && (
-                      <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                        <strong>Proration Preview:</strong> ₹{parseFloat(newExpense.amount).toLocaleString()} total payment will be prorated as
-                        ₹{Math.round(parseFloat(newExpense.amount) / newExpense.coverageMonths).toLocaleString()}/month for {newExpense.coverageMonths} months
-                        in statistical calculations.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddExpenseDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddExpense}>
-                Add Expense
-              </Button>
-            </div>
-          </div>
+          <AddExpenseForm
+            vehicleId={vehicleId!}
+            onSuccess={() => {
+              setAddExpenseDialogOpen(false);
+              // Refresh data if needed
+            }}
+          />
         </DialogContent>
       </Dialog>
 
