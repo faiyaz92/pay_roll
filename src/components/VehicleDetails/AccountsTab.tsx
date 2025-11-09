@@ -847,16 +847,19 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       const totalExpenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
       const profit = earnings - totalExpenses;
 
+      // Debug logging for monthly data
+      // console.log(`Month ${month + 1}/${year}: Earnings=${earnings}, Expenses=${totalExpenses}, Profit=${profit}, Payments=${monthPayments.length}`);
+
       // GST calculation (4% - only if profit is positive)
       const gstAmount = profit > 0 ? profit * 0.04 : 0;
 
       // Service charge (10% for partner taxis - only if profit is positive)
-      const isPartnerTaxi = vehicle?.ownershipType === 'partner';
+      const isPartnerTaxi = vehicle?.isPartnership === true;
       const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
       const serviceCharge = isPartnerTaxi && profit > 0 ? profit * serviceChargeRate : 0;
 
       // Partner share (configurable percentage after GST and service charge - only if remaining profit is positive)
-      const partnerSharePercentage = vehicle?.partnerShare || 0.50; // Default 50%
+      const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50; // Convert percentage to decimal
       const remainingProfitAfterDeductions = profit - gstAmount - serviceCharge;
       const partnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
         remainingProfitAfterDeductions * partnerSharePercentage : 0;
@@ -1095,13 +1098,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     const totalGst = totalProfit > 0 ? totalProfit * 0.04 : 0;
 
     // Service charge (10% for partner taxis - only if total profit is positive)
-    const isPartnerTaxi = vehicle?.ownershipType === 'partner';
+    const isPartnerTaxi = vehicle?.isPartnership === true;
     const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
     const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
 
     // Partner share and owner share calculations (on remaining profit after GST and service charge)
     const remainingProfitAfterDeductions = totalProfit - totalGst - totalServiceCharge;
-    const partnerSharePercentage = vehicle?.partnerShare || 0.50; // Default 50%
+    const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50; // Convert percentage to decimal
 
     let totalPartnerShare = 0;
     let totalOwnerShare = 0;
@@ -1113,6 +1116,40 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     } else if (!isPartnerTaxi && (totalProfit - totalGst) > 0) {
       totalOwnerWithdrawal = totalProfit - totalGst;
     }
+
+    // Debug logging
+    // console.log('=== Partnership Calculation Debug ===');
+    // console.log('Selected Period:', selectedPeriod, 'Year:', selectedYear, 'Month:', selectedMonth, 'Quarter:', selectedQuarter);
+    // console.log('Vehicle object:', vehicle);
+    // console.log('Vehicle ID:', vehicle?.id, 'Is Partnership:', vehicle?.isPartnership);
+    // console.log('Is Partner Taxi:', isPartnerTaxi);
+    // console.log('Service Charge Rate:', serviceChargeRate);
+    // console.log('Partner Share %:', partnerSharePercentage);
+    // console.log('Total Earnings:', totalEarnings);
+    // console.log('Total Expenses:', totalExpenses);
+    // console.log('Total Profit:', totalProfit);
+    // console.log('Total GST:', totalGst);
+    // console.log('Total Service Charge:', totalServiceCharge);
+    // console.log('Remaining Profit After Deductions:', remainingProfitAfterDeductions);
+    // console.log('Total Partner Share:', totalPartnerShare);
+    // console.log('Total Owner Share:', totalOwnerShare);
+
+    // Show what the values would be if this was a partner taxi
+    // if (!isPartnerTaxi && totalProfit > 0) {
+    //   const hypotheticalServiceCharge = totalProfit * serviceChargeRate;
+    //   const hypotheticalRemainingProfit = totalProfit - totalGst - hypotheticalServiceCharge;
+    //   const hypotheticalPartnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * partnerSharePercentage : 0;
+    //   const hypotheticalOwnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * (1 - partnerSharePercentage) : 0;
+
+    //   console.log('=== HYPOTHETICAL PARTNER TAXI CALCULATIONS ===');
+    //   console.log('If this was a partner taxi:');
+    //   console.log('Service Charge would be:', hypotheticalServiceCharge);
+    //   console.log('Partner Share would be:', hypotheticalPartnerShare);
+    //   console.log('Owner Share would be:', hypotheticalOwnerShare);
+    //   console.log('===============================================');
+    // }
+
+    // console.log('=====================================');
 
     return {
       totalEarnings,
@@ -1440,13 +1477,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               <div className="text-lg font-semibold text-purple-600">
                 ₹{cumulativeData.totalPartnerShare.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-600">Partner Shares</div>
+              <div className="text-xs text-gray-600">Partner Shares (25%)</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-green-600">
                 ₹{cumulativeData.totalOwnerShare.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-600">Owner Shares</div>
+              <div className="text-xs text-gray-600">Owner Shares (75%)</div>
             </div>
           </div>
 
@@ -1666,19 +1703,19 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 {/* Partner Share (only for partner taxis) */}
                 {monthData.partnerShare > 0 && (
                   <div className="flex justify-between text-sm border-t pt-1">
-                    <span className="font-medium">Partner Share (50%)</span>
+                    <span className="font-medium">Partner Share ({vehicle?.partnershipPercentage || 50}%)</span>
                     <span className="font-bold text-purple-600">
                       ₹{monthData.partnerShare.toLocaleString()}
                     </span>
                   </div>
                 )}
 
-                {/* Owner's Full Share (only for company-owned taxis) */}
-                {monthData.ownerFullShare > 0 && (
+                {/* Owner's Share (only for partner taxis) */}
+                {monthData.ownerShare > 0 && (
                   <div className="flex justify-between text-sm border-t pt-1">
-                    <span className="font-medium">Owner's Share (100%)</span>
+                    <span className="font-medium">Owner's Share ({100 - (vehicle?.partnershipPercentage || 50)}%)</span>
                     <span className="font-bold text-green-600">
-                      ₹{monthData.ownerFullShare.toLocaleString()}
+                      ₹{monthData.ownerShare.toLocaleString()}
                     </span>
                   </div>
                 )}
@@ -1702,13 +1739,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         disabled={monthData.gstAmount <= 0}
                       >
                         <CreditCard className="h-3 w-3 mr-1" />
-                        Pay GST
+                        Pay GST ₹{monthData.gstAmount.toLocaleString()}
                       </Button>
                     )}
                   </div>
 
                   {/* Service Charge Collection - Only for partner taxis */}
-                  {vehicle?.ownershipType === 'partner' && (
+                  {vehicle?.isPartnership === true && monthData.serviceCharge > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Service Charge</span>
                       {monthData.serviceChargeCollected ? (
@@ -1723,16 +1760,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           disabled={monthData.serviceCharge <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect
+                          Withdraw ₹{monthData.serviceCharge.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Partner Payment - Only for partner taxis */}
-                  {vehicle?.ownershipType === 'partner' && (
+                  {vehicle?.isPartnership === true && monthData.partnerShare > 0 && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Partner Payment</span>
+                      <span className="text-sm">Partner Share</span>
                       {monthData.partnerPaid ? (
                         <Badge variant="default" className="bg-green-500">
                           <CheckCircle className="h-3 w-3 mr-1" />
@@ -1745,16 +1782,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           disabled={monthData.partnerShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner
+                          Pay Partner ₹{monthData.partnerShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Owner's Share Collection - Only for partner taxis */}
-                  {vehicle?.ownershipType === 'partner' && (
+                  {vehicle?.isPartnership === true && monthData.ownerShare > 0 && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Collect Owner's Share</span>
+                      <span className="text-sm">Owner's Share</span>
                       {monthData.ownerShareCollected ? (
                         <Badge variant="default" className="bg-green-500">
                           <CheckCircle className="h-3 w-3 mr-1" />
@@ -1767,7 +1804,29 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           disabled={monthData.ownerShare <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect Share
+                          Withdraw ₹{monthData.ownerShare.toLocaleString()}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Owner's Withdrawal - Only for company-owned taxis */}
+                  {!vehicle?.isPartnership && monthData.ownerFullShare > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Owner's Share</span>
+                      {monthData.ownerWithdrawn ? (
+                        <Badge variant="default" className="bg-green-500">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Withdrawn
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOwnerWithdrawal(monthData)}
+                          disabled={monthData.ownerFullShare <= 0}
+                        >
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          Withdraw ₹{monthData.ownerFullShare.toLocaleString()}
                         </Button>
                       )}
                     </div>

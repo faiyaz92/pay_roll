@@ -948,7 +948,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Service Charge Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect service charges from all partner vehicles in the selected period. You can deselect vehicles that should not have service charges collected.`;
         items = periodData
-          .filter(vehicle => vehicle.serviceCharge > 0 && !vehicle.serviceChargeCollected && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.serviceCharge > 0 && !vehicle.serviceChargeCollected && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -962,7 +962,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Partner Share Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Pay partner shares for all partner vehicles in the selected period. You can deselect vehicles that should not have partner shares paid.`;
         items = periodData
-          .filter(vehicle => vehicle.partnerShare > 0 && !vehicle.partnerPaid && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.partnerShare > 0 && !vehicle.partnerPaid && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -976,7 +976,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Owner Share Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect owner shares from all partner vehicles in the selected period. You can deselect vehicles that should not have owner shares collected.`;
         items = periodData
-          .filter(vehicle => vehicle.ownerShare > 0 && !vehicle.ownerShareCollected && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.ownerShare > 0 && !vehicle.ownerShareCollected && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -1107,7 +1107,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
       const monthProfit = monthEarnings - monthExpensesAmount;
 
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const monthServiceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
@@ -1153,12 +1153,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthProfit = monthEarnings - monthExpensesAmount;
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
       const monthPartnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
         remainingProfitAfterDeductions * partnerSharePercentage : 0;
 
@@ -1204,12 +1204,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthProfit = monthEarnings - monthExpensesAmount;
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
       const monthOwnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
         remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0;
 
@@ -2114,8 +2114,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     // Filter vehicles based on partner filter
     const filteredVehicles = companyFinancialData.vehicleData.filter((vehicleInfo: any) => {
       if (companyFinancialData.partnerFilter === 'all') return true;
-      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.ownershipType === 'partner';
-      if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.ownershipType !== 'partner';
+      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.isPartnership === true;
+      if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.isPartnership !== true;
       return true;
     });
 
@@ -2183,13 +2183,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       cumulativeGst = cumulativeProfit > 0 ? cumulativeProfit * 0.04 : 0;
 
       // Service charge (configurable rate for partner taxis - only if cumulative profit is positive)
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       cumulativeServiceCharge = isPartnerTaxi && cumulativeProfit > 0 ? cumulativeProfit * serviceChargeRate : 0;
 
       // Partner share and owner share calculations (on remaining profit after GST and service charge)
       const remainingProfitAfterDeductions = cumulativeProfit - cumulativeGst - cumulativeServiceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
 
       if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
         cumulativePartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
