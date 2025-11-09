@@ -364,11 +364,11 @@ const Vehicles: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">EMI Progress</span>
                         <span className="text-sm font-medium">
-                          {vehicle.loanDetails.paidInstallments?.length || 0} / {vehicle.loanDetails.totalInstallments}
+                          {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0} / {vehicle.loanDetails.totalInstallments}
                         </span>
                       </div>
                       <Progress
-                        value={((vehicle.loanDetails.paidInstallments?.length || 0) / vehicle.loanDetails.totalInstallments) * 100}
+                        value={((vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / vehicle.loanDetails.totalInstallments) * 100}
                         className="h-2"
                       />
                       <div className="flex justify-between items-center text-sm">

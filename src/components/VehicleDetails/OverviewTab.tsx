@@ -164,12 +164,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="flex justify-between">
               <span className="text-gray-600">EMIs Paid:</span>
               <span className="font-medium">
-                {vehicle.loanDetails.paidInstallments?.length || 0}/{vehicle.loanDetails.totalInstallments || 0}
+                {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0}/{vehicle.loanDetails.totalInstallments || 0}
               </span>
             </div>
 
             <Progress
-              value={((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1)) * 100}
+              value={((vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / (vehicle.loanDetails.totalInstallments || 1)) * 100}
               className="h-2"
             />
 
