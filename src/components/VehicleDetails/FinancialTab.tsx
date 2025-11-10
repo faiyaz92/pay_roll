@@ -11,6 +11,7 @@ import { Calculator, AlertTriangle } from 'lucide-react';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface FinancialTabProps {
   vehicle: any;
@@ -97,16 +98,20 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
           Last verified: October 4, 2025 - All calculations confirmed correct.
         */}
         {/* Investment & Returns */}
-        <InvestmentReturnsCard
-          vehicle={vehicle}
-          financialData={financialData}
-          expenseData={expenseData}
-          getTotalInvestment={getTotalInvestment}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="1" label="Investment & Returns" className="mb-2" />
+          <InvestmentReturnsCard
+            vehicle={vehicle}
+            financialData={financialData}
+            expenseData={expenseData}
+            getTotalInvestment={getTotalInvestment}
+          />
+        </div>
 
         {/* Monthly Breakdown */}
         <Card className="flex flex-col h-full">
           <CardHeader>
+            <SectionNumberBadge id="2" label="Monthly Breakdown" className="mb-2" />
             <CardTitle>Monthly Breakdown</CardTitle>
             <div className="flex gap-2 mt-2">
               <div className="flex-1">
@@ -190,16 +195,8 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
 
             {/* Historical Average Data */}
             <div className="space-y-3 border-t pt-3">
-              <h4 className="font-semibold text-sm text-gray-600 border-b pb-1">Historical Averages</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm">Monthly Earnings</span>
-                  <span className="font-medium text-green-600 text-sm">₹{Math.round(financialData.isCurrentlyRented ? financialData.monthlyRent : 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Monthly Expenses (Avg.)</span>
-                  <span className="font-medium text-red-600 text-sm">₹{Math.round(financialData.monthlyExpenses).toLocaleString()}</span>
-                </div>
+                      <div className="space-y-2">
+                        <SectionNumberBadge id="5" label="Total Returns Breakdown" className="mb-2" />
                 {vehicle.financingType === 'loan' && vehicle.loanDetails && (
                   <div className="flex justify-between">
                     <span className="text-sm">Monthly EMI</span>
@@ -269,6 +266,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
         {vehicle.financingType === 'loan' && vehicle.loanDetails && (
           <Card>
             <CardHeader>
+              <SectionNumberBadge id="3" label="Loan Details" className="mb-2" />
               <CardTitle>Loan Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -316,6 +314,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
         {vehicle.financingType === 'loan' && vehicle.loanDetails && financialData.outstandingLoan > 0 && (
           <Card id="prepayment">
             <CardHeader>
+              <SectionNumberBadge id="4" label="Prepayment Calculator" className="mb-2" />
               <CardTitle>Prepayment Calculator</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -414,22 +413,28 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
 
       {/* Financial Breakdowns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <TotalReturnsBreakdownCard
-          vehicle={vehicle}
-          financialData={financialData}
-          firebasePayments={firebasePayments}
-          vehicleId={vehicleId}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="5" label="Total Returns Breakdown" className="mb-2" />
+          <TotalReturnsBreakdownCard
+            vehicle={vehicle}
+            financialData={financialData}
+            firebasePayments={firebasePayments}
+            vehicleId={vehicleId}
+          />
+        </div>
 
-        {/* 
-          ⚠️ SAFETY NOTICE: Total Expenses Breakdown calculations are PERFECT and WORKING CORRECTLY
-          All expense categorization, totals, and breakdown calculations are accurate.
-          DO NOT MODIFY these calculations without explicit approval.
-          Last verified: October 4, 2025 - All calculations confirmed correct.
-        */}
-        <TotalExpensesBreakdownCard
-          expenseData={expenseData}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="6" label="Total Expenses Breakdown" className="mb-2" />
+          {/* 
+            ⚠️ SAFETY NOTICE: Total Expenses Breakdown calculations are PERFECT and WORKING CORRECTLY
+            All expense categorization, totals, and breakdown calculations are accurate.
+            DO NOT MODIFY these calculations without explicit approval.
+            Last verified: October 4, 2025 - All calculations confirmed correct.
+          */}
+          <TotalExpensesBreakdownCard
+            expenseData={expenseData}
+          />
+        </div>
       </div>
     </div>
   );

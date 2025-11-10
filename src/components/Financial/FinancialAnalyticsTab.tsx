@@ -9,6 +9,7 @@ import {
   PieChart,
   Calculator
 } from 'lucide-react';
+import { SectionNumberBadge } from '../VehicleDetails/SectionNumberBadge';
 
 interface FinancialAnalyticsTabProps {
   companyFinancialData: any;
@@ -39,6 +40,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
   return (
     <div className="space-y-6">
       {/* Financial Summary Cards */}
+      <SectionNumberBadge id="1" label="Financial Summary" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -104,6 +106,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
       {/* Expense Breakdown */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Expense Breakdown" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <PieChart className="h-5 w-5" />
             Expense Breakdown
@@ -169,6 +172,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
       {/* Vehicle Performance Table */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="3" label="Vehicle Performance Analysis" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Vehicle Performance Analysis
@@ -218,9 +222,11 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
       </Card>
 
       {/* Financial Health Indicators */}
+      <SectionNumberBadge id="4" label="Financial Health Indicators" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="5" label="Profitability Analysis" className="mb-2" />
             <CardTitle>Profitability Analysis</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -262,6 +268,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
 
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="6" label="Expense Efficiency" className="mb-2" />
             <CardTitle>Expense Efficiency</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TrendingDown } from 'lucide-react';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface TotalExpensesBreakdownCardProps {
   expenseData: any;
@@ -12,6 +13,7 @@ const TotalExpensesBreakdownCard: React.FC<TotalExpensesBreakdownCardProps> = ({
   return (
     <Card className="h-full">
       <CardHeader>
+        <SectionNumberBadge id="1" label="Total Expenses Breakdown" className="mb-2" />
         <CardTitle className="text-lg flex items-center gap-2">
           <TrendingDown className="h-5 w-5 text-red-600" />
           Total Expenses Breakdown
@@ -21,6 +23,7 @@ const TotalExpensesBreakdownCard: React.FC<TotalExpensesBreakdownCardProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <SectionNumberBadge id="2" label="Expense Components" className="mb-2" />
         <div className="flex justify-between">
           <span className="text-gray-600">Fuel Expenses:</span>
           <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>

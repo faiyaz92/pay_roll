@@ -5,6 +5,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import { Fuel, Settings, Shield, CreditCard, Banknote, DollarSign, Plus, AlertCircle } from 'lucide-react';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
 import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface ExpenseData {
   totalExpenses: number;
@@ -50,6 +51,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
       <div>
         <div className="flex justify-between items-center mb-6">
           <div>
+            <SectionNumberBadge id="1" label="Expenses Overview" className="mb-2" />
             <h3 className="text-lg font-semibold">Vehicle Expenses</h3>
             <p className="text-sm text-gray-600 mt-1">
               Track fuel, maintenance, and other vehicle-related expenses
@@ -76,191 +78,198 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         </div>
 
         {/* Expense Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="bg-red-50">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-red-600">
-                ₹{expenseData.totalExpenses.toLocaleString()}
-              </div>
-              <div className="text-sm text-red-700">Total Expenses</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-blue-50">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                ₹{Math.round(expenseData.monthlyAverage).toLocaleString()}
-              </div>
-              <div className="text-sm text-blue-700">Monthly Average</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-yellow-50">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-600">
-                {expenseData.recentExpenses.length}
-              </div>
-              <div className="text-sm text-yellow-700">Total Records</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-green-50">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {expenseData.expenseRatio.toFixed(1)}%
-              </div>
-              <div className="text-sm text-green-700">Expense Ratio</div>
-            </CardContent>
-          </Card>
+        <div className="mb-6">
+          <SectionNumberBadge id="2" label="Expense Summary Cards" className="mb-2" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="bg-red-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  ₹{expenseData.totalExpenses.toLocaleString()}
+                </div>
+                <div className="text-sm text-red-700">Total Expenses</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  ₹{Math.round(expenseData.monthlyAverage).toLocaleString()}
+                </div>
+                <div className="text-sm text-blue-700">Monthly Average</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-yellow-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {expenseData.recentExpenses.length}
+                </div>
+                <div className="text-sm text-yellow-700">Total Records</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-green-50">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {expenseData.expenseRatio.toFixed(1)}%
+                </div>
+                <div className="text-sm text-green-700">Expense Ratio</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Expense Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Fuel className="h-5 w-5 text-blue-600" />
-                Fuel Expenses
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">This Month</span>
-                  <span className="font-medium">₹{Math.round(expenseData.fuelExpenses / 12).toLocaleString()}</span>
+        <div className="mb-6">
+          <SectionNumberBadge id="3" label="Expense Categories" className="mb-2" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Fuel className="h-5 w-5 text-blue-600" />
+                  Fuel Expenses
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="font-medium">₹{Math.round(expenseData.fuelExpenses / 12).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total</span>
+                    <span className="font-medium">₹{expenseData.fuelExpenses.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="font-medium">₹{expenseData.fuelExpenses.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {expenseData.totalExpenses > 0 ? ((expenseData.fuelExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-orange-600" />
-                Maintenance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">This Month</span>
-                  <span className="font-medium">₹{Math.round(expenseData.maintenanceExpenses / 12).toLocaleString()}</span>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-orange-600" />
+                  Maintenance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="font-medium">₹{Math.round(expenseData.maintenanceExpenses / 12).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total</span>
+                    <span className="font-medium">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="font-medium">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {expenseData.totalExpenses > 0 ? ((expenseData.maintenanceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-green-600" />
-                Insurance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">This Month</span>
-                  <span className="font-medium">₹{Math.round(expenseData.insuranceExpenses / 12).toLocaleString()}</span>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  Insurance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="font-medium">₹{Math.round(expenseData.insuranceExpenses / 12).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total</span>
+                    <span className="font-medium">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="font-medium">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {expenseData.totalExpenses > 0 ? ((expenseData.insuranceExpenses / expenseData.totalExpenses) * 100).toFixed(1) : '0'}% of total expenses
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-indigo-600" />
-                EMI Payments
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">This Month</span>
-                  <span className="font-medium">₹{Math.round(expenseData.emiPayments / 12).toLocaleString()}</span>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-indigo-600" />
+                  EMI Payments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="font-medium">₹{Math.round(expenseData.emiPayments / 12).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total</span>
+                    <span className="font-medium">₹{expenseData.emiPayments.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Monthly loan payments
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="font-medium">₹{expenseData.emiPayments.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Monthly loan payments
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Banknote className="h-5 w-5 text-orange-600" />
-                Prepayments
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">This Month</span>
-                  <span className="font-medium">₹{Math.round(expenseData.prepayments / 12).toLocaleString()}</span>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Banknote className="h-5 w-5 text-orange-600" />
+                  Prepayments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="font-medium">₹{Math.round(expenseData.prepayments / 12).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total</span>
+                    <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Early loan payments
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Early loan payments
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-purple-600" />
-                Other Expenses
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Penalties</span>
-                  <span className="font-medium">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                  Other Expenses
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Penalties</span>
+                    <span className="font-medium">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">General</span>
+                    <span className="font-medium">₹{expenseData.otherExpenses.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Permits, fines, misc. expenses
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">General</span>
-                  <span className="font-medium">₹{expenseData.otherExpenses.toLocaleString()}</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Permits, fines, misc. expenses
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Recent Expenses Table */}
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="4" label="Recent Expenses" className="mb-2" />
             <CardTitle>Recent Expenses</CardTitle>
           </CardHeader>
           <CardContent>
@@ -334,6 +343,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         {/* Expense Analysis */}
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="5" label="Expense Analysis" className="mb-2" />
             <CardTitle>Expense Analysis</CardTitle>
           </CardHeader>
           <CardContent>
@@ -383,6 +393,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
       <Dialog open={addInsuranceDialogOpen} onOpenChange={setAddInsuranceDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
+            <SectionNumberBadge id="6" label="Add Insurance Dialog" className="mb-2" />
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Add Insurance Record

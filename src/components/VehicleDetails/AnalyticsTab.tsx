@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface AnalyticsTabProps {
   vehicle: any;
@@ -420,6 +421,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Earnings vs Expenses Chart */}
         <Card className="col-span-1">
           <CardHeader>
+            <SectionNumberBadge id="1" label="Earnings vs Expenses Chart" className="mb-2" />
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -523,6 +525,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Expense Breakdown Pie Chart */}
         <Card className="col-span-1">
           <CardHeader>
+            <SectionNumberBadge id="2" label="Expense Breakdown Chart" className="mb-2" />
             <CardTitle className="flex items-center gap-2">
               <PieChartIcon className="h-5 w-5" />
               Expense Breakdown
@@ -556,6 +559,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       {/* Gross Margin Utilization */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="3" label="Gross Margin Utilization" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Gross Margin Utilization
@@ -586,16 +590,20 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       {/* Original Analytics Content */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Financial Performance - Dynamic Data */}
-        <InvestmentReturnsCard
-          vehicle={vehicle}
-          financialData={financialData}
-          expenseData={expenseData}
-          getTotalInvestment={getTotalInvestment}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="4" label="Investment & Returns Snapshot" className="mb-2" />
+          <InvestmentReturnsCard
+            vehicle={vehicle}
+            financialData={financialData}
+            expenseData={expenseData}
+            getTotalInvestment={getTotalInvestment}
+          />
+        </div>
 
         {/* Projections - Dynamic Data */}
         <Card className="h-full flex flex-col">
           <CardHeader className="flex-shrink-0">
+            <SectionNumberBadge id="5" label="Yearly Projections" className="mb-2" />
             <CardTitle>Yearly Projections</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col flex-grow min-h-0">
@@ -664,16 +672,22 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
       {/* Financial Breakdowns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <TotalReturnsBreakdownCard
-          vehicle={vehicle}
-          financialData={financialData}
-          firebasePayments={firebasePayments}
-          vehicleId={vehicleId}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="6" label="Total Returns Breakdown" className="mb-2" />
+          <TotalReturnsBreakdownCard
+            vehicle={vehicle}
+            financialData={financialData}
+            firebasePayments={firebasePayments}
+            vehicleId={vehicleId}
+          />
+        </div>
 
-        <TotalExpensesBreakdownCard
-          expenseData={expenseData}
-        />
+        <div className="space-y-2">
+          <SectionNumberBadge id="7" label="Total Expenses Breakdown" className="mb-2" />
+          <TotalExpensesBreakdownCard
+            expenseData={expenseData}
+          />
+        </div>
       </div>
 
       {/* Financial Projections */}
@@ -681,6 +695,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Financial Projections Card - Shows all metrics like Financial Performance */}
         <Card className="flex flex-col h-full">
           <CardHeader className="flex-shrink-0">
+            <SectionNumberBadge id="8" label="Financial Projections" className="mb-2" />
             <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
             <CardDescription>
               {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}
@@ -844,6 +859,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Projection Summary */}
         <Card className="h-full flex flex-col">
           <CardHeader className="flex-shrink-0">
+            <SectionNumberBadge id="9" label="Projection Summary Insights" className="mb-2" />
             <CardTitle>Projection Summary & Insights</CardTitle>
             <CardDescription>
               Key insights from {projectionYear}-year projection
@@ -1000,6 +1016,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       {vehicle?.ownershipType === 'partner' && (
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="10" label="Partner Earnings Projection" className="mb-2" />
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
               Partner Earnings Projection ({projectionYear} Year{projectionYear > 1 ? 's' : ''})
@@ -1077,6 +1094,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           {/* Current Loan Status */}
           <Card>
             <CardHeader>
+              <SectionNumberBadge id="11" label="Current Loan Status" className="mb-2" />
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
                 Current Loan Status
@@ -1194,6 +1212,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           {/* Loan Projection (1 Year) */}
           <Card>
             <CardHeader>
+              <SectionNumberBadge id="12" label="Loan Projection" className="mb-2" />
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="flex items-center gap-2">

@@ -7,6 +7,7 @@ import { Clock, CheckCircle, AlertCircle, DollarSign, Calendar, AlertTriangle } 
 import { Vehicle } from '@/types/user';
 import { VehicleFinancialData, Payment } from '@/hooks/useFirebaseData';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SectionNumberBadge } from './SectionNumberBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -239,7 +240,10 @@ export const RentTab: React.FC<RentTabProps> = ({
     <div className="space-y-4">
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Weekly Rent Collection</h3>
+          <div>
+            <SectionNumberBadge id="1" label="Weekly Rent Collection" className="mb-2" />
+            <h3 className="text-lg font-semibold">Weekly Rent Collection</h3>
+          </div>
           <Badge variant="outline">
             Driver: {vehicle.assignedDriverId || 'Not Assigned'}
           </Badge>
@@ -267,17 +271,19 @@ export const RentTab: React.FC<RentTabProps> = ({
 
         {/* Rent Collection Summary */}
         {vehicle.assignedDriverId && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <Card className="bg-green-50">
-              <CardContent className="p-4 text-center">
+          <div className="mb-6">
+            <SectionNumberBadge id="2" label="Rent Collection Summary" className="mb-2" />
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <Card className="bg-green-50">
+                <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
                   {firebasePayments.filter(p => p.vehicleId === vehicleId && p.status === 'paid').length}
                 </div>
                 <div className="text-sm text-green-700">Weeks Collected</div>
               </CardContent>
-            </Card>
-            <Card className="bg-blue-50">
-              <CardContent className="p-4 text-center">
+              </Card>
+              <Card className="bg-blue-50">
+                <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600">
                   ₹{firebasePayments
                     .filter(p => p.vehicleId === vehicleId && p.status === 'paid')
@@ -286,9 +292,9 @@ export const RentTab: React.FC<RentTabProps> = ({
                 </div>
                 <div className="text-sm text-blue-700">Total Collected</div>
               </CardContent>
-            </Card>
-            <Card className={`${rentSummary.totalOverdue > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
-              <CardContent className="p-4 text-center">
+              </Card>
+              <Card className={`${rentSummary.totalOverdue > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                <CardContent className="p-4 text-center">
                 <div className={`text-2xl font-bold ${rentSummary.totalOverdue > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                   ₹{rentSummary.totalOverdue.toLocaleString()}
                 </div>
@@ -296,9 +302,9 @@ export const RentTab: React.FC<RentTabProps> = ({
                   Total Overdue
                 </div>
               </CardContent>
-            </Card>
-            <Card className={`${rentSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
-              <CardContent className="p-4">
+              </Card>
+              <Card className={`${rentSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+                <CardContent className="p-4">
                 <div className="flex items-center justify-between h-full">
                   <div className="text-center flex-1">
                     <div className={`text-2xl font-bold ${rentSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
@@ -332,15 +338,16 @@ export const RentTab: React.FC<RentTabProps> = ({
                   )}
                 </div>
               </CardContent>
-            </Card>
-            <Card className="bg-purple-50">
-              <CardContent className="p-4 text-center">
+              </Card>
+              <Card className="bg-purple-50">
+                <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">
                   ₹{getCurrentAssignmentDetails()?.weeklyRent.toLocaleString() || '0'}
                 </div>
                 <div className="text-sm text-purple-700">Weekly Rate</div>
               </CardContent>
-            </Card>
+              </Card>
+            </div>
           </div>
         )}
 
@@ -380,6 +387,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                   {/* Assignment Info Header */}
                   <Card className="mb-4 bg-blue-50 border-blue-200">
                     <CardContent className="p-4">
+                      <SectionNumberBadge id="3" label="Assignment Period" className="mb-2" />
                       <div className="flex justify-between items-center">
                         <div>
                           <h4 className="font-semibold text-blue-900">Assignment Period</h4>
@@ -404,6 +412,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                   </Card>
 
                   {/* Rent Collection Grid - Based on Assignment Timeline */}
+                  <SectionNumberBadge id="4" label="Rent Collection Timeline" className="mb-2" />
                   <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                     {Array.from({ length: Math.min(totalWeeks, 52) }, (_, weekIndex) => {
                       // Calculate this week's dates based on assignment start date
@@ -545,6 +554,7 @@ export const RentTab: React.FC<RentTabProps> = ({
       <AlertDialog open={confirmPaymentDialog} onOpenChange={setConfirmPaymentDialog}>
         <AlertDialogContent className="max-w-2xl max-h-[75vh] overflow-y-auto">
           <AlertDialogHeader>
+            <SectionNumberBadge id="5" label="Overdue Payment Settlement" className="mb-2" />
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-500" />
               Overdue Payment Settlement

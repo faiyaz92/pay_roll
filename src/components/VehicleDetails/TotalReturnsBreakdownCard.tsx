@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface TotalReturnsBreakdownCardProps {
   vehicle: any;
@@ -18,6 +19,7 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
   return (
     <Card className="h-full">
       <CardHeader>
+        <SectionNumberBadge id="1" label="Total Returns Breakdown" className="mb-2" />
         <CardTitle className="text-lg flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-green-600" />
           Total Returns Breakdown
@@ -27,6 +29,7 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <SectionNumberBadge id="2" label="Return Components" className="mb-2" />
         <div className="flex justify-between">
           <span className="text-gray-600">Current Car Value:</span>
           <span className="font-medium text-green-600">+₹{(() => {
