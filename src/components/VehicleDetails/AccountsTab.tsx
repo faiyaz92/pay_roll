@@ -78,6 +78,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
   const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
 
+  // Confirmation dialogs for financial actions
+  const [confirmGstPaymentDialog, setConfirmGstPaymentDialog] = useState(false);
+  const [confirmServiceChargeDialog, setConfirmServiceChargeDialog] = useState(false);
+  const [confirmPartnerPaymentDialog, setConfirmPartnerPaymentDialog] = useState(false);
+  const [confirmOwnerShareDialog, setConfirmOwnerShareDialog] = useState(false);
+  const [confirmOwnerWithdrawalDialog, setConfirmOwnerWithdrawalDialog] = useState(false);
+  const [selectedMonthData, setSelectedMonthData] = useState<any>(null);
+
+  const formatCurrency = (value?: number | null) => (value ?? 0).toLocaleString();
+
   const financialData = useMemo(() => {
     if (!getVehicleFinancialData) {
       return null;
@@ -1498,7 +1508,14 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         <CardContent>
           <div className="flex flex-wrap gap-2 justify-center">
             <Button
-              onClick={() => handleCumulativeGstPayment()}
+              onClick={() => {
+                setSelectedMonthData({
+                  gstAmount: cumulativeData.totalGst,
+                  periodStr: `${selectedYear}-${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter}` : selectedMonth}`,
+                  monthName: 'Cumulative' // Indicates this is cumulative data
+                });
+                setConfirmGstPaymentDialog(true);
+              }}
               disabled={cumulativeData.totalGst === 0}
               variant="outline"
               size="sm"
@@ -1508,7 +1525,14 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               Pay GST ({cumulativeData.totalGst.toLocaleString()})
             </Button>
             <Button
-              onClick={() => handleCumulativeServiceChargeCollection()}
+              onClick={() => {
+                setSelectedMonthData({ 
+                  serviceCharge: cumulativeData.totalServiceCharge, 
+                  periodStr: `${selectedYear}-${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter}` : selectedMonth}`,
+                  monthName: 'Cumulative' // Indicates this is cumulative data
+                });
+                setConfirmServiceChargeDialog(true);
+              }}
               disabled={cumulativeData.totalServiceCharge === 0}
               variant="outline"
               size="sm"
@@ -1518,7 +1542,14 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               Collect Service Charges ({cumulativeData.totalServiceCharge.toLocaleString()})
             </Button>
             <Button
-              onClick={() => handleCumulativePartnerPayment()}
+              onClick={() => {
+                setSelectedMonthData({ 
+                  partnerShare: cumulativeData.totalPartnerShare, 
+                  periodStr: `${selectedYear}-${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter}` : selectedMonth}`,
+                  monthName: 'Cumulative' // Indicates this is cumulative data
+                });
+                setConfirmPartnerPaymentDialog(true);
+              }}
               disabled={cumulativeData.totalPartnerShare === 0}
               variant="outline"
               size="sm"
@@ -1587,7 +1618,15 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               Pay Overdue EMI (₹{emiSummary.totalDue.toLocaleString()})
             </Button>
             <Button
-              onClick={() => handleCumulativeOwnerShareCollection()}
+              onClick={() => {
+                const totalOwnerAmount = cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal;
+                setSelectedMonthData({ 
+                  ownerShare: totalOwnerAmount, 
+                  periodStr: `${selectedYear}-${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter}` : selectedMonth}`,
+                  monthName: 'Cumulative' // Indicates this is cumulative data
+                });
+                setConfirmOwnerShareDialog(true);
+              }}
               disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
               variant="outline"
               size="sm"
@@ -1735,7 +1774,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     ) : (
                       <Button
                         size="sm"
-                        onClick={() => handleGstPayment(monthData)}
+                        onClick={() => {
+                          setSelectedMonthData(monthData);
+                          setConfirmGstPaymentDialog(true);
+                        }}
                         disabled={monthData.gstAmount <= 0}
                       >
                         <CreditCard className="h-3 w-3 mr-1" />
@@ -1756,7 +1798,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleServiceChargeCollection(monthData)}
+                          onClick={() => {
+                            setSelectedMonthData(monthData);
+                            setConfirmServiceChargeDialog(true);
+                          }}
                           disabled={monthData.serviceCharge <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
@@ -1778,7 +1823,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handlePartnerPayment(monthData)}
+                          onClick={() => {
+                            setSelectedMonthData(monthData);
+                            setConfirmPartnerPaymentDialog(true);
+                          }}
                           disabled={monthData.partnerShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
@@ -1800,7 +1848,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleOwnerShareCollection(monthData)}
+                          onClick={() => {
+                            setSelectedMonthData(monthData);
+                            setConfirmOwnerShareDialog(true);
+                          }}
                           disabled={monthData.ownerShare <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
@@ -1822,7 +1873,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleOwnerWithdrawal(monthData)}
+                          onClick={() => {
+                            setSelectedMonthData(monthData);
+                            setConfirmOwnerWithdrawalDialog(true);
+                          }}
                           disabled={monthData.ownerFullShare <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
@@ -2168,6 +2222,553 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* GST Payment Confirmation Dialog */}
+      <AlertDialog open={confirmGstPaymentDialog} onOpenChange={setConfirmGstPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-500" />
+              Confirm GST Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700">
+                You are about to pay GST for <span className="font-semibold">{vehicle?.registrationNumber}</span> for the selected period.
+              </p>
+
+              {/* Month Breakdown */}
+              {selectedPeriod === 'quarter' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <p className="font-semibold text-blue-800 mb-2">Quarterly Breakdown (Q{selectedQuarter} {selectedYear}):</p>
+                  <div className="space-y-1 text-sm">
+                    {(() => {
+                      const quarterMonths = {
+                        '1': ['January', 'February', 'March'],
+                        '2': ['April', 'May', 'June'],
+                        '3': ['July', 'August', 'September'],
+                        '4': ['October', 'November', 'December']
+                      };
+                      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                      return months.map((monthName, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.gstAmount ?? 0) / 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total GST:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.gstAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'year' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <p className="font-semibold text-blue-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                  <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.gstAmount ?? 0) / 12)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total GST:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.gstAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'month' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-blue-800">
+                      {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} {selectedYear} GST:
+                    </span>
+                    <span className="font-bold text-blue-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.gstAmount)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* For cumulative data (no month breakdown needed) */}
+              {selectedMonthData && selectedMonthData.monthName && (
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-blue-800">
+                      Cumulative GST Payment ({selectedPeriod}):
+                    </span>
+                    <span className="font-bold text-blue-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.gstAmount)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                This action will record the GST payment and update the cash balance.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleGstPayment(selectedMonthData);
+                  setConfirmGstPaymentDialog(false);
+                  setSelectedMonthData(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Pay GST ₹{formatCurrency(selectedMonthData?.gstAmount)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Service Charge Collection Confirmation Dialog */}
+      <AlertDialog open={confirmServiceChargeDialog} onOpenChange={setConfirmServiceChargeDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              Confirm Service Charge Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700">
+                You are about to collect service charge from <span className="font-semibold">{vehicle?.registrationNumber}</span> for the selected period.
+              </p>
+
+              {/* Month Breakdown */}
+              {selectedPeriod === 'quarter' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-green-50 p-3 rounded-md">
+                  <p className="font-semibold text-green-800 mb-2">Quarterly Breakdown (Q{selectedQuarter} {selectedYear}):</p>
+                  <div className="space-y-1 text-sm">
+                    {(() => {
+                      const quarterMonths = {
+                        '1': ['January', 'February', 'March'],
+                        '2': ['April', 'May', 'June'],
+                        '3': ['July', 'August', 'September'],
+                        '4': ['October', 'November', 'December']
+                      };
+                      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                      return months.map((monthName, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Service Charge:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'year' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-green-50 p-3 rounded-md">
+                  <p className="font-semibold text-green-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                  <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 12)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Service Charge:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'month' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-green-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-800">
+                      {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} {selectedYear} Service Charge:
+                    </span>
+                    <span className="font-bold text-green-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.serviceCharge)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* For cumulative data (no month breakdown needed) */}
+              {selectedMonthData && selectedMonthData.monthName && (
+                <div className="bg-green-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-800">
+                      Cumulative Service Charge Collection ({selectedPeriod}):
+                    </span>
+                    <span className="font-bold text-green-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.serviceCharge)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                This action will collect the service charge as additional income and update the cash balance.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleServiceChargeCollection(selectedMonthData);
+                  setConfirmServiceChargeDialog(false);
+                  setSelectedMonthData(null);
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Collect ₹{formatCurrency(selectedMonthData?.serviceCharge)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Partner Payment Confirmation Dialog */}
+      <AlertDialog open={confirmPartnerPaymentDialog} onOpenChange={setConfirmPartnerPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-purple-500" />
+              Confirm Partner Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700">
+                You are about to pay partner share to <span className="font-semibold">{vehicle?.registrationNumber}</span> for the selected period.
+              </p>
+
+              {/* Month Breakdown */}
+              {selectedPeriod === 'quarter' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <p className="font-semibold text-purple-800 mb-2">Quarterly Breakdown (Q{selectedQuarter} {selectedYear}):</p>
+                  <div className="space-y-1 text-sm">
+                    {(() => {
+                      const quarterMonths = {
+                        '1': ['January', 'February', 'March'],
+                        '2': ['April', 'May', 'June'],
+                        '3': ['July', 'August', 'September'],
+                        '4': ['October', 'November', 'December']
+                      };
+                      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                      return months.map((monthName, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Partner Share:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'year' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <p className="font-semibold text-purple-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                  <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 12)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Partner Share:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'month' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-purple-800">
+                      {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} {selectedYear} Partner Share:
+                    </span>
+                    <span className="font-bold text-purple-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.partnerShare)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* For cumulative data (no month breakdown needed) */}
+              {selectedMonthData && selectedMonthData.monthName && (
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-purple-800">
+                      Cumulative Partner Payment ({selectedPeriod}):
+                    </span>
+                    <span className="font-bold text-purple-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.partnerShare)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                This action will pay the partner share and update the cash balance.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handlePartnerPayment(selectedMonthData);
+                  setConfirmPartnerPaymentDialog(false);
+                  setSelectedMonthData(null);
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Pay Partner ₹{formatCurrency(selectedMonthData?.partnerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Share Collection Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-indigo-500" />
+              Confirm Owner Share Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700">
+                You are about to collect owner share from <span className="font-semibold">{vehicle?.registrationNumber}</span> for the selected period.
+              </p>
+
+              {/* Month Breakdown */}
+              {selectedPeriod === 'quarter' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <p className="font-semibold text-indigo-800 mb-2">Quarterly Breakdown (Q{selectedQuarter} {selectedYear}):</p>
+                  <div className="space-y-1 text-sm">
+                    {(() => {
+                      const quarterMonths = {
+                        '1': ['January', 'February', 'March'],
+                        '2': ['April', 'May', 'June'],
+                        '3': ['July', 'August', 'September'],
+                        '4': ['October', 'November', 'December']
+                      };
+                      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                      return months.map((monthName, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerShare ?? 0) / 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Owner Share:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'year' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <p className="font-semibold text-indigo-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                  <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerShare ?? 0) / 12)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Owner Share:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'month' && selectedMonthData && !selectedMonthData.monthName && (
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-indigo-800">
+                      {new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} {selectedYear} Owner Share:
+                    </span>
+                    <span className="font-bold text-indigo-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.ownerShare)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* For cumulative data (no month breakdown needed) */}
+              {selectedMonthData && selectedMonthData.monthName && (
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-indigo-800">
+                      Cumulative Owner Share Collection ({selectedPeriod}):
+                    </span>
+                    <span className="font-bold text-indigo-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.ownerShare)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                This action will collect the owner share and update the cash balance.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleOwnerShareCollection(selectedMonthData);
+                  setConfirmOwnerShareDialog(false);
+                  setSelectedMonthData(null);
+                }
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              Collect ₹{formatCurrency(selectedMonthData?.ownerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Withdrawal Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerWithdrawalDialog} onOpenChange={setConfirmOwnerWithdrawalDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-orange-500" />
+              Confirm Owner Withdrawal
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700">
+                You are about to withdraw owner share from <span className="font-semibold">{vehicle?.registrationNumber}</span> for the selected period.
+              </p>
+
+              {/* Month Breakdown */}
+              {selectedPeriod === 'quarter' && selectedMonthData && (
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <p className="font-semibold text-orange-800 mb-2">Quarterly Breakdown (Q{selectedQuarter} {selectedYear}):</p>
+                  <div className="space-y-1 text-sm">
+                    {(() => {
+                      const quarterMonths = {
+                        '1': ['January', 'February', 'March'],
+                        '2': ['April', 'May', 'June'],
+                        '3': ['July', 'August', 'September'],
+                        '4': ['October', 'November', 'December']
+                      };
+                      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                      return months.map((monthName, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerFullShare ?? 0) / 3)}</span>
+                        </div>
+                      ));
+                    })()}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Owner Withdrawal:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.ownerFullShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'year' && selectedMonthData && (
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <p className="font-semibold text-orange-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                  <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span>{monthName} {selectedYear}:</span>
+                          <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerFullShare ?? 0) / 12)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                      <span>Total Owner Withdrawal:</span>
+                      <span>₹{formatCurrency(selectedMonthData?.ownerFullShare)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPeriod === 'month' && selectedMonthData && (
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-orange-800">
+                      {selectedMonthData.monthName} {selectedYear} Owner Withdrawal:
+                    </span>
+                    <span className="font-bold text-orange-700 text-lg">
+                      ₹{formatCurrency(selectedMonthData?.ownerFullShare)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                This action will withdraw the owner share and update the cash balance.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleOwnerWithdrawal(selectedMonthData);
+                  setConfirmOwnerWithdrawalDialog(false);
+                  setSelectedMonthData(null);
+                }
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Withdraw ₹{formatCurrency(selectedMonthData?.ownerFullShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };
