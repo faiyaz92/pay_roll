@@ -45,13 +45,15 @@ interface AssignmentDocumentUpload {
 
 interface AddAssignmentFormProps {
   onSuccess: () => void;
+  assignment?: Assignment | null;
+  mode?: 'add' | 'edit';
 }
 
-const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
+const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess, assignment = null, mode = 'add' }) => {
   const { userInfo } = useAuth();
   const { toast } = useToast();
   const { vehicles, drivers, updateVehicle } = useFirebaseData();
-  const { addAssignment } = useAssignments();
+  const { addAssignment, updateAssignment } = useAssignments();
   const { assignments } = useAssignments();
   
   const [activeTab, setActiveTab] = useState('basic');
@@ -87,17 +89,17 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
   const form = useForm<AssignmentFormData>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
-      vehicleId: '',
-      driverId: '',
-      startDate: new Date().toISOString().split('T')[0],
-      dailyRent: 500,
-      collectionDay: 1, // Monday
-      initialOdometer: 0,
-      securityDeposit: 5000,
-      agreementDuration: 12, // 12 months default
-      driverAddress: '',
-      emergencyContact: '',
-      specialTerms: '',
+      vehicleId: assignment?.vehicleId || '',
+      driverId: assignment?.driverId || '',
+      startDate: assignment?.startDate ? (assignment.startDate instanceof Date ? assignment.startDate.toISOString().split('T')[0] : new Date(assignment.startDate).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+      dailyRent: assignment?.dailyRent || 500,
+      collectionDay: assignment?.collectionDay ?? 1, // Monday
+      initialOdometer: assignment?.initialOdometer || 0,
+      securityDeposit: assignment?.securityDeposit || 5000,
+      agreementDuration: assignment?.agreementDuration || 12, // 12 months default
+      driverAddress: assignment?.driverAddress || '',
+      emergencyContact: assignment?.emergencyContact || '',
+      specialTerms: assignment?.specialTerms || '',
     },
   });
 
@@ -331,19 +333,23 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
         updatedAt: new Date().toISOString(),
       };
 
-      await addAssignment(assignmentData);
+      if (mode === 'edit' && assignment) {
+        await updateAssignment(assignment.id, assignmentData as Partial<Assignment>);
+      } else {
+        await addAssignment(assignmentData);
+      }
 
       // Update vehicle status to 'rented' and assign driver
       try {
-        await updateVehicle(data.vehicleId, {
-          status: 'rented',
-          assignedDriverId: data.driverId,
-          updatedAt: new Date().toISOString()
-        });
+        if (mode !== 'edit') {
+          await updateVehicle(data.vehicleId, {
+            status: 'rented',
+            assignedDriverId: data.driverId,
+            updatedAt: new Date().toISOString()
+          });
+        }
       } catch (vehicleError) {
         console.error('Failed to update vehicle status:', vehicleError);
-        // Assignment was created successfully, but vehicle status update failed
-        // This is not critical, so we'll just log it
       }
       
       toast({
@@ -352,7 +358,9 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess }) => {
       });
       
       // Reset form
-      form.reset();
+      if (mode === 'add') {
+        form.reset();
+      }
       setAssignmentDocs({
         agreement: null,
         vehicleHandover: null,

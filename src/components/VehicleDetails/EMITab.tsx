@@ -1,26 +1,43 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Vehicle } from '@/types/user';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface EMITabProps {
   vehicle: Vehicle;
   financialData: VehicleFinancialData;
   markEMIPaid: (index: number, emi: any) => void;
+  processEMIPayment?: (monthIndex: number, scheduleItem: any, penalty?: number, suppressToast?: boolean) => void;
 }
 
-export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid }) => {
+export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid, processEMIPayment }) => {
   const { toast } = useToast();
-
+  const [bulkPaymentDialog, setBulkPaymentDialog] = useState(false);
+  const [penaltyAmounts, setPenaltyAmounts] = useState<{[key: number]: string}>({});
+  const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
+  const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
   // Calculate overdue and due EMIs
   const emiSummary = useMemo(() => {
     if (!vehicle.loanDetails?.amortizationSchedule) {
-      return { overdueEMIs: [], dueSoonEMIs: [], totalOverdue: 0, totalDueSoon: 0, totalDue: 0 };
+      return { overdueEMIs: [], dueSoonEMIs: [], totalOverdue: 0, totalDueSoon: 0, totalDue: 0, allDueEMIs: [] };
     }
 
     const today = new Date();
@@ -29,6 +46,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
 
     const overdueEMIs: Array<{ index: number; emi: any; daysPastDue: number; amount: number }> = [];
     const dueSoonEMIs: Array<{ index: number; emi: any; daysUntilDue: number; amount: number }> = [];
+  const allDueEMIs: Array<{ index: number; emi: any; amount: number; daysPastDue?: number; daysUntilDue?: number }> = [];
 
     vehicle.loanDetails.amortizationSchedule.forEach((emi, index) => {
       if (emi.isPaid) return;
@@ -45,6 +63,12 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           daysPastDue: Math.abs(daysDiff),
           amount: emiAmount
         });
+        allDueEMIs.push({
+          index,
+          emi,
+          amount: emiAmount,
+          daysPastDue: Math.abs(daysDiff)
+        });
       } else if (daysDiff <= 3) {
         // Due soon (within 3 days)
         dueSoonEMIs.push({
@@ -53,6 +77,12 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           daysUntilDue: daysDiff,
           amount: emiAmount
         });
+        allDueEMIs.push({
+          index,
+          emi,
+          amount: emiAmount,
+          daysUntilDue: daysDiff
+        });
       }
     });
 
@@ -60,8 +90,149 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
     const totalDueSoon = dueSoonEMIs.reduce((sum, emi) => sum + emi.amount, 0);
     const totalDue = totalOverdue + totalDueSoon;
 
-    return { overdueEMIs, dueSoonEMIs, totalOverdue, totalDueSoon, totalDue };
+    return { overdueEMIs, dueSoonEMIs, totalOverdue, totalDueSoon, totalDue, allDueEMIs };
   }, [vehicle]);
+
+  const orderedDueEmiIndices = useMemo(
+    () => emiSummary.allDueEMIs.map(item => item.index),
+    [emiSummary.allDueEMIs]
+  );
+
+  useEffect(() => {
+    if (bulkPaymentDialog) {
+      if (orderedDueEmiIndices.length > 0) {
+        setSelectedEmiIndices(orderedDueEmiIndices);
+      } else {
+        setSelectedEmiIndices([]);
+      }
+    } else {
+      setSelectedEmiIndices([]);
+      setPenaltyAmounts({});
+    }
+  }, [bulkPaymentDialog, orderedDueEmiIndices]);
+
+  const selectedEmis = emiSummary.allDueEMIs.filter(emi => selectedEmiIndices.includes(emi.index));
+  const totalSelectedEmiAmount = selectedEmis.reduce((sum, emi) => sum + emi.amount, 0);
+  const totalSelectedPenalties = selectedEmis.reduce((sum, emi) => sum + (parseFloat(penaltyAmounts[emi.index]) || 0), 0);
+  const grandTotal = totalSelectedEmiAmount + totalSelectedPenalties;
+  const selectedCount = selectedEmiIndices.length;
+
+  const handleToggleEmiSelection = (emiIndex: number) => {
+    const orderedIndices = orderedDueEmiIndices;
+    const position = orderedIndices.indexOf(emiIndex);
+    if (position === -1) {
+      return;
+    }
+
+    const isSelected = selectedEmiIndices.includes(emiIndex);
+
+    if (!isSelected) {
+      // Selecting an EMI automatically includes all older due EMIs
+      setSelectedEmiIndices(orderedIndices.slice(0, position + 1));
+    } else {
+      // Unselecting drops this EMI and everything after it to keep the sequence
+      const retained = orderedIndices.slice(0, position);
+      setSelectedEmiIndices(retained);
+      setPenaltyAmounts(prev => {
+        const updated = { ...prev };
+        orderedIndices.slice(position).forEach(idx => {
+          if (updated[idx] !== undefined) {
+            delete updated[idx];
+          }
+        });
+        return updated;
+      });
+    }
+  };
+
+  const handleSelectAllEmis = () => {
+    if (orderedDueEmiIndices.length === 0) {
+      return;
+    }
+    setSelectedEmiIndices(orderedDueEmiIndices);
+  };
+
+  const handleBulkEMIPayment = async () => {
+    if (!processEMIPayment) {
+      toast({
+        title: 'Error',
+        description: 'Bulk payment functionality not available.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsProcessingBulkPayment(true);
+    let successCount = 0;
+    let totalAmount = 0;
+    
+    try {
+      const emisToProcess = emiSummary.allDueEMIs.filter(emi => selectedEmiIndices.includes(emi.index));
+
+      if (emisToProcess.length === 0) {
+        toast({
+          title: 'No EMIs Selected',
+          description: 'Select at least one EMI in sequence to process the payment.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Process each EMI payment sequentially - exactly like RentTab bulk collection
+      for (const emi of emisToProcess) {
+        const penalty = parseFloat(penaltyAmounts[emi.index]) || 0;
+        
+        try {
+          // Process the payment - same pattern as RentTab
+          await processEMIPayment(emi.index, emi.emi, penalty, true);
+          successCount++;
+          totalAmount += emi.amount + penalty;
+          
+          // Show progress toast for each payment
+          toast({
+            title: `EMI ${emi.emi.month} Paid ✅`,
+            description: `₹${(emi.amount + penalty).toLocaleString()} paid successfully.`,
+          });
+          
+          // Small delay between payments for better UX - same as RentTab (300ms)
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error processing EMI ${emi.emi.month}:`, error);
+          toast({
+            title: `Error on EMI ${emi.emi.month}`,
+            description: 'Failed to process this EMI payment.',
+            variant: 'destructive'
+          });
+          // Continue with next EMI even if one fails
+        }
+      }
+
+      // Final success message
+      if (successCount > 0) {
+        toast({
+          title: 'Bulk EMI Payment Completed! 🎉',
+          description: `Successfully paid ${successCount} of ${emisToProcess.length} selected EMIs totaling ₹${totalAmount.toLocaleString()}.`,
+        });
+      } else {
+        throw new Error('No payments were processed successfully');
+      }
+
+      // Reset dialog state
+      setBulkPaymentDialog(false);
+      setPenaltyAmounts({});
+      setSelectedEmiIndices([]);
+      
+    } catch (error) {
+      console.error('Error processing bulk EMI payment:', error);
+      toast({
+        title: 'Bulk Payment Failed',
+        description: `Only ${successCount} payments were processed. Please try again.`,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingBulkPayment(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -76,7 +247,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             </div>
             <div className="text-right">
               <Badge variant="outline" className="mb-2">
-                {vehicle.loanDetails.paidInstallments?.length || 0} of {vehicle.loanDetails.totalInstallments || 0} paid
+                {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0} of {vehicle.loanDetails.totalInstallments || 0} paid
               </Badge>
               <p className="text-sm text-gray-600">
                 Outstanding: ₹{financialData.outstandingLoan.toLocaleString()}
@@ -110,7 +281,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
-                  {vehicle.loanDetails.paidInstallments?.length || 0}
+                  {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0}
                 </div>
                 <div className="text-sm text-green-700">EMIs Paid</div>
               </CardContent>
@@ -134,19 +305,31 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
               </CardContent>
             </Card>
             <Card className={`${emiSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
-              <CardContent className="p-4 text-center">
-                <div className={`text-2xl font-bold ${emiSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
-                  ₹{emiSummary.totalDue.toLocaleString()}
-                </div>
-                <div className={`text-sm ${emiSummary.totalDue > 0 ? 'text-orange-700' : 'text-gray-700'}`}>
-                  Total Due Now
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between h-full">
+                  <div className="text-center flex-1">
+                    <div className={`text-2xl font-bold ${emiSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
+                      ₹{emiSummary.totalDue.toLocaleString()}
+                    </div>
+                    <div className={`text-sm ${emiSummary.totalDue > 0 ? 'text-orange-700' : 'text-gray-700'}`}>
+                      Total Due Now
+                    </div>
+                  </div>
+                  {emiSummary.totalDue > 0 && (
+                    <div 
+                      className="flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors h-full px-3 rounded-md ml-2"
+                      onClick={() => setBulkPaymentDialog(true)}
+                    >
+                      Pay
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-purple-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {((vehicle.loanDetails.paidInstallments?.length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
+                  {((vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / (vehicle.loanDetails.totalInstallments || 1) * 100).toFixed(0)}%
                 </div>
                 <div className="text-sm text-purple-700">Completed</div>
               </CardContent>
@@ -310,7 +493,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                 size="sm"
                 className="text-blue-700 border-blue-300"
                 onClick={() => {
-                  const paidCount = vehicle.loanDetails?.paidInstallments?.length || 0;
+                  const paidCount = vehicle.loanDetails?.amortizationSchedule?.filter(emi => emi.isPaid).length || 0;
                   const totalCount = vehicle.loanDetails?.totalInstallments || 0;
                   const completionPercentage = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0';
 
@@ -339,6 +522,158 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           </CardContent>
         </Card>
       )}
+
+      {/* Bulk EMI Payment Dialog */}
+      <AlertDialog open={bulkPaymentDialog} onOpenChange={setBulkPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Pay All Due EMIs
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                    <p className="font-semibold text-orange-800">
+                      Select Due EMIs (Oldest First)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-orange-700">
+                        Selected: {selectedCount} of {emiSummary.allDueEMIs.length} (₹{emiSummary.totalDue.toLocaleString()})
+                      </span>
+                      {emiSummary.allDueEMIs.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs border-orange-300 text-orange-700"
+                          onClick={handleSelectAllEmis}
+                          disabled={isProcessingBulkPayment}
+                        >
+                          Select All
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-orange-700">
+                    Choose consecutive EMIs starting from the oldest overdue instalment. Selecting a later EMI will automatically include every older due EMI.
+                  </p>
+                  <div className="mt-3 space-y-2 overflow-visible">
+                    {(() => {
+                      const dueEMIs = emiSummary.allDueEMIs;
+                      if (dueEMIs.length === 0) {
+                        return (
+                          <div className="bg-white border border-dashed border-orange-300 rounded p-3 text-sm text-orange-700">
+                            All EMIs are up to date. There is nothing pending right now.
+                          </div>
+                        );
+                      }
+
+                      return dueEMIs.map((emi) => {
+                        const isSelected = selectedEmiIndices.includes(emi.index);
+                        const checkboxId = `bulk-emi-${emi.index}`;
+                        const isOverdue = !!(emi.daysPastDue && emi.daysPastDue > 0);
+                        const isDueSoon = !isOverdue && typeof emi.daysUntilDue === 'number';
+
+                        return (
+                          <div
+                            key={emi.index}
+                            className={`bg-white border rounded p-3 transition-all ${isSelected ? 'border-orange-400 ring-1 ring-orange-400 shadow-sm' : 'border-orange-300'}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isSelected}
+                                onCheckedChange={() => handleToggleEmiSelection(emi.index)}
+                                disabled={isProcessingBulkPayment}
+                              />
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor={checkboxId} className="font-semibold text-orange-900 cursor-pointer">
+                                    EMI {emi.emi.month}
+                                  </label>
+                                  <span className="text-sm text-orange-600">
+                                    Due: {new Date(emi.emi.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-sm text-gray-600">
+                                    ₹{emi.amount.toLocaleString()}
+                                  </span>
+                                  {isOverdue && (
+                                    <div className="flex items-center gap-2">
+                                      <Label htmlFor={`penalty-${emi.index}`} className="text-xs text-red-600">
+                                        Penalty (₹):
+                                      </Label>
+                                      <Input
+                                        id={`penalty-${emi.index}`}
+                                        type="number"
+                                        placeholder="0"
+                                        className="w-20 h-7 text-xs"
+                                        value={penaltyAmounts[emi.index] || ''}
+                                        onChange={(e) => setPenaltyAmounts(prev => ({ ...prev, [emi.index]: e.target.value }))}
+                                        disabled={!isSelected || isProcessingBulkPayment}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                {isOverdue && (
+                                  <div className="text-xs text-red-600">
+                                    {emi.daysPastDue} days overdue
+                                  </div>
+                                )}
+                                {isDueSoon && (
+                                  <div className="text-xs text-amber-600">
+                                    Due in {emi.daysUntilDue === 0 ? 'today' : `${emi.daysUntilDue} day${emi.daysUntilDue === 1 ? '' : 's'}`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-orange-300 space-y-1">
+                    <div className="flex justify-between items-center font-bold text-orange-900">
+                      <span>Selected EMIs: {selectedCount} of {emiSummary.allDueEMIs.length}</span>
+                      <span>₹{totalSelectedEmiAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-red-700">
+                      <span>Selected Penalties:</span>
+                      <span>₹{totalSelectedPenalties.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center font-bold text-orange-900 pt-1 border-t border-orange-400">
+                      <span>Grand Total:</span>
+                      <span>₹{grandTotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <p className="text-xs text-yellow-700">
+                    <strong>Note:</strong> Selected EMIs will be paid sequentially from oldest to newest. Unselecting an EMI automatically clears all newer selections to keep the order intact.
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Do you want to proceed with this bulk payment?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingBulkPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkEMIPayment}
+              disabled={isProcessingBulkPayment || selectedCount === 0}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {isProcessingBulkPayment ? 'Processing...' : selectedCount > 0 ? `Pay ${selectedCount} EMI${selectedCount > 1 ? 's' : ''}` : 'Select EMIs to Pay'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

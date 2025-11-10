@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -42,25 +42,29 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 }) => {
   const [selectedItems, setSelectedItems] = useState<BulkPaymentItem[]>(items);
   const [emiPenalties, setEmiPenalties] = useState<Record<string, Record<number, string>>>({});
+  const [emiSelections, setEmiSelections] = useState<Record<string, number[]>>({});
+  const [rentSelections, setRentSelections] = useState<Record<string, number[]>>({});
+  const isEmi = paymentType === 'emi';
+  const isRent = paymentType === 'rent';
 
   // Update selected items when dialog opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       // Sort items by oldest overdue due date for smart selection
       let sortedItems = [...items];
-      if (paymentType === 'emi' || paymentType === 'rent') {
+      if (isEmi || isRent) {
         sortedItems.sort((a, b) => {
           let aDate: Date | null = null;
           let bDate: Date | null = null;
 
-          if (paymentType === 'emi') {
+          if (isEmi) {
             if (a.overdueEMIs && a.overdueEMIs.length > 0) {
               aDate = new Date(a.overdueEMIs[0].dueDate);
             }
             if (b.overdueEMIs && b.overdueEMIs.length > 0) {
               bDate = new Date(b.overdueEMIs[0].dueDate);
             }
-          } else if (paymentType === 'rent') {
+          } else if (isRent) {
             if (a.overdueWeeks && a.overdueWeeks.length > 0) {
               aDate = new Date(a.overdueWeeks[0].weekStartDate);
             }
@@ -79,59 +83,398 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
       setSelectedItems(sortedItems);
       // Initialize EMI penalties for each vehicle
-      if (paymentType === 'emi') {
+      if (isEmi) {
         const initialPenalties: Record<string, Record<number, string>> = {};
+        const initialSelections: Record<string, number[]> = {};
         sortedItems.forEach(item => {
-          if (item.overdueEMIs) {
+          if (item.overdueEMIs && item.overdueEMIs.length > 0) {
             initialPenalties[item.vehicleId] = {};
-            item.overdueEMIs.forEach(emi => {
-              initialPenalties[item.vehicleId][emi.monthIndex] = '0';
+            const orderedIndices = [...item.overdueEMIs]
+              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+              .map(emi => emi.monthIndex);
+
+            orderedIndices.forEach(index => {
+              initialPenalties[item.vehicleId][index] = '0';
             });
+
+            initialSelections[item.vehicleId] = orderedIndices;
           }
         });
         setEmiPenalties(initialPenalties);
+        setEmiSelections(initialSelections);
+        setRentSelections({});
+      } else if (isRent) {
+        const initialRentSelections: Record<string, number[]> = {};
+        sortedItems.forEach(item => {
+          if (item.overdueWeeks && item.overdueWeeks.length > 0) {
+            const orderedIndices = [...item.overdueWeeks]
+              .sort((a, b) => a.weekIndex - b.weekIndex)
+              .map(week => week.weekIndex);
+
+            if (orderedIndices.length > 0) {
+              initialRentSelections[item.vehicleId] = orderedIndices;
+            }
+          }
+        });
+        setRentSelections(initialRentSelections);
+        setEmiPenalties({});
+        setEmiSelections({});
+      } else {
+        setEmiPenalties({});
+        setEmiSelections({});
+        setRentSelections({});
       }
     }
   }, [isOpen, items, paymentType]);
 
   const handleItemToggle = (vehicleId: string) => {
+    const currentItem = selectedItems.find(item => item.vehicleId === vehicleId);
+    if (!currentItem) {
+      return;
+    }
+
+    const newChecked = !currentItem.checked;
+
     setSelectedItems(prev =>
       prev.map(item =>
         item.vehicleId === vehicleId
-          ? { ...item, checked: !item.checked }
+          ? { ...item, checked: newChecked }
+          : item
+      )
+    );
+
+    if (isEmi) {
+      const orderedIndices = currentItem.overdueEMIs
+        ? [...currentItem.overdueEMIs]
+            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+            .map(emi => emi.monthIndex)
+        : [];
+
+      if (newChecked) {
+        setEmiSelections(prev => ({
+          ...prev,
+          [vehicleId]: prev[vehicleId] && prev[vehicleId].length > 0 ? prev[vehicleId] : orderedIndices
+        }));
+        setEmiPenalties(prev => {
+          const existing = prev[vehicleId] || {};
+          const updatedVehicle: Record<number, string> = { ...existing };
+          orderedIndices.forEach(index => {
+            if (updatedVehicle[index] === undefined) {
+              updatedVehicle[index] = '0';
+            }
+          });
+          return {
+            ...prev,
+            [vehicleId]: updatedVehicle
+          };
+        });
+      } else {
+        setEmiSelections(prev => {
+          if (!prev[vehicleId]) return prev;
+          const updated = { ...prev };
+          delete updated[vehicleId];
+          return updated;
+        });
+        setEmiPenalties(prev => {
+          if (!prev[vehicleId]) return prev;
+          const updated = { ...prev };
+          delete updated[vehicleId];
+          return updated;
+        });
+      }
+    } else if (isRent) {
+      const orderedIndices = currentItem.overdueWeeks
+        ? [...currentItem.overdueWeeks]
+            .sort((a, b) => a.weekIndex - b.weekIndex)
+            .map(week => week.weekIndex)
+        : [];
+
+      if (newChecked) {
+        setRentSelections(prev => ({
+          ...prev,
+          [vehicleId]: prev[vehicleId] && prev[vehicleId].length > 0 ? prev[vehicleId] : orderedIndices
+        }));
+      } else {
+        setRentSelections(prev => {
+          if (!prev[vehicleId]) return prev;
+          const updated = { ...prev };
+          delete updated[vehicleId];
+          return updated;
+        });
+      }
+    }
+  };
+
+  const deriveSequentialSelection = (
+    targetIndex: number,
+    orderedIndices: number[],
+    currentSelection: number[]
+  ) => {
+    const position = orderedIndices.indexOf(targetIndex);
+    if (position === -1) {
+      return currentSelection;
+    }
+
+    const isSelected = currentSelection.includes(targetIndex);
+    const nextSelection = isSelected
+      ? orderedIndices.slice(0, position)
+      : orderedIndices.slice(0, position + 1);
+
+    if (
+      nextSelection.length === currentSelection.length &&
+      nextSelection.every((value, index) => value === currentSelection[index])
+    ) {
+      return currentSelection;
+    }
+
+    return nextSelection;
+  };
+
+  const getOrderedEmiIndices = (item: BulkPaymentItem) => {
+    if (!item.overdueEMIs || item.overdueEMIs.length === 0) {
+      return [];
+    }
+
+    return [...item.overdueEMIs]
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      .map(emi => emi.monthIndex);
+  };
+
+  const getOrderedRentIndices = (item: BulkPaymentItem) => {
+    if (!item.overdueWeeks || item.overdueWeeks.length === 0) {
+      return [];
+    }
+
+    return [...item.overdueWeeks]
+      .sort((a, b) => a.weekIndex - b.weekIndex)
+      .map(week => week.weekIndex);
+  };
+
+  const handleToggleVehicleEmi = (vehicleId: string, targetIndex: number, orderedIndices: number[]) => {
+    let computedSelection: number[] = [];
+
+    setEmiSelections(prev => {
+      const currentSelection = prev[vehicleId] || [];
+      const position = orderedIndices.indexOf(targetIndex);
+
+      if (position === -1) {
+        computedSelection = currentSelection;
+        return prev;
+      }
+
+      const isSelected = currentSelection.includes(targetIndex);
+      computedSelection = isSelected
+        ? orderedIndices.slice(0, position)
+        : orderedIndices.slice(0, position + 1);
+
+      const selectionUnchanged = computedSelection.length === currentSelection.length && computedSelection.every((value, idx) => value === currentSelection[idx]);
+      if (selectionUnchanged) {
+        return prev;
+      }
+
+      const updated = { ...prev };
+      if (computedSelection.length === 0) {
+        delete updated[vehicleId];
+      } else {
+        updated[vehicleId] = computedSelection;
+      }
+      return updated;
+    });
+
+    setEmiPenalties(prev => {
+      if (computedSelection.length === 0) {
+        if (!prev[vehicleId]) return prev;
+        const updated = { ...prev };
+        delete updated[vehicleId];
+        return updated;
+      }
+
+      const existing = prev[vehicleId] || {};
+      const updatedVehicle: Record<number, string> = {};
+      computedSelection.forEach(index => {
+        updatedVehicle[index] = existing[index] ?? '0';
+      });
+
+      return {
+        ...prev,
+        [vehicleId]: updatedVehicle
+      };
+    });
+
+    if (computedSelection.length === 0) {
+      setSelectedItems(prev =>
+        prev.map(item =>
+          item.vehicleId === vehicleId
+            ? { ...item, checked: false }
+            : item
+        )
+      );
+    } else {
+      setSelectedItems(prev =>
+        prev.map(item =>
+          item.vehicleId === vehicleId
+            ? { ...item, checked: true }
+            : item
+        )
+      );
+    }
+  };
+
+  const handleSelectAllEmisForVehicle = (vehicleId: string, orderedIndices: number[]) => {
+    if (orderedIndices.length === 0) {
+      return;
+    }
+
+    setEmiSelections(prev => ({
+      ...prev,
+      [vehicleId]: [...orderedIndices]
+    }));
+
+    setEmiPenalties(prev => {
+      const existing = prev[vehicleId] || {};
+      const updatedVehicle: Record<number, string> = { ...existing };
+      orderedIndices.forEach(index => {
+        if (updatedVehicle[index] === undefined) {
+          updatedVehicle[index] = '0';
+        }
+      });
+      return {
+        ...prev,
+        [vehicleId]: updatedVehicle
+      };
+    });
+
+    setSelectedItems(prev =>
+      prev.map(item =>
+        item.vehicleId === vehicleId
+          ? { ...item, checked: true }
           : item
       )
     );
   };
 
-  // Smart checkbox toggle - can only unselect from newest to oldest based on oldest overdue item
-  const handleSmartToggle = (itemIndex: number) => {
-    setSelectedItems(prev => {
-      const item = prev[itemIndex];
-      if (!item) return prev;
+  const handleToggleVehicleRent = (vehicleId: string, targetIndex: number, orderedIndices: number[]) => {
+    let computedSelection: number[] = [];
 
-      // If trying to uncheck, verify all items with newer oldest-overdue dates are already unchecked
-      if (item.checked) {
-        // Check if any item after this one in the sorted list is still checked
-        for (let i = itemIndex + 1; i < prev.length; i++) {
-          if (prev[i].checked) {
-            return prev; // Don't allow unchecking - there are items with newer oldest-overdue that are still checked
-          }
-        }
+    setRentSelections(prev => {
+      const currentSelection = prev[vehicleId] || [];
+      const nextSelection = deriveSequentialSelection(targetIndex, orderedIndices, currentSelection);
+      computedSelection = nextSelection;
+
+      if (nextSelection === currentSelection) {
+        return prev;
       }
 
-      // Toggle the checkbox
-      const newItems = [...prev];
-      newItems[itemIndex] = { ...item, checked: !item.checked };
-      return newItems;
+      const updated = { ...prev };
+      if (nextSelection.length === 0) {
+        delete updated[vehicleId];
+      } else {
+        updated[vehicleId] = nextSelection;
+      }
+      return updated;
     });
+
+    if (computedSelection.length === 0) {
+      setSelectedItems(prev =>
+        prev.map(item =>
+          item.vehicleId === vehicleId
+            ? { ...item, checked: false }
+            : item
+        )
+      );
+    } else {
+      setSelectedItems(prev =>
+        prev.map(item =>
+          item.vehicleId === vehicleId
+            ? { ...item, checked: true }
+            : item
+        )
+      );
+    }
+  };
+
+  const handleSelectAllRentWeeksForVehicle = (vehicleId: string, orderedIndices: number[]) => {
+    if (orderedIndices.length === 0) {
+      return;
+    }
+
+    setRentSelections(prev => ({
+      ...prev,
+      [vehicleId]: [...orderedIndices]
+    }));
+
+    setSelectedItems(prev =>
+      prev.map(item =>
+        item.vehicleId === vehicleId
+          ? { ...item, checked: true }
+          : item
+      )
+    );
   };
 
   const handleSelectAll = () => {
-    const allChecked = selectedItems.every(item => item.checked);
-    setSelectedItems(prev =>
-      prev.map(item => ({ ...item, checked: !allChecked }))
-    );
+    const areAllVehiclesFullySelected = selectedItems.every(item => {
+      if (!item.checked) {
+        return false;
+      }
+      if (isEmi) {
+        const orderedIndices = getOrderedEmiIndices(item);
+        const selection = emiSelections[item.vehicleId] || [];
+        return orderedIndices.length > 0 ? selection.length === orderedIndices.length : true;
+      }
+      if (isRent) {
+        const orderedIndices = getOrderedRentIndices(item);
+        const selection = rentSelections[item.vehicleId] || [];
+        return orderedIndices.length > 0 ? selection.length === orderedIndices.length : true;
+      }
+      return true;
+    });
+
+    if (areAllVehiclesFullySelected) {
+      setSelectedItems(prev => prev.map(item => ({ ...item, checked: false })));
+      if (isEmi) {
+        setEmiSelections({});
+        setEmiPenalties({});
+      }
+      if (isRent) {
+        setRentSelections({});
+      }
+      return;
+    }
+
+    setSelectedItems(prev => prev.map(item => ({ ...item, checked: true })));
+
+    if (isEmi) {
+      const updatedSelections: Record<string, number[]> = {};
+      const updatedPenalties: Record<string, Record<number, string>> = {};
+
+      selectedItems.forEach(item => {
+        const orderedIndices = getOrderedEmiIndices(item);
+        if (orderedIndices.length > 0) {
+          updatedSelections[item.vehicleId] = orderedIndices;
+          const existing = emiPenalties[item.vehicleId] || {};
+          const vehiclePenalties: Record<number, string> = {};
+          orderedIndices.forEach(index => {
+            vehiclePenalties[index] = existing[index] ?? '0';
+          });
+          updatedPenalties[item.vehicleId] = vehiclePenalties;
+        }
+      });
+
+      setEmiSelections(updatedSelections);
+      setEmiPenalties(updatedPenalties);
+    } else if (isRent) {
+      const updatedSelections: Record<string, number[]> = {};
+
+      selectedItems.forEach(item => {
+        const orderedIndices = getOrderedRentIndices(item);
+        if (orderedIndices.length > 0) {
+          updatedSelections[item.vehicleId] = orderedIndices;
+        }
+      });
+
+      setRentSelections(updatedSelections);
+    }
   };
 
   const handleEmiPenaltyChange = (vehicleId: string, monthIndex: number, penalty: string) => {
@@ -145,26 +488,141 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
   };
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-  const selectedCount = selectedItems.filter(item => item.checked).length;
 
-  const selectedTotal = selectedItems
-    .filter(item => item.checked)
-    .reduce((sum, item) => {
-      let itemTotal = item.amount;
-      if (paymentType === 'emi' && item.overdueEMIs) {
-        // Add penalties for EMI payments
-        const vehiclePenalties = emiPenalties[item.vehicleId] || {};
-        item.overdueEMIs.forEach(emi => {
-          const penalty = parseFloat(vehiclePenalties[emi.monthIndex] || '0') || 0;
-          itemTotal += penalty;
-        });
+  const selectedVehicleCount = selectedItems.reduce((count, item) => {
+    if (!item.checked) {
+      return count;
+    }
+    if (isEmi) {
+      const selection = emiSelections[item.vehicleId] || [];
+      return selection.length > 0 ? count + 1 : count;
+    }
+    if (isRent) {
+      const selection = rentSelections[item.vehicleId] || [];
+      return selection.length > 0 ? count + 1 : count;
+    }
+    return count + 1;
+  }, 0);
+
+  const selectedTotal = selectedItems.reduce((sum, item) => {
+    if (!item.checked) {
+      return sum;
+    }
+
+    if (isEmi && item.overdueEMIs) {
+      const selection = new Set(emiSelections[item.vehicleId] || []);
+      if (selection.size === 0) {
+        return sum;
       }
-      return sum + itemTotal;
-    }, 0);
+
+      const emiBase = item.overdueEMIs.reduce((emiSum, emi) => {
+        return selection.has(emi.monthIndex) ? emiSum + emi.emiAmount : emiSum;
+      }, 0);
+
+      const penaltySum = item.overdueEMIs.reduce((penSum, emi) => {
+        if (!selection.has(emi.monthIndex)) {
+          return penSum;
+        }
+        const penaltyValue = parseFloat(emiPenalties[item.vehicleId]?.[emi.monthIndex] || '0') || 0;
+        return penSum + penaltyValue;
+      }, 0);
+
+      return sum + emiBase + penaltySum;
+    }
+
+    if (isRent && item.overdueWeeks) {
+      const selection = new Set(rentSelections[item.vehicleId] || []);
+      if (selection.size === 0) {
+        return sum;
+      }
+
+      const rentSum = item.overdueWeeks.reduce((weekSum, week) => (
+        selection.has(week.weekIndex) ? weekSum + week.rentAmount : weekSum
+      ), 0);
+
+      return sum + rentSum;
+    }
+
+    return sum + item.amount;
+  }, 0);
 
   const handleConfirm = () => {
-    const confirmedItems = selectedItems.filter(item => item.checked);
-    onConfirm(confirmedItems, paymentType === 'emi' ? emiPenalties : undefined);
+    const confirmedItems = selectedItems
+      .filter(item => item.checked)
+      .map(item => {
+        if (isEmi && item.overdueEMIs) {
+          const selectionSet = new Set(emiSelections[item.vehicleId] || []);
+          const filteredEmis = item.overdueEMIs.filter(emi => selectionSet.has(emi.monthIndex));
+          const recalculatedAmount = filteredEmis.reduce((sum, emi) => sum + emi.emiAmount, 0);
+
+          return {
+            ...item,
+            amount: recalculatedAmount,
+            overdueEMIs: filteredEmis
+          };
+        }
+
+        if (isRent && item.overdueWeeks) {
+          const selectionSet = new Set(rentSelections[item.vehicleId] || []);
+          const filteredWeeks = item.overdueWeeks.filter(week => selectionSet.has(week.weekIndex));
+          const recalculatedAmount = filteredWeeks.reduce((sum, week) => sum + week.rentAmount, 0);
+
+          return {
+            ...item,
+            amount: recalculatedAmount,
+            overdueWeeks: filteredWeeks
+          };
+        }
+
+        return item;
+      })
+      .filter(item => {
+        if (isEmi) {
+          return !!item.overdueEMIs && item.overdueEMIs.length > 0;
+        }
+        if (isRent) {
+          return !!item.overdueWeeks && item.overdueWeeks.length > 0;
+        }
+        return true;
+      });
+
+    if (confirmedItems.length === 0) {
+      return;
+    }
+
+    let filteredPenalties: Record<string, Record<number, string>> | undefined;
+
+    if (isEmi) {
+      filteredPenalties = {};
+
+      confirmedItems.forEach(item => {
+        if (!item.overdueEMIs) {
+          return;
+        }
+
+        const selectionSet = new Set(emiSelections[item.vehicleId] || []);
+        if (selectionSet.size === 0) {
+          return;
+        }
+
+        const vehiclePenalties = emiPenalties[item.vehicleId] || {};
+        const filteredVehiclePenalties: Record<number, string> = {};
+
+        selectionSet.forEach(index => {
+          filteredVehiclePenalties[index] = vehiclePenalties[index] ?? '0';
+        });
+
+        if (Object.keys(filteredVehiclePenalties).length > 0) {
+          filteredPenalties![item.vehicleId] = filteredVehiclePenalties;
+        }
+      });
+
+      if (filteredPenalties && Object.keys(filteredPenalties).length === 0) {
+        filteredPenalties = undefined;
+      }
+    }
+
+    onConfirm(confirmedItems, filteredPenalties);
   };
 
   const getPaymentTypeLabel = () => {
@@ -194,15 +652,15 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
         <div className="space-y-4">
           {/* Alert for EMI/Rent oldest-first settlement */}
-          {(paymentType === 'emi' || paymentType === 'rent') && (
+          {(isEmi || isRent) && (
             <Card className="border-orange-200 bg-orange-50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <div className="text-sm text-orange-800">
-                    <strong>Important:</strong> {paymentType === 'emi' ? 'EMI' : 'Rent'} payments will automatically settle the oldest overdue {paymentType === 'emi' ? 'EMI' : 'week'} first for each vehicle. 
-                    Vehicles are sorted by their oldest overdue due date. You can only unselect vehicles starting from those with newer oldest-overdue dates. 
-                    If you unselect a vehicle with an older oldest-overdue date, all {paymentType === 'emi' ? 'EMIs' : 'rent weeks'} for that vehicle will be skipped.
+                    <strong>Important:</strong> {isEmi
+                      ? 'EMI payments always settle the oldest unpaid installment first for each vehicle. You can select or deselect any vehicle, but inside a vehicle later EMIs automatically include every older due EMI.'
+                      : 'Rent payments settle overdue weeks oldest-first for each vehicle. Feel free to select or deselect any vehicle before confirming the collection.'}
                   </div>
                 </div>
               </CardContent>
@@ -228,7 +686,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {selectedCount}/{items.length}
+                    {selectedVehicleCount}/{items.length}
                   </div>
                   <div className="text-sm text-gray-600">Selected Vehicles</div>
                 </div>
@@ -251,32 +709,25 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           {/* Vehicle Breakdown */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Vehicle Breakdown</h3>
-            {selectedItems.map((item, index) => (
+            {selectedItems.map(item => (
               <Card key={item.vehicleId} className={`transition-all ${item.checked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={item.checked}
-                        onCheckedChange={() => {
-                          if (paymentType === 'emi' || paymentType === 'rent') {
-                            // Use smart toggle for EMI/Rent payments
-                            handleSmartToggle(index);
-                          } else {
-                            handleItemToggle(item.vehicleId);
-                          }
-                        }}
+                        onCheckedChange={() => handleItemToggle(item.vehicleId)}
                       />
                       <div>
                         <h4 className="font-medium">{item.vehicleName}</h4>
                         <p className="text-sm text-gray-600">
                           {getPaymentTypeLabel()}: ₹{item.amount.toLocaleString()}
-                          {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (
+                          {isEmi && item.overdueEMIs && item.overdueEMIs.length > 0 && (
                             <span className="ml-2 text-red-600 font-medium">
                               ({item.overdueEMIs.length} overdue EMI{item.overdueEMIs.length > 1 ? 's' : ''})
                             </span>
                           )}
-                          {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (
+                          {isRent && item.overdueWeeks && item.overdueWeeks.length > 0 && (
                             <span className="ml-2 text-red-600 font-medium">
                               ({item.overdueWeeks.length} overdue week{item.overdueWeeks.length > 1 ? 's' : ''})
                             </span>
@@ -312,75 +763,238 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                     </div>
                   )}
 
-                  {/* EMI Details with Penalty Inputs */}
-                  {paymentType === 'emi' && item.overdueEMIs && item.overdueEMIs.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Overdue EMIs & Penalties:</p>
-                      <div className="space-y-2">
-                        {item.overdueEMIs.map((emi, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
-                            <div>
-                              <div className="text-sm font-medium">Month {emi.monthIndex + 1}</div>
-                              <div className="text-xs text-gray-600">Due: {new Date(emi.dueDate).toLocaleDateString()}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-right">
-                                <div className="text-sm font-medium">₹{emi.emiAmount.toLocaleString()}</div>
-                                <div className="text-xs text-gray-600">EMI Amount</div>
-                              </div>
-                              <div className="w-20">
-                                <Label htmlFor={`penalty-${item.vehicleId}-${emi.monthIndex}`} className="text-xs">Penalty</Label>
-                                <Input
-                                  id={`penalty-${item.vehicleId}-${emi.monthIndex}`}
-                                  type="number"
-                                  placeholder="0"
-                                  value={emiPenalties[item.vehicleId]?.[emi.monthIndex] || '0'}
-                                  onChange={(e) => handleEmiPenaltyChange(item.vehicleId, emi.monthIndex, e.target.value)}
-                                  className="h-8 text-xs"
-                                  min="0"
-                                  step="0.01"
-                                />
-                              </div>
-                            </div>
+                  {/* EMI Details with Sequential Selection */}
+                  {isEmi && item.overdueEMIs && item.overdueEMIs.length > 0 && (() => {
+                    const sortedEmis = [...item.overdueEMIs].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+                    const orderedIndices = sortedEmis.map(emi => emi.monthIndex);
+                    const selectedIndices = new Set(emiSelections[item.vehicleId] || []);
+                    const vehicleSelectedCount = selectedIndices.size;
+                    const vehicleTotalSelectedAmount = sortedEmis.reduce((emiSum, emi) => {
+                      return selectedIndices.has(emi.monthIndex) ? emiSum + emi.emiAmount : emiSum;
+                    }, 0);
+                    const vehicleTotalPenalty = sortedEmis.reduce((penSum, emi) => {
+                      if (!selectedIndices.has(emi.monthIndex)) {
+                        return penSum;
+                      }
+                      return penSum + (parseFloat(emiPenalties[item.vehicleId]?.[emi.monthIndex] || '0') || 0);
+                    }, 0);
+
+                    return (
+                      <div className="mt-3 pt-3 border-t space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Overdue EMIs</p>
+                            <p className="text-xs text-gray-500">
+                              {vehicleSelectedCount} of {orderedIndices.length} EMI{orderedIndices.length > 1 ? 's' : ''} selected
+                            </p>
                           </div>
-                        ))}
+                          {vehicleSelectedCount < orderedIndices.length && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSelectAllEmisForVehicle(item.vehicleId, orderedIndices)}
+                            >
+                              Select Oldest Sequence
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="rounded border border-dashed border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                          Selecting a later EMI automatically includes every older unpaid EMI for this vehicle. Deselecting one clears newer selections to keep payments in order.
+                        </div>
+
+                        <div className="space-y-2">
+                          {sortedEmis.map(emi => {
+                            const isSelected = selectedIndices.has(emi.monthIndex);
+                            const dueDate = new Date(emi.dueDate);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                            let statusText = '';
+                            let statusColor = 'text-gray-500';
+
+                            if (daysDiff < 0) {
+                              statusText = `${Math.abs(daysDiff)} day${Math.abs(daysDiff) === 1 ? '' : 's'} overdue`;
+                              statusColor = 'text-red-600';
+                            } else if (daysDiff === 0) {
+                              statusText = 'Due Today';
+                              statusColor = 'text-yellow-600';
+                            } else if (daysDiff <= 3) {
+                              statusText = `${daysDiff} day${daysDiff === 1 ? '' : 's'} left`;
+                              statusColor = 'text-yellow-600';
+                            } else {
+                              statusText = `Due ${dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+                            }
+
+                            return (
+                              <div
+                                key={`${item.vehicleId}-${emi.monthIndex}`}
+                                className={`flex items-center gap-3 rounded border p-3 ${isSelected ? 'border-orange-300 bg-orange-50' : 'border-gray-200'}`}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => handleToggleVehicleEmi(item.vehicleId, emi.monthIndex, orderedIndices)}
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium">EMI {emi.monthIndex + 1}</div>
+                                  <div className={`text-xs ${statusColor}`}>{statusText}</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <div className="text-sm font-medium">₹{emi.emiAmount.toLocaleString()}</div>
+                                    <div className="text-xs text-gray-600">EMI Amount</div>
+                                  </div>
+                                  <div className="w-20">
+                                    <Label htmlFor={`penalty-${item.vehicleId}-${emi.monthIndex}`} className="text-xs">Penalty</Label>
+                                    <Input
+                                      id={`penalty-${item.vehicleId}-${emi.monthIndex}`}
+                                      type="number"
+                                      placeholder="0"
+                                      value={emiPenalties[item.vehicleId]?.[emi.monthIndex] || '0'}
+                                      onChange={(e) => handleEmiPenaltyChange(item.vehicleId, emi.monthIndex, e.target.value)}
+                                      className="h-8 text-xs"
+                                      min="0"
+                                      step="0.01"
+                                      disabled={!isSelected}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                          <span>Selected Total</span>
+                          <span>
+                            ₹{(vehicleSelectedCount === 0 ? 0 : vehicleTotalSelectedAmount + vehicleTotalPenalty).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Rent Week Details */}
-                  {paymentType === 'rent' && item.overdueWeeks && item.overdueWeeks.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Overdue Rent Weeks:</p>
-                      <div className="space-y-2">
-                        {item.overdueWeeks.map((week, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
-                            <div>
-                              <div className="text-sm font-medium">Week {week.weekIndex + 1}</div>
-                              <div className="text-xs text-gray-600">Start: {new Date(week.weekStartDate).toLocaleDateString()}</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-medium">₹{week.rentAmount.toLocaleString()}</div>
-                              <div className="text-xs text-gray-600">Weekly Rent</div>
-                            </div>
+                  {isRent && item.overdueWeeks && item.overdueWeeks.length > 0 && (() => {
+                    const orderedWeeks = [...item.overdueWeeks].sort((a, b) => a.weekIndex - b.weekIndex);
+                    const orderedIndices = orderedWeeks.map(week => week.weekIndex);
+                    const selectedIndices = new Set(rentSelections[item.vehicleId] || []);
+                    const vehicleSelectedCount = selectedIndices.size;
+                    const vehicleSelectedTotal = orderedWeeks.reduce((weekSum, week) => (
+                      selectedIndices.has(week.weekIndex) ? weekSum + week.rentAmount : weekSum
+                    ), 0);
+
+                    return (
+                      <div className="mt-3 pt-3 border-t space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Due Rent Weeks</p>
+                            <p className="text-xs text-gray-500">
+                              {vehicleSelectedCount} of {orderedIndices.length} week{orderedIndices.length > 1 ? 's' : ''} selected
+                            </p>
                           </div>
-                        ))}
+                          {vehicleSelectedCount < orderedIndices.length && orderedIndices.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSelectAllRentWeeksForVehicle(item.vehicleId, orderedIndices)}
+                            >
+                              Select Oldest Sequence
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="rounded border border-dashed border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                          Selecting a later week automatically includes every older unpaid week for this vehicle. Deselecting one clears newer selections to keep collections in order.
+                        </div>
+
+                        <div className="space-y-2">
+                          {orderedWeeks.map(week => {
+                            const isSelected = selectedIndices.has(week.weekIndex);
+                            const startDate = new Date(week.weekStartDate);
+                            startDate.setHours(0, 0, 0, 0);
+                            const endDate = new Date(startDate);
+                            endDate.setDate(endDate.getDate() + 6);
+
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            const isPastWeek = endDate < today;
+                            const isCurrentWeek = startDate <= today && today <= endDate;
+
+                            let badgeLabel = 'Upcoming';
+                            let badgeClasses = 'border-gray-200 bg-gray-100 text-gray-600';
+                            let statusText = startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+                            if (isPastWeek) {
+                              const daysOverdue = Math.max(1, Math.ceil((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)));
+                              badgeLabel = 'Overdue';
+                              badgeClasses = 'border-red-200 bg-red-100 text-red-700';
+                              statusText = `${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`;
+                            } else if (isCurrentWeek) {
+                              const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+                              badgeLabel = 'Due Now';
+                              badgeClasses = 'border-amber-200 bg-amber-100 text-amber-700';
+                              statusText = daysLeft === 0 ? 'Due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`;
+                            }
+
+                            return (
+                              <div
+                                key={week.weekIndex}
+                                className={`flex items-start gap-3 rounded border p-3 transition-all ${
+                                  isSelected ? 'border-orange-300 bg-orange-50 ring-1 ring-orange-200' : 'border-gray-200 bg-white'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => handleToggleVehicleRent(item.vehicleId, week.weekIndex, orderedIndices)}
+                                  className="mt-1 rounded-full border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                                />
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="font-semibold text-gray-900">Week {week.weekIndex + 1}</span>
+                                    <span className="text-sm font-semibold text-gray-700">
+                                      ₹{week.rentAmount.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                                    <span>
+                                      {startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} –
+                                      {' '}
+                                      {endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                    <Badge variant="outline" className={`border ${badgeClasses}`}>
+                                      {badgeLabel}
+                                    </Badge>
+                                    <span className="text-gray-500">{statusText}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                          <span>Selected Total</span>
+                          <span>₹{(vehicleSelectedCount === 0 ? 0 : vehicleSelectedTotal).toLocaleString()}</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </CardContent>
               </Card>
             ))}
           </div>
 
           {/* Warning for unselected items */}
-          {selectedCount < items.length && (
+          {selectedVehicleCount < items.length && (
             <Card className="border-yellow-200 bg-yellow-50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-yellow-600" />
                   <p className="text-sm text-yellow-800">
-                    {items.length - selectedCount} vehicle(s) will not be processed. Only selected vehicles will have their {getPaymentTypeLabel().toLowerCase()} payments recorded.
+                    {items.length - selectedVehicleCount} vehicle(s) will not be processed. Only selected vehicles will have their {getPaymentTypeLabel().toLowerCase()} payments recorded.
                   </p>
                 </div>
               </CardContent>
@@ -394,7 +1008,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={selectedCount === 0 || isLoading}
+            disabled={selectedVehicleCount === 0 || isLoading}
             className="min-w-32"
           >
             {isLoading ? 'Processing...' : `Pay ₹${selectedTotal.toLocaleString()}`}

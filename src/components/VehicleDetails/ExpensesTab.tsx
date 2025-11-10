@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Fuel, Settings, Shield, CreditCard, Banknote, DollarSign, Plus, AlertCircle } from 'lucide-react';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
+import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
 
 interface ExpenseData {
   totalExpenses: number;
@@ -30,13 +31,19 @@ interface ExpensesTabProps {
   financialData: VehicleFinancialData;
   addExpenseDialogOpen: boolean;
   setAddExpenseDialogOpen: (open: boolean) => void;
+  addInsuranceDialogOpen: boolean;
+  setAddInsuranceDialogOpen: (open: boolean) => void;
+  onInsuranceAdded?: () => void;
 }
 
 export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   expenseData,
   financialData,
   addExpenseDialogOpen,
-  setAddExpenseDialogOpen
+  setAddExpenseDialogOpen,
+  addInsuranceDialogOpen,
+  setAddInsuranceDialogOpen,
+  onInsuranceAdded
 }) => {
   return (
     <div className="space-y-4">
@@ -48,14 +55,24 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
               Track fuel, maintenance, and other vehicle-related expenses
             </p>
           </div>
-          <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Expense
-              </Button>
-            </DialogTrigger>
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Expense
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+            <Dialog open={addInsuranceDialogOpen} onOpenChange={setAddInsuranceDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Insurance
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
         </div>
 
         {/* Expense Summary Cards */}
@@ -361,6 +378,24 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Insurance Dialog */}
+      <Dialog open={addInsuranceDialogOpen} onOpenChange={setAddInsuranceDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Add Insurance Record
+            </DialogTitle>
+          </DialogHeader>
+          <AddInsuranceRecordForm
+            onSuccess={() => {
+              setAddInsuranceDialogOpen(false);
+              onInsuranceAdded?.();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

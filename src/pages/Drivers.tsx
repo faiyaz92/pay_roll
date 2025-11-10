@@ -8,11 +8,15 @@ import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye } from 'lucide-r
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddDriverForm from '@/components/Forms/AddDriverForm';
 import { useDrivers, useFirebaseData } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
+import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 
 const Drivers: React.FC = () => {
   const navigate = useNavigate();
   const { drivers, loading, addDriver, updateDriver, deleteDriver } = useDrivers();
   const { assignments, vehicles } = useFirebaseData();
+  const { userInfo } = useAuth();
+  const paths = useFirestorePaths(userInfo?.companyId);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editDriver, setEditDriver] = useState(null);
@@ -41,7 +45,17 @@ const Drivers: React.FC = () => {
   console.log('drivers length:', drivers?.length);
   console.log('drivers type:', typeof drivers);
   console.log('drivers array check:', Array.isArray(drivers));
+  console.log('Company ID:', userInfo?.companyId);
   console.log('=== END DEBUG INFO ===');
+
+  const getDriverAssignments = (driverId: string) => {
+    return assignments.filter(a => a.driverId === driverId && a.status === 'active');
+  };
+
+  const getDriverWeeklyRent = (driverId: string) => {
+    const driverAssignments = getDriverAssignments(driverId);
+    return driverAssignments.reduce((total, assignment) => total + assignment.weeklyRent, 0);
+  };
 
   // Sort drivers to show actively engaged drivers first
   const sortedDrivers = [...drivers].sort((a, b) => {
@@ -62,42 +76,21 @@ const Drivers: React.FC = () => {
 
   // Debug Firestore paths
   useEffect(() => {
-    const debugPaths = async () => {
-      try {
-        const { useFirestorePaths } = await import('@/hooks/useFirestorePaths');
-        const { useAuth } = await import('@/contexts/AuthContext');
-        
-        const authContext = useAuth();
-        const paths = useFirestorePaths(authContext.userInfo?.companyId);
-        const path = paths.getUsersPath();
-        console.log('=== FIRESTORE PATH DEBUG ===');
-        console.log('Firestore path being used for drivers:', path);
-        console.log('Company ID:', authContext.userInfo?.companyId);
-        console.log('=== END PATH DEBUG ===');
-      } catch (error) {
-        console.error('Error getting path:', error);
-      }
-    };
-    debugPaths();
-  }, []);
+    if (!userInfo?.companyId) {
+      console.warn('Drivers: companyId missing for Firestore path debug');
+      return;
+    }
 
-  const getDriverAssignments = (driverId: string) => {
-    return assignments.filter(a => a.driverId === driverId && a.status === 'active');
-  };
-
-  const getDriverWeeklyRent = (driverId: string) => {
-    const driverAssignments = getDriverAssignments(driverId);
-    return driverAssignments.reduce((total, assignment) => total + assignment.weeklyRent, 0);
-  };
+    const usersPath = paths.getUsersPath();
+    console.log('=== FIRESTORE PATH DEBUG ===');
+    console.log('Firestore path being used for drivers:', usersPath);
+    console.log('Company ID:', userInfo.companyId);
+    console.log('=== END PATH DEBUG ===');
+  }, [paths, userInfo?.companyId]);
 
   const getStatusBadge = (driver: any) => {
     if (!driver.isActive) {
       return <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>;
-    }
-    
-    const activeAssignments = getDriverAssignments(driver.id);
-    if (activeAssignments.length > 0) {
-      return <Badge className="bg-blue-100 text-blue-800">On Assignment</Badge>;
     }
     
     return <Badge className="bg-green-100 text-green-800">Available</Badge>;
@@ -111,15 +104,9 @@ const Drivers: React.FC = () => {
   const addTestDriver = async () => {
     console.log('=== ADD TEST DRIVER STARTED ===');
     try {
-      const { useAuth } = await import('@/contexts/AuthContext');
-      const { useDrivers } = await import('@/hooks/useFirebaseData');
-      
-      // Get current user info
-      const authContext = useAuth();
-      console.log('Auth context:', authContext);
-      console.log('Current user info:', authContext.userInfo);
-      console.log('Company ID:', authContext.userInfo?.companyId);
-      
+      console.log('Current user info:', userInfo);
+      console.log('Company ID:', userInfo?.companyId);
+
       const testDriverData = {
         name: 'Test Driver Debug',
         email: 'testdriver@example.com',
@@ -130,7 +117,7 @@ const Drivers: React.FC = () => {
         totalWeeklyRent: 0,
         joinDate: new Date().toISOString(),
         isActive: true,
-        companyId: authContext.userInfo?.companyId || 'test-company-123',
+        companyId: userInfo?.companyId || 'test-company-123',
         userType: 'Driver',
         documents: {
           drivingLicense: null,
@@ -143,16 +130,13 @@ const Drivers: React.FC = () => {
       };
 
       console.log('Test driver data to save:', testDriverData);
-      
-      // Use addDriver from useFirebaseData
+
       const result = await addDriver(testDriverData);
       console.log('Test driver save result:', result);
       console.log('=== ADD TEST DRIVER COMPLETED ===');
-      
     } catch (error) {
       console.error('=== ADD TEST DRIVER ERROR ===');
       console.error('Error adding test driver:', error);
-      console.error('Error details:', error);
     }
   };
 
@@ -162,20 +146,19 @@ const Drivers: React.FC = () => {
     try {
       const { collection, getDocs, query, where } = await import('firebase/firestore');
       const { firestore } = await import('@/config/firebase');
-      const { useFirestorePaths } = await import('@/hooks/useFirestorePaths');
-      const { useAuth } = await import('@/contexts/AuthContext');
-      
-      const authContext = useAuth();
-      const paths = useFirestorePaths(authContext.userInfo?.companyId);
+
       const usersPath = paths.getUsersPath();
-      
+      if (!usersPath) {
+        console.warn('Drivers: cannot run Firestore check without a valid users path.');
+        return;
+      }
+
       console.log('Checking Firestore path:', usersPath);
-      console.log('Company ID used:', authContext.userInfo?.companyId);
-      
-      // Get all documents in the users collection
+      console.log('Company ID used:', userInfo?.companyId);
+
       const usersRef = collection(firestore, usersPath);
       const allDocsSnapshot = await getDocs(usersRef);
-      
+
       console.log('Total documents in users collection:', allDocsSnapshot.docs.length);
       allDocsSnapshot.docs.forEach((doc, index) => {
         const data = doc.data();
@@ -187,11 +170,10 @@ const Drivers: React.FC = () => {
           data: data
         });
       });
-      
-      // Query specifically for drivers
+
       const driversQuery = query(usersRef, where('userType', '==', 'Driver'));
       const driversSnapshot = await getDocs(driversQuery);
-      
+
       console.log('Documents with userType=Driver:', driversSnapshot.docs.length);
       driversSnapshot.docs.forEach((doc, index) => {
         const data = doc.data();
@@ -202,9 +184,8 @@ const Drivers: React.FC = () => {
           userType: data.userType
         });
       });
-      
+
       console.log('=== FIRESTORE DIRECT CHECK COMPLETED ===');
-      
     } catch (error) {
       console.error('=== FIRESTORE DIRECT CHECK ERROR ===');
       console.error('Error checking Firestore directly:', error);

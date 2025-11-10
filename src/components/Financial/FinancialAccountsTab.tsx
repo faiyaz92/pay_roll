@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, addDoc, doc, updateDoc, onSnapshot, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, setDoc, onSnapshot, increment, getDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 import BulkPaymentDialog from './BulkPaymentDialog';
@@ -394,7 +394,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   setAccountingTransactions
 }) => {
   const { userInfo } = useAuth();
-  const { vehicles, assignments, payments } = useFirebaseData();
+  const { vehicles, assignments, payments, addExpense } = useFirebaseData();
   const navigate = useNavigate();
   const [vehicleCashBalances, setVehicleCashBalances] = useState<Record<string, number>>({});
 
@@ -409,7 +409,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   // EMI payment dialog state
   const [emiDialogOpen, setEmiDialogOpen] = useState(false);
   const [selectedVehicleForEMI, setSelectedVehicleForEMI] = useState<any>(null);
-  const [selectedEMIs, setSelectedEMIs] = useState<Set<number>>(new Set());
+  const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
   const [isProcessingEMI, setIsProcessingEMI] = useState(false);
 
   // Penalty dialog state for individual EMI payments
@@ -430,10 +430,152 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [rentViewAllDialog, setRentViewAllDialog] = useState(false);
   const [selectedVehicleForRent, setSelectedVehicleForRent] = useState<any>(null);
 
+  // Rent Overdue Dialog state (similar to EMI)
+  const [rentDialogOpen, setRentDialogOpen] = useState(false);
+  const [selectedVehicleForRentOverdue, setSelectedVehicleForRentOverdue] = useState<any>(null);
+  const [selectedRentWeekIndices, setSelectedRentWeekIndices] = useState<number[]>([]);
+  const [isProcessingRentOverdue, setIsProcessingRentOverdue] = useState(false);
+
   // EMI View All Dialog state
   const [emiViewAllDialog, setEmiViewAllDialog] = useState(false);
   const [selectedVehicleForEMIView, setSelectedVehicleForEMIView] = useState<any>(null);
-  const [emiDialogPenalties, setEmiDialogPenalties] = useState<Record<number, string>>({});
+
+  const dueEmiDetails = useMemo(() => {
+    if (!selectedVehicleForEMI?.loanDetails?.amortizationSchedule) {
+      return [] as Array<{ index: number; emi: any; dueDate: Date; daysDiff: number }>;
+    }
+
+    const schedule = selectedVehicleForEMI.loanDetails.amortizationSchedule;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    return schedule
+      .map((emi: any, index: number) => {
+        const dueDate = new Date(emi.dueDate);
+        const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
+
+        if (emi.isPaid || !canPayNow) {
+          return null;
+        }
+
+        return { index, emi, dueDate, daysDiff };
+      })
+      .filter((detail): detail is { index: number; emi: any; dueDate: Date; daysDiff: number } => detail !== null);
+  }, [selectedVehicleForEMI]);
+
+  const orderedDueEmiIndices = useMemo(() => dueEmiDetails.map(detail => detail.index), [dueEmiDetails]);
+
+  useEffect(() => {
+    if (!emiDialogOpen) {
+      setSelectedEmiIndices([]);
+      setEmiPenalties({});
+      return;
+    }
+
+    if (orderedDueEmiIndices.length === 0) {
+      setSelectedEmiIndices([]);
+      return;
+    }
+
+    setSelectedEmiIndices(prev => (prev.length > 0 ? prev : [...orderedDueEmiIndices]));
+  }, [emiDialogOpen, orderedDueEmiIndices]);
+
+  useEffect(() => {
+    setSelectedEmiIndices(prev => {
+      const filtered = prev.filter(index => orderedDueEmiIndices.includes(index));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [orderedDueEmiIndices]);
+
+  useEffect(() => {
+    setEmiPenalties(prev => {
+      if (!prev || Object.keys(prev).length === 0) {
+        return prev;
+      }
+
+      const updated: Record<number, string> = {};
+      let changed = false;
+
+      Object.keys(prev).forEach(key => {
+        const numericKey = Number(key);
+        if (orderedDueEmiIndices.includes(numericKey)) {
+          updated[numericKey] = prev[numericKey];
+        } else {
+          changed = true;
+        }
+      });
+
+      return changed ? updated : prev;
+    });
+  }, [orderedDueEmiIndices]);
+
+  const deriveSequentialSelection = (
+    targetIndex: number,
+    orderedIndices: number[],
+    currentSelection: number[]
+  ) => {
+    const position = orderedIndices.indexOf(targetIndex);
+    if (position === -1) {
+      return currentSelection;
+    }
+
+    const isSelected = currentSelection.includes(targetIndex);
+    const nextSelection = isSelected
+      ? orderedIndices.slice(0, position)
+      : orderedIndices.slice(0, position + 1);
+
+    if (
+      nextSelection.length === currentSelection.length &&
+      nextSelection.every((value, index) => value === currentSelection[index])
+    ) {
+      return currentSelection;
+    }
+
+    return nextSelection;
+  };
+
+  const handleToggleEmiSelection = (emiIndex: number) => {
+    const orderedIndices = orderedDueEmiIndices;
+
+    setSelectedEmiIndices(prevSelection => {
+      const nextSelection = deriveSequentialSelection(emiIndex, orderedIndices, prevSelection);
+
+      if (nextSelection === prevSelection) {
+        return prevSelection;
+      }
+
+      if (nextSelection.length < prevSelection.length) {
+        setEmiPenalties(prevPenalties => {
+          if (!prevPenalties || Object.keys(prevPenalties).length === 0) {
+            return prevPenalties;
+          }
+
+          const updated: Record<number, string> = { ...prevPenalties };
+          prevSelection.forEach(index => {
+            if (!nextSelection.includes(index)) {
+              delete updated[index];
+            }
+          });
+          return updated;
+        });
+      }
+
+      return nextSelection;
+    });
+  };
+
+  const handleSelectAllEmis = () => {
+    if (orderedDueEmiIndices.length === 0) {
+      setSelectedEmiIndices([]);
+      return;
+    }
+    setSelectedEmiIndices([...orderedDueEmiIndices]);
+  };
+
+  const selectedCount = selectedEmiIndices.length;
 
   // Function to navigate to vehicle details payments tab with current period criteria
   const handleViewExpenses = (vehicleId: string) => {
@@ -500,10 +642,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand for this vehicle
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.gstAmount,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.gstAmount),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -515,7 +657,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.gstAmount
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.gstAmount
       }));
 
       toast({
@@ -549,10 +691,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand - INCREASE when owner collects service charge (additional income)
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
+      await setDoc(cashRef, {
         balance: currentBalance + vehicleInfo.serviceCharge,  // Service charge is additional income
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -598,10 +740,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.partnerShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.partnerShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -613,7 +755,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.partnerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.partnerShare
       }));
 
       toast({
@@ -647,10 +789,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.ownerShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.ownerShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -662,7 +804,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.ownerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerShare
       }));
 
       toast({
@@ -696,10 +838,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await updateDoc(cashRef, {
-        balance: currentBalance - vehicleInfo.ownerFullShare,
+      await setDoc(cashRef, {
+        balance: increment(-vehicleInfo.ownerFullShare),
         lastUpdated: new Date().toISOString()
-      });
+      }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
@@ -711,7 +853,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.ownerFullShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerFullShare
       }));
 
       toast({
@@ -742,11 +884,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   // Bulk EMI payment handler
   const handleBulkRentCollection = async (vehicleInfo: any, item: any) => {
-    if (!item.overdueWeeks || !vehicleInfo.assignment) return;
-    
+    const assignment = vehicleInfo.assignment || vehicleInfo.currentAssignment;
+    if (!item.overdueWeeks || !assignment) return;
+
     for (const week of item.overdueWeeks) {
       const weekStartDate = new Date(week.weekStartDate);
-      await markRentCollected(week.weekIndex, vehicleInfo.assignment, weekStartDate, false);
+      await markRentCollected(week.weekIndex, assignment, weekStartDate, false);
       // Small delay between rent collections
       await new Promise(resolve => setTimeout(resolve, 300));
     }
@@ -774,67 +917,17 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       case 'rent':
         title = `Bulk Rent Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect overdue rent for all vehicles with active assignments. Oldest rent weeks will be settled first for each vehicle.`;
-        items = periodData
-          .filter(vehicle => {
-            if (!vehicle.assignment || !vehicle.assignment.driverId) return false;
-            
-            // Calculate rent status
-            const assignmentStartDate = new Date(vehicle.assignment.startDate);
-            const now = new Date();
-            const totalDays = Math.floor((now.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24));
-            const totalWeeks = Math.floor(totalDays / 7);
-            
-            // Count collected weeks
-            const rentPayments = (companyFinancialData.payments || []).filter((p: any) =>
-              p.vehicleId === vehicle.vehicle.id &&
-              p.status === 'paid' &&
-              p.driverId === vehicle.assignment.driverId
-            );
-            
-            const collectedWeeks = rentPayments.length;
-            const overdueWeeks = totalWeeks - collectedWeeks;
-            
-            return overdueWeeks > 0;
-          })
-          .map(vehicle => {
-            const assignmentStartDate = new Date(vehicle.assignment.startDate);
-            const now = new Date();
-            const totalDays = Math.floor((now.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24));
-            const totalWeeks = Math.floor(totalDays / 7);
-            
-            // Count collected weeks
-            const rentPayments = (companyFinancialData.payments || []).filter((p: any) =>
-              p.vehicleId === vehicle.vehicle.id &&
-              p.status === 'paid' &&
-              p.driverId === vehicle.assignment.driverId
-            );
-            
-            const collectedWeeks = rentPayments.length;
-            const overdueWeeks = totalWeeks - collectedWeeks;
-            const totalOverdueAmount = overdueWeeks * vehicle.assignment.weeklyRent;
-            
-            // Calculate overdue week details
-            const overdueWeekDetails = [];
-            for (let i = 0; i < overdueWeeks; i++) {
-              const weekIndex = collectedWeeks + i;
-              const weekStart = new Date(assignmentStartDate);
-              weekStart.setDate(weekStart.getDate() + weekIndex * 7);
-              
-              overdueWeekDetails.push({
-                weekIndex,
-                weekStartDate: weekStart.toISOString(),
-                rentAmount: vehicle.assignment.weeklyRent
-              });
-            }
-            
-            return {
-              vehicleId: vehicle.vehicle.id,
-              vehicleName: vehicle.vehicle.registrationNumber,
-              amount: totalOverdueAmount,
-              overdueWeeks: overdueWeekDetails,
-              checked: true
-            };
-          });
+        items = rentCollectionOverview.vehicles.map(({ vehicle, rentStatus, overdueWeeks }) => ({
+          vehicleId: vehicle.id,
+          vehicleName: vehicle.registrationNumber,
+          amount: rentStatus.totalDue,
+          overdueWeeks: overdueWeeks.map(week => ({
+            weekIndex: week.weekIndex,
+            weekStartDate: week.weekStartDate.toISOString(),
+            rentAmount: week.amount
+          })),
+          checked: true
+        }));
         break;
 
       case 'gst':
@@ -855,7 +948,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Service Charge Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect service charges from all partner vehicles in the selected period. You can deselect vehicles that should not have service charges collected.`;
         items = periodData
-          .filter(vehicle => vehicle.serviceCharge > 0 && !vehicle.serviceChargeCollected && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.serviceCharge > 0 && !vehicle.serviceChargeCollected && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -869,7 +962,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Partner Share Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Pay partner shares for all partner vehicles in the selected period. You can deselect vehicles that should not have partner shares paid.`;
         items = periodData
-          .filter(vehicle => vehicle.partnerShare > 0 && !vehicle.partnerPaid && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.partnerShare > 0 && !vehicle.partnerPaid && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -883,7 +976,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Owner Share Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect owner shares from all partner vehicles in the selected period. You can deselect vehicles that should not have owner shares collected.`;
         items = periodData
-          .filter(vehicle => vehicle.ownerShare > 0 && !vehicle.ownerShareCollected && vehicle.vehicle.ownershipType === 'partner')
+          .filter(vehicle => vehicle.ownerShare > 0 && !vehicle.ownerShareCollected && vehicle.vehicle.isPartnership === true)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -899,26 +992,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         items = periodData
           .filter(vehicle => {
             if (!vehicle.vehicle.loanDetails?.amortizationSchedule) return false;
-            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
+            return vehicle.vehicle.loanDetails.amortizationSchedule.some(schedule => {
               const dueDate = new Date(schedule.dueDate);
               const now = new Date();
               return !schedule.isPaid && dueDate <= now;
             });
-            return overdueEMIs.length > 0;
           })
           .map(vehicle => {
-            const overdueEMIs = vehicle.vehicle.loanDetails.amortizationSchedule.filter(schedule => {
-              const dueDate = new Date(schedule.dueDate);
-              const now = new Date();
-              return !schedule.isPaid && dueDate <= now;
-            });
-            const totalOverdueAmount = overdueEMIs.reduce((sum, schedule) => sum + vehicle.vehicle.loanDetails.emiPerMonth, 0);
+            const overdueEmisWithIndex = vehicle.vehicle.loanDetails.amortizationSchedule
+              .map((schedule: any, index: number) => ({ schedule, index }))
+              .filter(({ schedule }) => {
+                const dueDate = new Date(schedule.dueDate);
+                const now = new Date();
+                return !schedule.isPaid && dueDate <= now;
+              });
+
+            const totalOverdueAmount = overdueEmisWithIndex.length * (vehicle.vehicle.loanDetails.emiPerMonth || 0);
+
             return {
               vehicleId: vehicle.vehicle.id,
               vehicleName: vehicle.vehicle.registrationNumber,
               amount: totalOverdueAmount,
-              overdueEMIs: overdueEMIs.map(schedule => ({
-                monthIndex: schedule.month,
+              overdueEMIs: overdueEmisWithIndex.map(({ schedule, index }) => ({
+                monthIndex: index,
                 emiAmount: vehicle.vehicle.loanDetails.emiPerMonth,
                 dueDate: schedule.dueDate
               })),
@@ -1011,7 +1107,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
       const monthProfit = monthEarnings - monthExpensesAmount;
 
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const monthServiceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
@@ -1057,12 +1153,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthProfit = monthEarnings - monthExpensesAmount;
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
       const monthPartnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
         remainingProfitAfterDeductions * partnerSharePercentage : 0;
 
@@ -1108,12 +1204,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthProfit = monthEarnings - monthExpensesAmount;
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
       const monthOwnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
         remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0;
 
@@ -1124,6 +1220,223 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       };
     });
   };
+
+  // Rent summary calculation for overdue dialog (similar to EMI)
+  const rentSummary = useMemo(() => {
+    if (!selectedVehicleForRentOverdue?.assignedDriverId || !selectedVehicleForRentOverdue?.currentAssignment) {
+      return {
+        overdueWeeks: [] as Array<{ weekIndex: number; weekStartDate: Date; amount: number }>,
+        currentWeekDue: null as { weekIndex: number; weekStartDate: Date; amount: number } | null,
+        totalOverdue: 0,
+        dueTodayAmount: 0,
+        totalDue: 0
+      };
+    }
+
+    // Filter payments for this vehicle (same as AccountsTab)
+    const vehiclePayments = payments.filter((payment: any) => payment.vehicleId === selectedVehicleForRentOverdue.id);
+    const startDateRaw = selectedVehicleForRentOverdue.currentAssignment.startDate;
+    const assignmentStartDate = new Date(
+      typeof startDateRaw === 'string'
+        ? startDateRaw
+        : startDateRaw?.toDate?.() || startDateRaw
+    );
+
+    const agreementEndDate = new Date(assignmentStartDate);
+    agreementEndDate.setMonth(agreementEndDate.getMonth() + (selectedVehicleForRentOverdue.currentAssignment.agreementDuration || 12));
+    const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    const today = new Date();
+
+    const overdueWeeks: Array<{ weekIndex: number; weekStartDate: Date; amount: number }> = [];
+    let currentWeekDue: { weekIndex: number; weekStartDate: Date; amount: number } | null = null;
+
+    for (let weekIndex = 0; weekIndex < Math.min(totalWeeks, 52); weekIndex++) {
+      const weekStartDate = new Date(assignmentStartDate);
+      weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+      weekStartDate.setHours(0, 0, 0, 0);
+
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      weekEndDate.setHours(23, 59, 59, 999);
+
+      // Use same payment matching logic as AccountsTab
+      const weekRentPayment = vehiclePayments.find((payment: any) => {
+        if (payment.vehicleId !== selectedVehicleForRentOverdue.id || payment.status !== 'paid') return false;
+        const paymentWeekStart = new Date(payment.weekStart);
+        return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+      });
+
+      if (weekRentPayment) continue;
+
+      const isPastWeek = weekEndDate < today;
+      const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
+
+      if (isPastWeek) {
+        overdueWeeks.push({
+          weekIndex,
+          weekStartDate,
+          amount: selectedVehicleForRentOverdue.currentAssignment.weeklyRent
+        });
+      } else if (isCurrentWeek) {
+        currentWeekDue = {
+          weekIndex,
+          weekStartDate,
+          amount: selectedVehicleForRentOverdue.currentAssignment.weeklyRent
+        };
+      }
+    }
+
+    const totalOverdue = overdueWeeks.reduce((sum, week) => sum + week.amount, 0);
+    const dueTodayAmount = currentWeekDue ? currentWeekDue.amount : 0;
+
+    return {
+      overdueWeeks,
+      currentWeekDue,
+      totalOverdue,
+      dueTodayAmount,
+      totalDue: totalOverdue + dueTodayAmount
+    };
+  }, [selectedVehicleForRentOverdue, payments]);
+
+  const allDueWeeks = useMemo(() => {
+    const combined = [...rentSummary.overdueWeeks];
+    if (rentSummary.currentWeekDue) {
+      combined.push(rentSummary.currentWeekDue);
+    }
+    return combined;
+  }, [rentSummary.overdueWeeks, rentSummary.currentWeekDue]);
+
+  const orderedRentWeekIndices = useMemo(() => allDueWeeks.map(week => week.weekIndex), [allDueWeeks]);
+
+  const selectedRentWeeks = useMemo(() => {
+    if (selectedRentWeekIndices.length === 0) {
+      return [] as typeof allDueWeeks;
+    }
+
+    const selected = new Set(selectedRentWeekIndices);
+    return allDueWeeks
+      .filter(week => selected.has(week.weekIndex))
+      .sort((a, b) => a.weekIndex - b.weekIndex);
+  }, [allDueWeeks, selectedRentWeekIndices]);
+
+  const selectedRentWeekCount = selectedRentWeeks.length;
+
+  const selectedRentWeekTotal = useMemo(
+    () => selectedRentWeeks.reduce((sum, week) => sum + week.amount, 0),
+    [selectedRentWeeks]
+  );
+
+  // Rent selection handlers (similar to EMI)
+  const handleToggleRentWeekSelection = (weekIndex: number) => {
+    const orderedIndices = orderedRentWeekIndices;
+
+    setSelectedRentWeekIndices(prevSelection =>
+      deriveSequentialSelection(weekIndex, orderedIndices, prevSelection)
+    );
+  };
+
+  const handleSelectAllRentWeeks = () => {
+    if (orderedRentWeekIndices.length === 0) {
+      setSelectedRentWeekIndices([]);
+      return;
+    }
+    setSelectedRentWeekIndices([...orderedRentWeekIndices]);
+  };
+
+  // Rent bulk payment handler
+  const handleRentBulkPayment = async () => {
+    if (!selectedVehicleForRentOverdue?.currentAssignment) {
+      toast({
+        title: 'Error',
+        description: 'No active assignment found for this vehicle.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const weeksToProcess = allDueWeeks.filter(week => selectedRentWeekIndices.includes(week.weekIndex));
+
+    if (weeksToProcess.length === 0) {
+      toast({
+        title: 'No Weeks Selected',
+        description: 'Select at least one week to process the rent collection.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsProcessingRentOverdue(true);
+    let successCount = 0;
+    let totalAmount = 0;
+
+    try {
+      for (const week of weeksToProcess) {
+        try {
+          await markRentCollected(week.weekIndex, selectedVehicleForRentOverdue.currentAssignment, week.weekStartDate, false);
+          successCount++;
+          totalAmount += week.amount;
+
+          toast({
+            title: `Week ${week.weekIndex + 1} Rent Collected ✅`,
+            description: `₹${week.amount.toLocaleString()} collected successfully.`
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error processing week ${week.weekIndex + 1}:`, error);
+          toast({
+            title: `Error on Week ${week.weekIndex + 1}`,
+            description: 'Failed to collect rent for this week.',
+            variant: 'destructive'
+          });
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: 'Rent Collection Completed! 🎉',
+          description: `Successfully collected rent for ${successCount} of ${weeksToProcess.length} selected weeks totaling ₹${totalAmount.toLocaleString()}.`
+        });
+      } else {
+        throw new Error('No rent collections were processed successfully');
+      }
+
+      setRentDialogOpen(false);
+      setSelectedVehicleForRentOverdue(null);
+      setSelectedRentWeekIndices([]);
+    } catch (error) {
+      console.error('Error processing bulk rent collection:', error);
+      toast({
+        title: 'Rent Collection Failed',
+        description: `Only ${successCount} collections were processed. Please try again.`,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingRentOverdue(false);
+    }
+  };
+
+  // Rent dialog state management (similar to EMI)
+  useEffect(() => {
+    if (!rentDialogOpen) {
+      setSelectedRentWeekIndices([]);
+      return;
+    }
+
+    if (orderedRentWeekIndices.length === 0) {
+      setSelectedRentWeekIndices([]);
+      return;
+    }
+
+    setSelectedRentWeekIndices(prev => (prev.length > 0 ? prev : [...orderedRentWeekIndices]));
+  }, [rentDialogOpen, orderedRentWeekIndices]);
+
+  useEffect(() => {
+    setSelectedRentWeekIndices(prev => {
+      const filtered = prev.filter(index => orderedRentWeekIndices.includes(index));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [orderedRentWeekIndices]);
 
   // Handle bulk payment confirmation
   const handleBulkPaymentConfirm = async (selectedItems: any[], emiPenalties?: Record<string, Record<number, string>>) => {
@@ -1269,20 +1582,43 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   const handleEMIPayment = async (vehicle: any, monthIndex: number, penalty: number = 0) => {
     try {
-      const scheduleItem = vehicle.loanDetails?.amortizationSchedule?.[monthIndex];
-      if (!scheduleItem) return;
+      if (!vehicle?.id) {
+        throw new Error('Vehicle not found');
+      }
 
-      // Update the amortization schedule
-      const updatedSchedule = [...(vehicle.loanDetails?.amortizationSchedule || [])];
+      let latestLoanDetails = vehicle?.loanDetails;
+      try {
+        const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicle.id);
+        const vehicleSnapshot = await getDoc(vehicleRef);
+        if (vehicleSnapshot.exists()) {
+          const latestData = vehicleSnapshot.data() as any;
+          if (latestData.loanDetails) {
+            latestLoanDetails = latestData.loanDetails;
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI update:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+      const targetEMI = updatedSchedule[monthIndex];
+
+      if (!targetEMI) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
       updatedSchedule[monthIndex] = {
-        ...scheduleItem,
+        ...targetEMI,
         isPaid: true,
-        paidAt: new Date().toISOString().split('T')[0]
+        paidAt: paymentDate
       };
 
-      // Update paid installments array with payment date
-      const updatedPaidInstallments = [...(vehicle.loanDetails?.paidInstallments || [])];
-      const paymentDate = new Date().toISOString().split('T')[0];
+      const updatedPaidInstallments = [...(latestLoanDetails.paidInstallments || [])];
       if (!updatedPaidInstallments.includes(paymentDate)) {
         updatedPaidInstallments.push(paymentDate);
       }
@@ -1291,79 +1627,72 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const vehicleRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/vehicles`, vehicle.id);
       await updateDoc(vehicleRef, {
         loanDetails: {
-          ...vehicle.loanDetails,
+          ...latestLoanDetails,
           amortizationSchedule: updatedSchedule,
           paidInstallments: updatedPaidInstallments
         }
       });
 
-      // Add EMI payment as expense record
-      const expenseRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/expenses`);
-      await addDoc(expenseRef, {
-        vehicleId: vehicle.id,
-        amount: vehicle.loanDetails?.emiPerMonth || 0,
-        description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
-        billUrl: '',
-        submittedBy: 'owner',
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-        adjustmentWeeks: 0,
-        type: 'paid',
-        paymentType: 'emi',
-        verifiedKm: 0,
-        companyId: userInfo.companyId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      if (vehicle?.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule,
+          paidInstallments: updatedPaidInstallments
+        };
+      }
 
-      // Add penalty as expense if applicable
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+
+      const expenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: emiAmount,
+          description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid',
+          paymentType: 'emi'
+        }
+      ];
+
       if (penalty > 0) {
-        await addDoc(expenseRef, {
-          vehicleId: vehicle.id,
+        expenseEntries.push({
           amount: penalty,
-          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          billUrl: '',
-          submittedBy: 'owner',
-          status: 'approved',
-          approvedAt: new Date().toISOString(),
-          adjustmentWeeks: 0,
-          type: 'general',
-          verifiedKm: 0,
-          companyId: userInfo.companyId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(targetEMI.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
+          type: 'general'
         });
       }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicle.id);
-      const currentBalance = vehicleCashBalances[vehicle.id] || 0;
-      const totalPayment = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
-      await updateDoc(cashRef, {
-        balance: currentBalance - totalPayment,
-        lastUpdated: new Date().toISOString()
-      });
+      // Add expense entries
+      await expenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addExpense({
+              vehicleId: vehicle.id,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved',
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0
+            })
+          ),
+        Promise.resolve()
+      );
 
-      // Update company-level cash balance
-      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-      await updateDoc(companyCashRef, {
-        balance: increment(-totalPayment),
-        lastUpdated: new Date().toISOString()
-      });
+      const totalPaid = emiAmount + penalty;
 
-      // Update local state
-      setVehicleCashBalances(prev => ({
-        ...prev,
-        [vehicle.id]: currentBalance - totalPayment
-      }));
-
-      const totalPaid = (vehicle.loanDetails?.emiPerMonth || 0) + penalty;
-      
       toast({
         title: penalty > 0 ? 'Overdue EMI Payment Recorded' : 'EMI Payment Recorded',
-        description: penalty > 0 
-          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
-          : `EMI for month ${monthIndex + 1} (₹${(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}) has been marked as paid.`,
+        description: penalty > 0
+          ? `EMI for month ${monthIndex + 1} marked as paid:\n• EMI: ₹${emiAmount.toLocaleString()}\n• Penalty: ₹${penalty.toLocaleString()}\n• Total: ₹${totalPaid.toLocaleString()}`
+          : `EMI for month ${monthIndex + 1} (₹${emiAmount.toLocaleString()}) has been marked as paid.`,
       });
 
     } catch (error) {
@@ -1373,53 +1702,106 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         description: 'Failed to record EMI payment. Please try again.',
         variant: 'destructive'
       });
+      throw error;
     }
   };
 
   const openEMIDialog = (vehicle: any) => {
     setSelectedVehicleForEMI(vehicle);
-    setSelectedEMIs(new Set());
+    setSelectedEmiIndices([]);
+    setEmiPenalties({});
     setEmiDialogOpen(true);
   };
 
+  const openRentDialog = (vehicleContext: any) => {
+    if (!vehicleContext) {
+      return;
+    }
+
+    const vehicle = vehicleContext.vehicle || vehicleContext;
+    const currentAssignment = vehicleContext.currentAssignment || vehicleContext.assignment || vehicle.currentAssignment || null;
+
+    setSelectedVehicleForRentOverdue(
+      currentAssignment
+        ? {
+            ...vehicle,
+            currentAssignment
+          }
+        : vehicle
+    );
+
+    setSelectedRentWeekIndices([]);
+    setRentDialogOpen(true);
+  };
+
   const handleEMIBulkPayment = async () => {
-    if (!selectedVehicleForEMI || selectedEMIs.size === 0) return;
+    if (!selectedVehicleForEMI?.loanDetails?.amortizationSchedule) {
+      toast({
+        title: 'Error',
+        description: 'Bulk payment functionality not available.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const emisToProcess = selectedVehicleForEMI.loanDetails.amortizationSchedule.filter((_, index) => selectedEmiIndices.includes(index));
+
+    if (emisToProcess.length === 0) {
+      toast({
+        title: 'No EMIs Selected',
+        description: 'Select at least one EMI in sequence to process the payment.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     setIsProcessingEMI(true);
+    let successCount = 0;
+    let totalAmount = 0;
+
     try {
-      const schedule = selectedVehicleForEMI.loanDetails?.amortizationSchedule || [];
-      let totalAmount = 0;
-      let penaltyTotal = 0;
-
-      for (const emiIndex of Array.from(selectedEMIs).sort((a, b) => a - b)) {
-        const emi = schedule[emiIndex];
-        if (!emi || emi.isPaid) continue;
-
-        const currentDate = new Date();
-        const dueDate = new Date(emi.dueDate);
+      for (const emiIndex of selectedEmiIndices) {
         const penalty = parseFloat(emiPenalties[emiIndex] || '0');
 
-        await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
-        totalAmount += selectedVehicleForEMI.loanDetails?.emiPerMonth || 0;
-        penaltyTotal += penalty;
+        try {
+          await handleEMIPayment(selectedVehicleForEMI, emiIndex, penalty);
+          successCount++;
+          totalAmount += (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
 
-        // Small delay to prevent overwhelming Firestore
-        await new Promise(resolve => setTimeout(resolve, 100));
+          toast({
+            title: `EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month} Paid ✅`,
+            description: `₹${((selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty).toLocaleString()} paid successfully.`
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error processing EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month}:`, error);
+          toast({
+            title: `Error on EMI ${selectedVehicleForEMI.loanDetails?.amortizationSchedule[emiIndex]?.month}`,
+            description: 'Failed to process this EMI payment.',
+            variant: 'destructive'
+          });
+        }
       }
 
-      toast({
-        title: 'EMI Payments Completed',
-        description: `Successfully processed ${selectedEMIs.size} EMI payments totaling ₹${(totalAmount + penaltyTotal).toLocaleString()}`,
-      });
+      if (successCount > 0) {
+        toast({
+          title: 'Bulk EMI Payment Completed! 🎉',
+          description: `Successfully paid ${successCount} of ${emisToProcess.length} selected EMIs totaling ₹${totalAmount.toLocaleString()}.`
+        });
+      } else {
+        throw new Error('No payments were processed successfully');
+      }
 
       setEmiDialogOpen(false);
       setSelectedVehicleForEMI(null);
-      setSelectedEMIs(new Set());
+      setSelectedEmiIndices([]);
       setEmiPenalties({});
     } catch (error) {
+      console.error('Error processing bulk EMI payment:', error);
       toast({
-        title: 'EMI Payment Failed',
-        description: 'Some EMI payments may have failed. Please check vehicle details.',
+        title: 'Bulk Payment Failed',
+        description: `Only ${successCount} payments were processed. Please try again.`,
         variant: 'destructive'
       });
     } finally {
@@ -1664,12 +2046,20 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/payments`);
       await addDoc(paymentsRef, paymentData);
 
+      const vehicleId = assignment.vehicleId;
+
       // Update cash in hand - INCREASE when rent is collected
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, assignment.vehicleId);
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await updateDoc(cashRef, {
         balance: increment(assignment.weeklyRent),
         updatedAt: new Date().toISOString()
       });
+
+      // Keep local cash snapshot aligned since we are not listening to real-time changes here
+      setVehicleCashBalances(prev => ({
+        ...prev,
+        [vehicleId]: (prev[vehicleId] || 0) + assignment.weeklyRent
+      }));
 
       if (showToast) {
         toast({
@@ -1724,8 +2114,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     // Filter vehicles based on partner filter
     const filteredVehicles = companyFinancialData.vehicleData.filter((vehicleInfo: any) => {
       if (companyFinancialData.partnerFilter === 'all') return true;
-      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.ownershipType === 'partner';
-      if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.ownershipType !== 'partner';
+      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.isPartnership === true;
+      if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.isPartnership !== true;
       return true;
     });
 
@@ -1793,13 +2183,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       cumulativeGst = cumulativeProfit > 0 ? cumulativeProfit * 0.04 : 0;
 
       // Service charge (configurable rate for partner taxis - only if cumulative profit is positive)
-      const isPartnerTaxi = vehicleInfo.vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
       const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
       cumulativeServiceCharge = isPartnerTaxi && cumulativeProfit > 0 ? cumulativeProfit * serviceChargeRate : 0;
 
       // Partner share and owner share calculations (on remaining profit after GST and service charge)
       const remainingProfitAfterDeductions = cumulativeProfit - cumulativeGst - cumulativeServiceCharge;
-      const partnerSharePercentage = vehicleInfo.vehicle.partnerShare || 0.50;
+      const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
 
       if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
         cumulativePartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
@@ -1864,25 +2254,82 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       totalOwnerFullShare: periodData.reduce((sum, v) => sum + v.ownerFullShare, 0),
       totalRentCollected: periodData.reduce((sum, v) => sum + v.rentCollected, 0),
       totalRent: periodData.reduce((sum, v) => {
-        // Calculate total overdue rent for vehicles with active assignments
-        if (!v.assignment || !v.assignment.driverId) return sum;
+        // Calculate total overdue rent for vehicles with active assignments within the selected period
+        if (v.vehicle.status !== 'rented' || !v.vehicle.assignedDriverId || !v.currentAssignment) return sum;
         
-        const assignmentStartDate = new Date(v.assignment.startDate);
-        const now = new Date();
-        const totalDays = Math.floor((now.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        const totalWeeks = Math.floor(totalDays / 7);
-        
-        // Count collected weeks
-        const rentPayments = (companyFinancialData.payments || []).filter((p: any) =>
-          p.vehicleId === v.vehicle.id &&
-          p.status === 'paid' &&
-          p.driverId === v.assignment.driverId
+        const currentAssignment = v.currentAssignment;
+        const assignmentStartDate = new Date(
+          typeof currentAssignment.startDate === 'string'
+            ? currentAssignment.startDate
+            : currentAssignment.startDate?.toDate?.() || currentAssignment.startDate
         );
         
-        const collectedWeeks = rentPayments.length;
-        const overdueWeeks = totalWeeks - collectedWeeks;
+        const agreementEndDate = new Date(assignmentStartDate);
+        agreementEndDate.setMonth(agreementEndDate.getMonth() + (currentAssignment.agreementDuration || 12));
         
-        return sum + (overdueWeeks > 0 ? overdueWeeks * v.assignment.weeklyRent : 0);
+        // Get period date range (same logic as vehicle cards)
+        const year = parseInt(companyFinancialData.selectedYear);
+        let periodStart: Date, periodEnd: Date;
+        
+        if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
+          const monthIndex = new Date(`${companyFinancialData.selectedMonth} 1, ${year}`).getMonth();
+          periodStart = new Date(year, monthIndex, 1);
+          periodEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+        } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
+          const quarterMonths = { 'Q1': [0,1,2], 'Q2': [3,4,5], 'Q3': [6,7,8], 'Q4': [9,10,11] };
+          const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+          periodStart = new Date(year, months[0], 1);
+          periodEnd = new Date(year, months[months.length - 1] + 1, 0, 23, 59, 59);
+        } else if (companyFinancialData.filterType === 'yearly') {
+          periodStart = new Date(year, 0, 1);
+          periodEnd = new Date(year, 11, 31, 23, 59, 59);
+        } else {
+          return sum;
+        }
+        
+        const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+        const today = new Date();
+        
+        let overdueAmount = 0;
+        let currentWeekDue = 0;
+        
+        for (let weekIndex = 0; weekIndex < Math.min(totalWeeks, 52); weekIndex++) {
+          const weekStartDate = new Date(assignmentStartDate);
+          weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+          weekStartDate.setHours(0, 0, 0, 0);
+          
+          const weekEndDate = new Date(weekStartDate);
+          weekEndDate.setDate(weekEndDate.getDate() + 6);
+          weekEndDate.setHours(23, 59, 59, 999);
+          
+          // Check if this assignment week overlaps with the selected period
+          const weekOverlapsPeriod = 
+            (weekStartDate >= periodStart && weekStartDate <= periodEnd) ||
+            (weekEndDate >= periodStart && weekEndDate <= periodEnd) ||
+            (weekStartDate <= periodStart && weekEndDate >= periodEnd);
+            
+          if (!weekOverlapsPeriod) continue;
+          
+          // Check if rent was collected for this week
+          const weekRentPayment = payments.find((payment: any) => {
+            if (payment.vehicleId !== v.vehicle.id || payment.status !== 'paid') return false;
+            const paymentWeekStart = new Date(payment.weekStart);
+            return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+          });
+          
+          if (weekRentPayment) continue;
+          
+          const isPastWeek = weekEndDate < today;
+          const isCurrentWeek = weekStartDate <= today && today <= weekEndDate;
+          
+          if (isPastWeek) {
+            overdueAmount += currentAssignment.weeklyRent;
+          } else if (isCurrentWeek) {
+            currentWeekDue = currentAssignment.weeklyRent;
+          }
+        }
+        
+        return sum + overdueAmount + currentWeekDue;
       }, 0),
       totalEMI: periodData.reduce((sum, v) => {
         if (!v.vehicle.loanDetails?.amortizationSchedule) return sum;
@@ -1900,6 +2347,59 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   const { periodData, periodTotals } = getPeriodData();
+
+  const rentCollectionOverview = useMemo(() => {
+    const overview = {
+      vehicles: [] as Array<{
+        vehicle: any;
+        assignment: any;
+        rentStatus: {
+          overdueWeeks: Array<{ weekIndex: number; weekStartDate: Date; amount: number }>;
+          currentWeekDue: { weekIndex: number; weekStartDate: Date; amount: number } | null;
+          totalOverdue: number;
+          dueTodayAmount: number;
+          totalDue: number;
+        };
+        overdueWeeks: Array<{ weekIndex: number; weekStartDate: Date; amount: number }>;
+      }>,
+      totalOverdue: 0,
+      dueTodayAmount: 0,
+      totalDue: 0
+    };
+
+    periodData.forEach((vehicleInfo: any) => {
+      const vehicle = vehicleInfo.vehicle;
+      const assignment = vehicleInfo.currentAssignment || vehicleInfo.assignment;
+
+      if (!vehicle || vehicle.status !== 'rented' || !vehicle.assignedDriverId || !assignment) {
+        return;
+      }
+
+      const rentStatus = getVehicleRentStatus(vehicle.id, assignment);
+      if (rentStatus.totalDue <= 0) {
+        return;
+      }
+
+      const allDueWeeks = [...rentStatus.overdueWeeks];
+      if (rentStatus.currentWeekDue) {
+        allDueWeeks.push(rentStatus.currentWeekDue);
+      }
+
+      overview.totalOverdue += rentStatus.totalOverdue;
+      overview.dueTodayAmount += rentStatus.dueTodayAmount;
+      overview.vehicles.push({
+        vehicle,
+        assignment,
+        rentStatus,
+        overdueWeeks: allDueWeeks.sort((a, b) => a.weekIndex - b.weekIndex)
+      });
+    });
+
+    overview.totalDue = overview.totalOverdue + overview.dueTodayAmount;
+    overview.vehicles.sort((a, b) => b.rentStatus.totalDue - a.rentStatus.totalDue);
+
+    return overview;
+  }, [periodData, payments]);
 
   return (
     <TooltipProvider>
@@ -1973,13 +2473,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             <div className="flex flex-wrap gap-2 justify-center">
               <Button
                 onClick={() => openBulkPaymentDialog('rent')}
-                disabled={periodTotals.totalRent === 0}
+                disabled={rentCollectionOverview.totalDue === 0}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
               >
                 <CreditCard className="h-4 w-4" />
-                Collect Overdue Rent ({periodTotals.totalRent.toLocaleString()})
+                Collect Overdue Rent (₹{rentCollectionOverview.totalDue.toLocaleString()})
               </Button>
               <Button
                 onClick={() => openBulkPaymentDialog('gst')}
@@ -2056,7 +2556,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 <div className="flex flex-col gap-1">
                   {getStatusBadge(vehicleInfo.vehicle.status)}
                   <Badge variant="outline" className="text-xs">
-                    {vehicleInfo.vehicle.ownershipType === 'partner' ? 'Partner' : 'Company'}
+                    {vehicleInfo.vehicle.isPartnership === true ? 'Partner' : 'Company'}
                   </Badge>
                   <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"}>
                     {vehicleInfo.profit >= 0 ? 'Profit' : 'Loss'}
@@ -2133,7 +2633,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 {/* Partner Share (only for partner taxis) */}
                 {vehicleInfo.partnerShare > 0 && (
                   <div className="flex justify-between text-sm border-t pt-1">
-                    <span className="font-medium">Partner Share (50%)</span>
+                    <span className="font-medium">Partner Share ({vehicleInfo.vehicle.partnershipPercentage || 50}%)</span>
                     <span className="font-bold text-purple-600">
                       ₹{vehicleInfo.partnerShare.toLocaleString()}
                     </span>
@@ -2169,13 +2669,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         disabled={vehicleInfo.gstAmount <= 0}
                       >
                         <CreditCard className="h-3 w-3 mr-1" />
-                        Pay GST
+                        Pay GST ₹{vehicleInfo.gstAmount.toLocaleString()}
                       </Button>
                     )}
                   </div>
 
                   {/* Service Charge Collection - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Service Charge</span>
                       {vehicleInfo.serviceChargeCollected ? (
@@ -2190,14 +2690,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.serviceCharge <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect
+                          Withdraw ₹{vehicleInfo.serviceCharge.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Partner Payment - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Partner Payment</span>
                       {vehicleInfo.partnerPaid ? (
@@ -2212,14 +2712,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.partnerShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner
+                          Pay Partner ₹{vehicleInfo.partnerShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Owner's Share Collection - Only for partner taxis */}
-                  {vehicleInfo.vehicle.ownershipType === 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership === true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Collect Owner's Share</span>
                       {vehicleInfo.ownerShareCollected ? (
@@ -2234,14 +2734,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.ownerShare <= 0}
                         >
                           <DollarSign className="h-3 w-3 mr-1" />
-                          Collect Share
+                          Withdraw ₹{vehicleInfo.ownerShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
                   )}
 
                   {/* Owner's Withdrawal - Only for company-owned taxis */}
-                  {vehicleInfo.vehicle.ownershipType !== 'partner' && (
+                  {vehicleInfo.vehicle.isPartnership !== true && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Owner's Withdrawal</span>
                       {vehicleInfo.ownerWithdrawn ? (
@@ -2256,7 +2756,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           disabled={vehicleInfo.ownerFullShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
-                          Withdraw
+                          Withdraw ₹{vehicleInfo.ownerFullShare.toLocaleString()}
                         </Button>
                       )}
                     </div>
@@ -2364,16 +2864,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <div className="border-t pt-2">
                         <div className="flex items-center justify-between mb-2">
                           <div className="text-xs font-medium text-gray-700">Rent Collection</div>
-                          {rentStatus.totalDue > 0 && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-6 px-2 text-xs"
-                              onClick={() => handlePayAllOverdueClick(currentAssignment, weeksToPay)}
-                            >
-                              Pay All Due ({weeksToPay.length}) - ₹{rentStatus.totalDue.toLocaleString()}
-                            </Button>
-                          )}
+                          <div className="flex gap-1">
+                            {rentStatus.totalDue > 0 && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => handlePayAllOverdueClick(currentAssignment, weeksToPay)}
+                              >
+                                Pay All Due ({weeksToPay.length}) - ₹{rentStatus.totalDue.toLocaleString()}
+                              </Button>
+                            )}
+                            {rentStatus.overdueWeeks.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => openRentDialog(vehicleInfo)}
+                              >
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Overdue ({rentStatus.overdueWeeks.length})
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {periodWeeks.map(({ weekIndex, assignmentWeekNumber, weekStartDate, weekEndDate }) => {
@@ -2582,46 +3095,21 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 <>
                   {/* Overdue Alert */}
                   {rentStatus.overdueWeeks.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded p-3">
+                    <div className="bg-green-50 border border-green-200 rounded p-3">
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <DollarSignIcon className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                         <div>
-                          <div className="font-semibold text-red-800">
-                            {rentStatus.overdueWeeks.length} week{rentStatus.overdueWeeks.length > 1 ? 's' : ''} overdue - 
+                          <div className="font-semibold text-green-800">
+                            {rentStatus.overdueWeeks.length} week{rentStatus.overdueWeeks.length > 1 ? 's' : ''} pending -
                             Total: ₹{rentStatus.totalOverdue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-red-700 mt-1">
-                            ⚠️ Payment will settle oldest overdue week first  
+                          <div className="text-xs text-green-700 mt-1">
+                            💰 Collection applies to the oldest pending week first
                             (Week {rentStatus.overdueWeeks[0].weekIndex + 1} - {rentStatus.overdueWeeks[0].weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
                           </div>
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Pay Total Due Button */}
-                  {rentStatus.totalDue > 0 && (
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        const weeksToPay = [...rentStatus.overdueWeeks];
-                        if (rentStatus.currentWeekDue) {
-                          weeksToPay.push(rentStatus.currentWeekDue);
-                        }
-                        setSelectedRentWeek({
-                          weekIndex: -1,
-                          assignment: selectedVehicleForRent.assignment,
-                          weekStartDate: weeksToPay[0].weekStartDate,
-                          vehicleId: selectedVehicleForRent.vehicle.id,
-                          isBulkPayment: true,
-                          overdueWeeks: weeksToPay
-                        });
-                        setRentViewAllDialog(false);
-                        setConfirmRentPaymentDialog(true);
-                      }}
-                    >
-                      Pay Total Due ({rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)} weeks) - ₹{rentStatus.totalDue.toLocaleString()}
-                    </Button>
                   )}
 
                   {/* All Weeks Grid */}
@@ -2652,11 +3140,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           icon = <CheckCircle className="h-3 w-3" />;
                           status = 'Collected';
                         } else {
-                          bgColor = 'bg-red-100';
-                          textColor = 'text-red-700';
-                          borderColor = 'border-red-200';
-                          icon = <AlertCircle className="h-3 w-3" />;
-                          status = 'Overdue';
+                          bgColor = 'bg-emerald-50';
+                          textColor = 'text-emerald-700';
+                          borderColor = 'border-emerald-200';
+                          icon = <DollarSignIcon className="h-3 w-3" />;
+                          status = 'Pending';
                         }
                       } else if (isCurrentWeek) {
                         if (weekRentPayment) {
@@ -2666,11 +3154,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           icon = <CheckCircle className="h-3 w-3" />;
                           status = 'Collected';
                         } else {
-                          bgColor = 'bg-yellow-100';
-                          textColor = 'text-yellow-700';
-                          borderColor = 'border-yellow-200';
-                          icon = <DollarSign className="h-3 w-3" />;
-                          status = 'Due Now';
+                          bgColor = 'bg-emerald-100';
+                          textColor = 'text-emerald-700';
+                          borderColor = 'border-emerald-200';
+                          icon = <DollarSignIcon className="h-3 w-3" />;
+                          status = 'Collect Now';
                         }
                       }
 
@@ -2684,19 +3172,46 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                           {canMarkPaid && (
                             <Button
                               size="sm"
-                              className="w-full mt-1 h-6 text-xs"
+                              className="w-full mt-1 h-6 text-xs bg-green-600 hover:bg-green-700"
                               onClick={() => {
                                 setRentViewAllDialog(false);
                                 handleRentPaymentClick(weekIndex, selectedVehicleForRent.assignment, weekStartDate);
                               }}
                             >
-                              Pay
+                              Collect
                             </Button>
                           )}
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Collect Total Due Button */}
+                  {rentStatus.totalDue > 0 && (
+                    <div className="pt-4 mt-4 border-t border-green-100">
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        onClick={() => {
+                          const weeksToPay = [...rentStatus.overdueWeeks];
+                          if (rentStatus.currentWeekDue) {
+                            weeksToPay.push(rentStatus.currentWeekDue);
+                          }
+                          setSelectedRentWeek({
+                            weekIndex: -1,
+                            assignment: selectedVehicleForRent.assignment,
+                            weekStartDate: weeksToPay[0].weekStartDate,
+                            vehicleId: selectedVehicleForRent.vehicle.id,
+                            isBulkPayment: true,
+                            overdueWeeks: weeksToPay
+                          });
+                          setRentViewAllDialog(false);
+                          setConfirmRentPaymentDialog(true);
+                        }}
+                      >
+                        Collect Total Due ({rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)} week{(rentStatus.overdueWeeks.length + (rentStatus.currentWeekDue ? 1 : 0)) !== 1 ? 's' : ''}) - ₹{rentStatus.totalDue.toLocaleString()}
+                      </Button>
+                    </div>
+                  )}
                 </>
               );
             })()}
@@ -2734,17 +3249,20 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           
           <div className="space-y-4">
             {selectedVehicleForEMI && (
-              <div className="grid grid-cols-1 gap-3">
-                {(selectedVehicleForEMI.loanDetails?.amortizationSchedule || [])
-                  .map((emi: any, index: number) => {
-                    const dueDate = new Date(emi.dueDate);
-                    const today = new Date();
-                    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    const threeDaysFromNow = new Date();
-                    threeDaysFromNow.setDate(today.getDate() + 3);
-                    const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
-
-                    if (emi.isPaid || !canPayNow) return null;
+              <>
+                {dueEmiDetails.length > 0 && (
+                  <div className="rounded border border-dashed border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                    Select EMIs oldest-first. Choosing a later EMI automatically includes every older due EMI; unselecting one clears all newer selections to keep the order intact.
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-3">
+                  {dueEmiDetails.length === 0 ? (
+                    <div className="rounded border border-dashed border-gray-300 p-4 text-sm text-gray-600">
+                      All eligible EMIs are up to date. There is nothing pending right now.
+                    </div>
+                  ) : (
+                    dueEmiDetails.map(({ index, emi, dueDate, daysDiff }) => {
+                    const isSelected = selectedEmiIndices.includes(index);
 
                     let statusText = '';
                     let statusColor = 'text-gray-500';
@@ -2759,23 +3277,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       statusText = `Due ${dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
                     }
 
+                    const checkboxId = `emi-${index}`;
+
                     return (
-                      <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <div
+                        key={index}
+                        className={`flex items-center space-x-3 p-3 border rounded-lg ${isSelected ? 'border-orange-300 bg-orange-50' : ''}`}
+                      >
                         <Checkbox
-                          id={`emi-${index}`}
-                          checked={selectedEMIs.has(index)}
-                          onCheckedChange={(checked) => {
-                            const newSelected = new Set(selectedEMIs);
-                            if (checked) {
-                              newSelected.add(index);
-                            } else {
-                              newSelected.delete(index);
-                            }
-                            setSelectedEMIs(newSelected);
-                          }}
+                          id={checkboxId}
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleEmiSelection(index)}
                         />
                         <div className="flex-1">
-                          <div className="font-medium">EMI {emi.month}</div>
+                          <label htmlFor={checkboxId} className="font-medium cursor-pointer">
+                            EMI {emi.month}
+                          </label>
                           <div className={`text-sm ${statusColor}`}>{statusText}</div>
                         </div>
                         <div className="text-right">
@@ -2788,32 +3305,47 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         </div>
                       </div>
                     );
-                  })}
-              </div>
+                  })
+                  )}
+                </div>
+              </>
             )}
             
-            {selectedEMIs.size > 0 && (
-              <div className="flex justify-between items-center pt-4 border-t">
-                <div>
-                  <div className="font-medium">{selectedEMIs.size} EMI{selectedEMIs.size > 1 ? 's' : ''} selected</div>
-                  <div className="text-sm text-gray-600">
-                    Total: ₹{Array.from(selectedEMIs).reduce((total, index) => {
-                      const emi = selectedVehicleForEMI?.loanDetails?.amortizationSchedule?.[index];
-                      if (!emi) return total;
-                      const dueDate = new Date(emi.dueDate);
-                      const today = new Date();
-                      const daysPastDue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const penalty = daysPastDue > 0 ? Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02) : 0;
-                      return total + (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
-                    }, 0).toLocaleString()}
+            {selectedCount > 0 && selectedVehicleForEMI && (
+              <div className="flex flex-col gap-3 pt-4 border-t">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{selectedCount} EMI{selectedCount > 1 ? 's' : ''} selected</div>
+                    <div className="text-sm text-gray-600">
+                      Total: ₹{selectedEmiIndices.reduce((total, index) => {
+                        const emi = selectedVehicleForEMI.loanDetails?.amortizationSchedule?.[index];
+                        if (!emi) return total;
+                        const dueDate = new Date(emi.dueDate);
+                        const today = new Date();
+                        const daysPastDue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const penalty = daysPastDue > 0 ? Math.max(100, (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) * 0.02) : 0;
+                        return total + (selectedVehicleForEMI.loanDetails?.emiPerMonth || 0) + penalty;
+                      }, 0).toLocaleString()}
+                    </div>
                   </div>
+                  {selectedCount < orderedDueEmiIndices.length && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllEmis}
+                    >
+                      Select Oldest Sequence
+                    </Button>
+                  )}
                 </div>
-                <Button 
-                  onClick={handleEMIBulkPayment}
-                  disabled={isProcessingEMI}
-                >
-                  {isProcessingEMI ? 'Processing...' : 'Mark as Paid'}
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleEMIBulkPayment}
+                    disabled={isProcessingEMI}
+                  >
+                    {isProcessingEMI ? 'Processing...' : 'Mark as Paid'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -2947,6 +3479,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+
     </div>
     </TooltipProvider>
   );

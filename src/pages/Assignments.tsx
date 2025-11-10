@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Car, User, Calendar, DollarSign, Clock, Eye, Edit, Trash2, MapPin, Phone } from 'lucide-react';
+import { Plus, Search, Filter, Car, User, Calendar, DollarSign, Clock, Eye, Edit, Trash2, MapPin, Phone, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
+import { useToast } from '@/hooks/use-toast';
 import { Assignment } from '@/types/user';
 import AddItemModal from '@/components/Modals/AddItemModal';
 // If the file exists at src/components/Forms/AddAssignmentForm.tsx, ensure it is exported as default.
@@ -23,8 +26,17 @@ const Assignments: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const { userInfo } = useAuth();
-  const { vehicles, drivers, payments } = useFirebaseData();
-  const { assignments, loading, addAssignment } = useAssignments();
+  const { vehicles, drivers, payments, updateVehicle } = useFirebaseData();
+  const { assignments, loading, addAssignment, updateAssignment, deleteAssignment } = useAssignments();
+  const { toast } = useToast();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [showEndAssignmentModal, setShowEndAssignmentModal] = useState(false);
+  const [endAssignmentData, setEndAssignmentData] = useState({
+    endDate: '',
+    finalOdometer: '',
+    endReason: ''
+  });
 
   // Filter assignments based on search and status
   const filteredAssignments = assignments.filter((assignment) => {
@@ -109,6 +121,84 @@ const Assignments: React.FC = () => {
 
   const handleAddSuccess = () => {
     setShowAddModal(false);
+  };
+
+  const handleEndAssignment = async () => {
+    if (!selectedAssignment) return;
+
+    try {
+      const endDate = new Date(endAssignmentData.endDate);
+      const finalOdometer = parseFloat(endAssignmentData.finalOdometer);
+
+      if (isNaN(endDate.getTime())) {
+        toast({
+          title: 'Invalid Date',
+          description: 'Please enter a valid end date.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (isNaN(finalOdometer) || finalOdometer < selectedAssignment.initialOdometer) {
+        toast({
+          title: 'Invalid Odometer Reading',
+          description: 'Final odometer reading must be greater than initial reading.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (!endAssignmentData.endReason.trim()) {
+        toast({
+          title: 'Reason Required',
+          description: 'Please provide a reason for ending the assignment.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Update assignment
+      await updateAssignment(selectedAssignment.id, {
+        status: 'ended',
+        endDate: endDate.toISOString(),
+        endReason: endAssignmentData.endReason.trim(),
+        finalOdometer: finalOdometer,
+        endedBy: userInfo?.userId,
+        endedAt: new Date().toISOString()
+      });
+
+      // Update vehicle status back to available
+      const vehicle = vehicles.find(v => v.id === selectedAssignment.vehicleId);
+      if (vehicle) {
+        await updateVehicle(selectedAssignment.vehicleId, {
+          status: 'available',
+          assignedDriverId: null,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      toast({
+        title: 'Assignment Ended',
+        description: `Assignment for ${getVehicleName(selectedAssignment.vehicleId)} has been ended successfully.`,
+      });
+
+      // Reset form and close modal
+      setShowEndAssignmentModal(false);
+      setSelectedAssignment(null);
+      setEndAssignmentData({
+        endDate: '',
+        finalOdometer: '',
+        endReason: ''
+      });
+
+    } catch (error) {
+      console.error('Error ending assignment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to end assignment. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (loading) {
@@ -286,9 +376,47 @@ const Assignments: React.FC = () => {
                             variant="outline" 
                             size="sm"
                             className="hover:bg-gray-50"
+                            onClick={() => {
+                              setSelectedAssignment(assignment);
+                              setShowEditModal(true);
+                            }}
                           >
                             <Edit className="w-4 h-4 mr-1" />
                             Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="hover:bg-orange-50 hover:border-orange-200 text-orange-700 border-orange-300"
+                            onClick={() => {
+                              setSelectedAssignment(assignment);
+                              setEndAssignmentData({
+                                endDate: new Date().toISOString().split('T')[0],
+                                finalOdometer: '',
+                                endReason: ''
+                              });
+                              setShowEndAssignmentModal(true);
+                            }}
+                          >
+                            <AlertTriangle className="w-4 h-4 mr-1" />
+                            End Assignment
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
+                              try {
+                                await deleteAssignment(assignment.id);
+                                toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
+                              } catch (error) {
+                                console.error('Error deleting assignment:', error);
+                                toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
                           </Button>
                         </div>
                       </div>
@@ -600,6 +728,116 @@ const Assignments: React.FC = () => {
           )}
         </TabsContent>
       </Tabs>
+      {/* Edit Assignment Modal */}
+      {showEditModal && selectedAssignment && (
+        <AddItemModal
+          title={`Edit Assignment - ${selectedAssignment.id}`}
+          buttonText="Edit Assignment"
+          isOpen={showEditModal}
+          onOpenChange={(open) => {
+            setShowEditModal(open);
+            if (!open) setSelectedAssignment(null);
+          }}
+        >
+          <AddAssignmentForm
+            onSuccess={() => {
+              setShowEditModal(false);
+              setSelectedAssignment(null);
+            }}
+            assignment={selectedAssignment}
+            mode="edit"
+          />
+        </AddItemModal>
+      )}
+
+      {/* End Assignment Modal */}
+      <Dialog open={showEndAssignmentModal} onOpenChange={setShowEndAssignmentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              End Assignment
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {selectedAssignment && (
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm font-medium text-blue-900">
+                  {getVehicleName(selectedAssignment.vehicleId)}
+                </p>
+                <p className="text-xs text-blue-700">
+                  Assigned to {getDriverName(selectedAssignment.driverId)}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="endDate">End Date *</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endAssignmentData.endDate}
+                  onChange={(e) => setEndAssignmentData(prev => ({ ...prev, endDate: e.target.value }))}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="finalOdometer">Final Odometer Reading (km) *</Label>
+                <Input
+                  id="finalOdometer"
+                  type="number"
+                  placeholder="Enter current odometer reading"
+                  value={endAssignmentData.finalOdometer}
+                  onChange={(e) => setEndAssignmentData(prev => ({ ...prev, finalOdometer: e.target.value }))}
+                  min={selectedAssignment?.initialOdometer || 0}
+                />
+                {selectedAssignment && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Initial reading: {selectedAssignment.initialOdometer} km
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="endReason">Reason for Ending Assignment *</Label>
+                <Textarea
+                  id="endReason"
+                  placeholder="Please provide a reason for ending this assignment early..."
+                  value={endAssignmentData.endReason}
+                  onChange={(e) => setEndAssignmentData(prev => ({ ...prev, endReason: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEndAssignmentModal(false);
+                setSelectedAssignment(null);
+                setEndAssignmentData({
+                  endDate: '',
+                  finalOdometer: '',
+                  endReason: ''
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEndAssignment}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              End Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

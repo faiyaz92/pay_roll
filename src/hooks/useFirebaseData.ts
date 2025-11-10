@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where, orderBy, getDocs, increment, setDoc, Timestamp } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from './useFirestorePaths';
@@ -91,8 +91,8 @@ export interface Expense {
   odometerReading?: number;
   // Proration fields for advance payments
   isAdvance?: boolean;
-  coverageStartDate?: string;
-  coverageEndDate?: string;
+  coverageStartDate?: any; // Firebase Timestamp
+  coverageEndDate?: any; // Firebase Timestamp
   coverageMonths?: number;
   proratedMonthly?: number;
   [key: string]: any; // Allow additional fields
@@ -310,21 +310,71 @@ export const useVehicles = () => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const vehiclesRef = collection(firestore, paths.getVehiclesPath());
     const now = new Date().toISOString();
-    return await addDoc(vehiclesRef, { 
-      ...vehicleData, 
+
+    const vehicleDoc = await addDoc(vehiclesRef, {
+      ...vehicleData,
       companyId: userInfo.companyId,
       createdAt: now,
       updatedAt: now
     });
+
+    const cashRef = doc(
+      firestore,
+      `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`,
+      vehicleDoc.id
+    );
+
+    // Ensure the vehicle has a matching cash ledger document on creation
+    await setDoc(
+      cashRef,
+      {
+        balance: 0,
+        vehicleId: vehicleDoc.id,
+        companyId: userInfo.companyId,
+        registrationNumber: vehicleData.registrationNumber,
+        vehicleName: vehicleData.vehicleName,
+        createdAt: now,
+        updatedAt: now
+      },
+      { merge: true }
+    );
+
+    return vehicleDoc;
   };
 
   const updateVehicle = async (vehicleId: string, vehicleData: Partial<Vehicle>) => {
     if (!userInfo?.companyId) throw new Error('No company ID');
     const vehicleRef = doc(firestore, paths.getVehiclesPath(), vehicleId);
-    return await updateDoc(vehicleRef, { 
-      ...vehicleData, 
-      updatedAt: new Date().toISOString() 
+    const now = new Date().toISOString();
+
+    await updateDoc(vehicleRef, {
+      ...vehicleData,
+      updatedAt: now
     });
+
+    const cashRef = doc(
+      firestore,
+      `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`,
+      vehicleId
+    );
+
+    // Guarantee the cash ledger exists and keep identifying metadata in sync
+    const cashUpdates: Record<string, any> = {
+      vehicleId,
+      companyId: userInfo.companyId,
+      updatedAt: now,
+      balance: increment(0)
+    };
+
+    if (vehicleData.registrationNumber) {
+      cashUpdates.registrationNumber = vehicleData.registrationNumber;
+    }
+
+    if (vehicleData.vehicleName) {
+      cashUpdates.vehicleName = vehicleData.vehicleName;
+    }
+
+    await setDoc(cashRef, cashUpdates, { merge: true });
   };
 
   const deleteVehicle = async (vehicleId: string) => {
@@ -398,7 +448,13 @@ export const useAssignments = () => {
     });
   };
 
-  return { assignments, loading, addAssignment, updateAssignment };
+  const deleteAssignment = async (assignmentId: string) => {
+    if (!userInfo?.companyId) throw new Error('No company ID');
+    const assignmentRef = doc(firestore, paths.getAssignmentsPath(), assignmentId);
+    return await deleteDoc(assignmentRef);
+  };
+
+  return { assignments, loading, addAssignment, updateAssignment, deleteAssignment };
 };
 
 export const usePayments = () => {
@@ -492,8 +548,15 @@ export const useExpenses = () => {
     const expensesRef = collection(firestore, paths.getExpensesPath());
     const now = new Date().toISOString();
 
+    // Filter out undefined values to prevent Firebase errors
+    const cleanExpenseData = Object.fromEntries(
+      Object.entries(expenseData).filter(([_, value]) => value !== undefined)
+    );
+
+    console.log('Sending to Firebase:', JSON.stringify(cleanExpenseData, null, 2));
+
     const expenseDoc = await addDoc(expensesRef, {
-      ...expenseData,
+      ...cleanExpenseData,
       companyId: userInfo.companyId,
       createdAt: now,
       updatedAt: now
