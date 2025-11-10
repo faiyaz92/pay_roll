@@ -33,14 +33,15 @@ const Payments: React.FC = () => {
 
   // Helper functions to get names
   const getVehicleName = (vehicleId: string) => {
+    if (!vehicleId) return 'Unknown Vehicle';
     const vehicle = vehicles.find(v => v.id === vehicleId);
-    return vehicle ? `${vehicle.vehicleName || vehicle.make + ' ' + vehicle.model} (${vehicle.registrationNumber})` : vehicleId;
+    return vehicle ? `${vehicle.vehicleName || vehicle.make + ' ' + vehicle.model} (${vehicle.registrationNumber})` : `Vehicle ${vehicleId}`;
   };
 
   const getDriverName = (driverId: string) => {
     if (!driverId) return 'N/A';
     const driver = drivers.find(d => d.id === driverId);
-    return driver ? driver.name : driverId;
+    return driver ? driver.name : `Driver ${driverId}`;
   };
 
   // Normalize all transactions
@@ -121,18 +122,18 @@ const Payments: React.FC = () => {
   }, [payments, expenses]);
 
   const filteredTransactions = normalizedTransactions.filter((transaction) => {
-    const vehicleName = getVehicleName(transaction.vehicleId);
+    const vehicleName = getVehicleName(transaction.vehicleId || '');
     const driverName = getDriverName(transaction.driverId || '');
     const matchesSearch = vehicleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          driverName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          transaction.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesTransactionType = transactionTypeFilter === 'all' || transaction.type === transactionTypeFilter;
     const matchesPaymentType = paymentTypeFilter === 'all' || transaction.paymentType === paymentTypeFilter;
-    const matchesExpenseType = expenseTypeFilter === 'all' || 
+    const matchesExpenseType = expenseTypeFilter === 'all' ||
                                (transaction.expenseType && transaction.expenseType === expenseTypeFilter) ||
                                (expenseTypeFilter === 'fuel' && transaction.description.toLowerCase().includes('fuel'));
-    
+
     return matchesSearch && matchesTransactionType && matchesPaymentType && matchesExpenseType;
   });
 
