@@ -427,6 +427,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [selectedRentWeek, setSelectedRentWeek] = useState<{weekIndex: number, assignment: any, weekStartDate: Date, vehicleId: string, isBulkPayment?: boolean, overdueWeeks?: any[]} | null>(null);
   const [confirmRentPaymentDialog, setConfirmRentPaymentDialog] = useState(false);
 
+  // Backdoor cash increase state (for testing only)
+  const [backdoorDialogOpen, setBackdoorDialogOpen] = useState(false);
+  const [selectedVehicleForBackdoor, setSelectedVehicleForBackdoor] = useState<string>('');
+  const [backdoorAmount, setBackdoorAmount] = useState<string>('');
+  const [isProcessingBackdoor, setIsProcessingBackdoor] = useState(false);
+
   // Rent View All Dialog state
   const [rentViewAllDialog, setRentViewAllDialog] = useState(false);
   const [selectedVehicleForRent, setSelectedVehicleForRent] = useState<any>(null);
@@ -691,29 +697,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         completedAt: new Date().toISOString()
       });
 
-      // Update cash in hand - INCREASE when owner collects service charge (additional income)
+      // Update cash in hand - DECREASE when owner withdraws service charge
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(vehicleInfo.serviceCharge)
+        balance: increment(-vehicleInfo.serviceCharge)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(vehicleInfo.serviceCharge),
+        balance: increment(-vehicleInfo.serviceCharge),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance + vehicleInfo.serviceCharge
+        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.serviceCharge
       }));
 
       toast({
-        title: 'Service Charge Collected',
-        description: `₹${vehicleInfo.serviceCharge.toLocaleString()} service charge collected as additional income for ${vehicleInfo.vehicle.registrationNumber}`,
+        title: 'Service Charge Withdrawn',
+        description: `₹${vehicleInfo.serviceCharge.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -865,6 +871,54 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         description: 'Failed to process owner\'s withdrawal',
         variant: 'destructive'
       });
+    }
+  };
+
+  // Backdoor function to increase vehicle cash in hand (for testing only)
+  const handleBackdoorCashIncrease = async () => {
+    if (!selectedVehicleForBackdoor || !backdoorAmount) return;
+
+    const amount = parseFloat(backdoorAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    setIsProcessingBackdoor(true);
+    try {
+      // Update vehicle cash in hand - INCREASE
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, selectedVehicleForBackdoor);
+      await setDoc(cashRef, {
+        balance: increment(amount)
+      }, { merge: true });
+
+      // Update company-level cash balance
+      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
+      await setDoc(companyCashRef, {
+        balance: increment(amount),
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+
+      // Update local state
+      setVehicleCashBalances(prev => ({
+        ...prev,
+        [selectedVehicleForBackdoor]: (prev[selectedVehicleForBackdoor] || 0) + amount
+      }));
+
+      // Reset form
+      setSelectedVehicleForBackdoor('');
+      setBackdoorAmount('');
+      setBackdoorDialogOpen(false);
+
+      toast({
+        title: 'Cash Increased (Testing)',
+        description: `₹${amount.toLocaleString()} added to vehicle cash in hand`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to increase cash',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessingBackdoor(false);
     }
   };
 
@@ -2501,7 +2555,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 className="flex items-center gap-2"
               >
                 <DollarSign className="h-4 w-4" />
-                Collect Service Charges ({periodTotals.totalServiceCharge.toLocaleString()})
+                Withdraw Service Charges ({periodTotals.totalServiceCharge.toLocaleString()})
               </Button>
               <Button
                 onClick={() => openBulkPaymentDialog('partner_share')}
@@ -2521,7 +2575,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 className="flex items-center gap-2"
               >
                 <User className="h-4 w-4" />
-                Collect Owner Shares ({periodTotals.totalOwnerShare.toLocaleString()})
+                Withdraw Owner Share ({periodTotals.totalOwnerShare.toLocaleString()})
               </Button>
               <Button
                 onClick={() => openBulkPaymentDialog('emi')}
@@ -2532,6 +2586,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               >
                 <CreditCard className="h-4 w-4" />
                 Pay Overdue EMIs ({periodTotals.totalEMI.toLocaleString()})
+              </Button>
+              <Button
+                onClick={() => setBackdoorDialogOpen(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 bg-red-50 border-red-200 hover:bg-red-100"
+              >
+                <Plus className="h-4 w-4" />
+                Add Cash (Testing)
               </Button>
             </div>
             <div className="text-xs text-gray-500 text-center mt-2">
@@ -3460,7 +3523,66 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
-
+      {/* Backdoor Cash Increase Dialog (Testing Only) */}
+      <Dialog open={backdoorDialogOpen} onOpenChange={setBackdoorDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Plus className="h-5 w-5" />
+              Add Cash to Vehicle (Testing Only)
+            </DialogTitle>
+            <DialogDescription>
+              This is a testing utility to increase vehicle cash in hand. This action is not recorded in accounting transactions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="vehicle-select">Select Vehicle</Label>
+              <Select value={selectedVehicleForBackdoor} onValueChange={setSelectedVehicleForBackdoor}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a vehicle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicles.map((vehicle: any) => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.registrationNumber} - {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="amount">Amount to Add (₹)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="Enter amount"
+                value={backdoorAmount}
+                onChange={(e) => setBackdoorAmount(e.target.value)}
+                min="1"
+                step="1"
+              />
+            </div>
+            {selectedVehicleForBackdoor && (
+              <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                Current cash in hand: ₹{(vehicleCashBalances[selectedVehicleForBackdoor] || 0).toLocaleString()}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBackdoorDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBackdoorCashIncrease}
+              disabled={!selectedVehicleForBackdoor || !backdoorAmount || isProcessingBackdoor}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isProcessingBackdoor ? 'Adding...' : 'Add Cash'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
 
 
