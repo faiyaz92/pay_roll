@@ -10,6 +10,7 @@ import {
   Calculator,
   PieChart
 } from 'lucide-react';
+import { SectionNumberBadge } from '../VehicleDetails/SectionNumberBadge';
 
 interface FinancialOverviewTabProps {
   companyFinancialData: any;
@@ -33,6 +34,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
+      <SectionNumberBadge id="1" label="Financial Summary" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -98,6 +100,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
       {/* Vehicle Performance Overview */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Vehicle Performance Overview" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <PieChart className="h-5 w-5" />
             Vehicle Performance Overview
@@ -139,6 +142,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
       </Card>
 
       {/* Financial Health Indicators */}
+      <SectionNumberBadge id="3" label="Financial Health Indicators" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>

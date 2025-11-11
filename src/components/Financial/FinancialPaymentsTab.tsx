@@ -9,6 +9,7 @@ import {
   Calendar,
   Car
 } from 'lucide-react';
+import { SectionNumberBadge } from '../VehicleDetails/SectionNumberBadge';
 
 interface FinancialPaymentsTabProps {
   companyFinancialData: any;
@@ -48,6 +49,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Payment Summary */}
+      <SectionNumberBadge id="1" label="Payment Summary" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -98,6 +100,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
       {/* Income Transactions */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Income Transactions" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-green-600" />
             Income Transactions
@@ -147,6 +150,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
       {/* Expense Transactions */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="3" label="Expense Transactions" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <TrendingDown className="h-5 w-5 text-red-600" />
             Expense Transactions
@@ -195,6 +199,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
       {/* Transaction Summary by Vehicle */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="4" label="Transaction Summary by Vehicle" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
             Transaction Summary by Vehicle

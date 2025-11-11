@@ -40,6 +40,7 @@ import { PaymentsTab } from '@/components/VehicleDetails/PaymentsTab';
 import { DocumentsTab } from '@/components/VehicleDetails/DocumentsTab';
 import { AssignmentsTab } from '@/components/VehicleDetails/AssignmentsTab';
 import AccountsTab from '@/components/VehicleDetails/AccountsTab';
+import { SectionNumberBadge } from '@/components/VehicleDetails/SectionNumberBadge';
 
 // Define EMI schedule item type
 type EMIScheduleItem = {
@@ -1858,52 +1859,57 @@ const VehicleDetails: React.FC = () => {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Car className="h-8 w-8" />
-            {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {vehicle.make} {vehicle.model} ({vehicle.year}) • {vehicle.registrationNumber}
-          </p>
-          <div className="flex gap-2 mt-2">
-            {getStatusBadge(vehicle.status)}
-            {getFinancialStatusBadge(vehicle.financialStatus || 'cash')}
-            <Badge variant="outline">
-              {vehicle.odometer?.toLocaleString() || 'N/A'} km
-            </Badge>
-            {vehicle.needsMaintenance && (
-              <Badge variant="destructive">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                Maintenance Due
+      <div className="space-y-2">
+        <SectionNumberBadge id="1" label="Vehicle Header" className="mb-1" />
+        {/* Header */}
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Car className="h-8 w-8" />
+              {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {vehicle.make} {vehicle.model} ({vehicle.year}) • {vehicle.registrationNumber}
+            </p>
+            <div className="flex gap-2 mt-2">
+              {getStatusBadge(vehicle.status)}
+              {getFinancialStatusBadge(vehicle.financialStatus || 'cash')}
+              <Badge variant="outline">
+                {vehicle.odometer?.toLocaleString() || 'N/A'} km
               </Badge>
-            )}
+              {vehicle.needsMaintenance && (
+                <Badge variant="destructive">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Maintenance Due
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportToExcel}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Excel
-          </Button>
-          <Button variant="outline" onClick={exportToPDF}>
-            <FileText className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/vehicles')}>
-            Back to Fleet
-          </Button>
-          <Button>
-            <Settings className="h-4 w-4 mr-2" />
-            Edit Vehicle
-          </Button>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportToExcel}>
+              <Download className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
+            <Button variant="outline" onClick={exportToPDF}>
+              <FileText className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/vehicles')}>
+              Back to Fleet
+            </Button>
+            <Button>
+              <Settings className="h-4 w-4 mr-2" />
+              Edit Vehicle
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-10">
+      <div className="space-y-2">
+        <SectionNumberBadge id="2" label="Vehicle Detail Tabs" className="mb-1" />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="emi">EMI Tracking</TabsTrigger>
@@ -2045,7 +2051,8 @@ const VehicleDetails: React.FC = () => {
         <TabsContent value="accounts" className="space-y-4">
           <AccountsTab vehicle={vehicle} vehicleId={vehicleId!} />
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
 
       {/* Penalty Payment Dialog */}
       <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>

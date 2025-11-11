@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingDown, TrendingUp, CreditCard, CircleDollarSign, History, AlertTriangle } from 'lucide-react';
 import { Payment } from '@/types/user';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface PaymentsTabProps {
   transactionTypeFilter: string;
@@ -43,6 +44,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   return (
     <div className="space-y-4">
       {/* Payment History Header and Filters */}
+      <SectionNumberBadge id="1" label="Payment History Filters" className="mb-2" />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-lg font-semibold">Payment History</h3>
@@ -126,7 +128,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
       {/* Active Filters Indicator */}
       {(transactionTypeFilter !== 'all' || paidSubTypeFilter !== 'all' || expenseSubTypeFilter !== 'all' || paymentDateFilter) && (
-        <div className="flex flex-wrap gap-2 items-center text-sm">
+        <div className="flex flex-col gap-2">
+          <SectionNumberBadge id="2" label="Active Filters" />
+          <div className="flex flex-wrap gap-2 items-center text-sm">
           <span className="text-muted-foreground">Active filters:</span>
           {transactionTypeFilter !== 'all' && (
             <Badge variant="secondary">
@@ -161,10 +165,12 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           >
             Clear all filters
           </button>
+          </div>
         </div>
       )}
 
       {/* Payment Summary Cards */}
+  <SectionNumberBadge id="3" label="Payment Summary" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -225,6 +231,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       </div>
 
       {/* Payment History Table */}
+  <SectionNumberBadge id="4" label="Transaction History" className="mb-2" />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -335,6 +342,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       </Card>
 
       {/* Quick Actions */}
+  <SectionNumberBadge id="5" label="Quick Actions" className="mb-2" />
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={() => setShowEmiForm(true)}

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Camera, FileText, Eye, ImageIcon } from 'lucide-react';
 import { Vehicle } from '@/types/user';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface DocumentsTabProps {
   vehicle: Vehicle;
@@ -15,6 +16,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ vehicle }) => {
       {/* Vehicle Images */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="1" label="Vehicle Images" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <Camera className="w-5 h-5" />
             Vehicle Images
@@ -148,6 +150,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ vehicle }) => {
       {/* Vehicle Information */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Vehicle Information" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
             Vehicle Information

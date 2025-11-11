@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calculator, CheckCircle, AlertCircle } from 'lucide-react';
+import { SectionNumberBadge } from '../VehicleDetails/SectionNumberBadge';
 
 interface BulkPaymentItem {
   vehicleId: string;
@@ -641,6 +642,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
+          <SectionNumberBadge id="1" label="Bulk Payment Overview" className="mb-2" />
           <DialogTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5" />
             {title}
@@ -670,6 +672,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           {/* Summary */}
           <Card>
             <CardHeader className="pb-3">
+              <SectionNumberBadge id="2" label="Payment Summary" className="mb-2" />
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Payment Summary</CardTitle>
                 <Button
@@ -708,6 +711,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
           {/* Vehicle Breakdown */}
           <div className="space-y-3">
+            <SectionNumberBadge id="3" label="Vehicle Breakdown" className="mb-2" />
             <h3 className="text-lg font-semibold">Vehicle Breakdown</h3>
             {selectedItems.map(item => (
               <Card key={item.vehicleId} className={`transition-all ${item.checked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
@@ -989,16 +993,19 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
           {/* Warning for unselected items */}
           {selectedVehicleCount < items.length && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                  <p className="text-sm text-yellow-800">
-                    {items.length - selectedVehicleCount} vehicle(s) will not be processed. Only selected vehicles will have their {getPaymentTypeLabel().toLowerCase()} payments recorded.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <>
+              <SectionNumberBadge id="4" label="Unselected Vehicles Warning" className="mb-2" />
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <p className="text-sm text-yellow-800">
+                      {items.length - selectedVehicleCount} vehicle(s) will not be processed. Only selected vehicles will have their {getPaymentTypeLabel().toLowerCase()} payments recorded.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
 

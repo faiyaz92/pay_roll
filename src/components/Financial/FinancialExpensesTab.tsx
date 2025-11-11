@@ -8,6 +8,7 @@ import {
   Car,
   Filter
 } from 'lucide-react';
+import { SectionNumberBadge } from '../VehicleDetails/SectionNumberBadge';
 
 interface FinancialExpensesTabProps {
   companyFinancialData: any;
@@ -43,6 +44,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Expense Summary */}
+      <SectionNumberBadge id="1" label="Expense Summary" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -93,6 +95,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
       {/* Expense Categories */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Expenses by Category" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
             Expenses by Category
@@ -153,6 +156,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
       {/* Recent Expenses */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="3" label="Recent Expenses" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             Recent Expenses

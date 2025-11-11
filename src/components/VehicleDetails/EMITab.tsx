@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface EMITabProps {
   vehicle: Vehicle;
@@ -240,6 +241,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
         <div>
           <div className="flex justify-between items-center mb-6">
             <div>
+              <SectionNumberBadge id="1" label="EMI Payment Schedule" className="mb-2" />
               <h3 className="text-lg font-semibold">EMI Payment Schedule</h3>
               <p className="text-sm text-gray-600 mt-1">
                 ₹{(vehicle.loanDetails.emiPerMonth || 0).toLocaleString()} per month • {vehicle.loanDetails.interestRate}% annual interest
@@ -277,7 +279,9 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           )}
 
           {/* EMI Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="mb-6">
+            <SectionNumberBadge id="2" label="EMI Summary" className="mb-2" />
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
@@ -334,10 +338,12 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                 <div className="text-sm text-purple-700">Completed</div>
               </CardContent>
             </Card>
+            </div>
           </div>
 
           {/* EMI Schedule Grid */}
           <div>
+            <SectionNumberBadge id="3" label="EMI Payment Grid" className="mb-2" />
             <div className="flex items-center justify-between mb-4">
               <h4 className="font-medium">EMI Payment Grid</h4>
               <div className="flex items-center gap-4 text-xs">
@@ -527,6 +533,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
       <AlertDialog open={bulkPaymentDialog} onOpenChange={setBulkPaymentDialog}>
         <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <AlertDialogHeader>
+            <SectionNumberBadge id="4" label="Bulk EMI Payment" className="mb-2" />
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-500" />
               Pay All Due EMIs

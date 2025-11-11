@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface InvestmentReturnsCardProps {
   vehicle: any;
@@ -18,12 +19,14 @@ const InvestmentReturnsCard: React.FC<InvestmentReturnsCardProps> = ({
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
+        <SectionNumberBadge id="1" label="Investment & Returns" className="mb-2" />
         <CardTitle>Investment & Returns</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 flex-1 flex flex-col">
         <div className="space-y-3 flex-1">
           {/* Investment Breakdown */}
           <div className="space-y-2 pb-3 border-b">
+            <SectionNumberBadge id="2" label="Investment Breakdown" className="mb-2" />
             <h4 className="font-semibold text-sm text-gray-700">Investment Breakdown</h4>
             <div className="flex justify-between">
               <span>Initial investment</span>
@@ -45,6 +48,7 @@ const InvestmentReturnsCard: React.FC<InvestmentReturnsCardProps> = ({
 
           {/* Returns & Performance */}
           <div className="space-y-2">
+            <SectionNumberBadge id="3" label="Returns & Performance" className="mb-2" />
             <h4 className="font-semibold text-sm text-gray-700">Returns & Performance</h4>
             <div className="flex justify-between">
               <span>Total Earnings</span>
@@ -84,11 +88,14 @@ const InvestmentReturnsCard: React.FC<InvestmentReturnsCardProps> = ({
             </div>
           </div>
         </div>
-        <div className="flex justify-between border-t pt-2 mt-auto">
-          <span className="font-medium">Profit/Loss</span>
-          <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
-            ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
-          </span>
+        <div className="border-t pt-2 mt-auto space-y-2">
+          <SectionNumberBadge id="4" label="Profit & Loss" />
+          <div className="flex justify-between">
+            <span className="font-medium">Profit/Loss</span>
+            <span className={`font-bold ${financialData.isProfit ? 'text-green-600' : 'text-red-600'}`}>
+              ₹{(financialData.totalReturn - financialData.totalInvestment).toLocaleString()} ({financialData.grossProfitLossPercentage.toFixed(1)}%)
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>

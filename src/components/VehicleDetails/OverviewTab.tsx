@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface OverviewTabProps {
   vehicle: any;
@@ -27,6 +28,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       {/* Vehicle Info Card */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="1" label="Vehicle Information" className="mb-2" />
           <CardTitle className="text-lg">Vehicle Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -68,6 +70,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       {/* Financial Summary Card */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="2" label="Investment & Returns" className="mb-2" />
           <CardTitle className="text-lg">Investment & Returns</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -93,6 +96,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       {/* Rental Status Card */}
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="3" label="Current Rental Status" className="mb-2" />
           <CardTitle className="text-lg">Current Rental Status</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -148,6 +152,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       {vehicle.financingType === 'loan' && vehicle.loanDetails && (
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="4" label="Loan Status" className="mb-2" />
             <CardTitle className="text-lg">Loan Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -186,6 +191,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       {financialData.isPartnership && (
         <Card>
           <CardHeader>
+            <SectionNumberBadge id="5" label="Partnership Information" className="mb-2" />
             <CardTitle className="text-lg">Partnership Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

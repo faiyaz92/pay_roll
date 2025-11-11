@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { History } from 'lucide-react';
 import { useAssignments } from '@/hooks/useFirebaseData';
 import { useNavigate } from 'react-router-dom';
+import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface AssignmentsTabProps {
   vehicleId: string;
@@ -27,6 +28,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
+          <SectionNumberBadge id="1" label="Assignment History" className="mb-4" />
           <History className="w-12 h-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Assignment History</h3>
           <p className="text-gray-500 text-center">
@@ -41,6 +43,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
     <div className="space-y-4">
       <Card>
         <CardHeader>
+          <SectionNumberBadge id="1" label="Assignment History" className="mb-2" />
           <CardTitle className="flex items-center gap-2">
             <History className="w-5 h-5" />
             Assignment History ({vehicleAssignments.length})
@@ -152,36 +155,39 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
       </Card>
 
       {/* Summary Statistics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {vehicleAssignments.filter(a => a.status === 'active').length}
-            </div>
-            <div className="text-sm text-gray-600">Active Assignments</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {vehicleAssignments.filter(a => a.status === 'ended').length}
-            </div>
-            <div className="text-sm text-gray-600">Completed Assignments</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              ₹{vehicleAssignments
-                .filter(a => a.status === 'active')
-                .reduce((sum, a) => sum + ((a.weeklyRent * 52) / 12), 0)
-                .toFixed(0)
-                .toLocaleString()
-              }
-            </div>
-            <div className="text-sm text-gray-600">Monthly Revenue</div>
-          </CardContent>
-        </Card>
+      <div>
+        <SectionNumberBadge id="2" label="Assignment Summary Metrics" className="mb-2" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {vehicleAssignments.filter(a => a.status === 'active').length}
+              </div>
+              <div className="text-sm text-gray-600">Active Assignments</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {vehicleAssignments.filter(a => a.status === 'ended').length}
+              </div>
+              <div className="text-sm text-gray-600">Completed Assignments</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                ₹{vehicleAssignments
+                  .filter(a => a.status === 'active')
+                  .reduce((sum, a) => sum + ((a.weeklyRent * 52) / 12), 0)
+                  .toFixed(0)
+                  .toLocaleString()
+                }
+              </div>
+              <div className="text-sm text-gray-600">Monthly Revenue</div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
