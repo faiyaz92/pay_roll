@@ -643,15 +643,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   }, [userInfo?.companyId, vehicles]);
 
   // Handle GST payment
-  const handleGstPayment = async (vehicleInfo: any) => {
+  const handleGstPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.gstAmount;
+      let paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate GST for selected months only
+        const monthlyGst = vehicleInfo.gstAmount / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyGst;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'gst_payment',
-        amount: vehicleInfo.gstAmount,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -661,13 +675,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.gstAmount)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.gstAmount),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -679,7 +693,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       toast({
         title: 'GST Paid Successfully',
-        description: `₹${vehicleInfo.gstAmount.toLocaleString()} GST payment recorded for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} GST payment recorded for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -691,15 +705,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle service charge collection
-  const handleServiceChargeCollection = async (vehicleInfo: any) => {
+  const handleServiceChargeCollection = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.serviceCharge;
+      let paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate service charge for selected months only
+        const monthlyServiceCharge = vehicleInfo.serviceCharge / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyServiceCharge;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'service_charge',
-        amount: vehicleInfo.serviceCharge,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -709,25 +737,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.serviceCharge)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.serviceCharge),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.serviceCharge
+        [vehicleInfo.vehicle.id]: currentBalance - paymentAmount
       }));
 
       toast({
         title: 'Service Charge Withdrawn',
-        description: `₹${vehicleInfo.serviceCharge.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -739,15 +767,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle partner payment
-  const handlePartnerPayment = async (vehicleInfo: any) => {
+  const handlePartnerPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.partnerShare;
+      let paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate partner share for selected months only
+        const monthlyPartnerShare = vehicleInfo.partnerShare / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyPartnerShare;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'partner_payment',
-        amount: vehicleInfo.partnerShare,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -757,25 +799,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.partnerShare)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.partnerShare),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.partnerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
       }));
 
       toast({
         title: 'Partner Paid Successfully',
-        description: `₹${vehicleInfo.partnerShare.toLocaleString()} paid to partner for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} paid to partner for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -787,15 +829,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle owner's share collection
-  const handleOwnerShareCollection = async (vehicleInfo: any) => {
+  const handleOwnerShareCollection = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.ownerShare;
+      let paymentDescription = `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate owner share for selected months only
+        const monthlyOwnerShare = vehicleInfo.ownerShare / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyOwnerShare;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'owner_share',
-        amount: vehicleInfo.ownerShare,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -805,25 +861,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.ownerShare)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.ownerShare),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
       }));
 
       toast({
         title: 'Owner\'s Share Collected',
-        description: `₹${vehicleInfo.ownerShare.toLocaleString()} collected as owner's share for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} collected as owner's share for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -1528,16 +1584,16 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             await handleBulkRentCollection(vehicleInfo, item);
             break;
           case 'gst':
-            await handleGstPayment(vehicleInfo);
+            await handleGstPayment(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'service_charge':
-            await handleServiceChargeCollection(vehicleInfo);
+            await handleServiceChargeCollection(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'partner_share':
-            await handlePartnerPayment(vehicleInfo);
+            await handlePartnerPayment(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'owner_share':
-            await handleOwnerShareCollection(vehicleInfo);
+            await handleOwnerShareCollection(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'emi':
             await handleBulkEmiPayment(vehicleInfo, item, emiPenalties);
@@ -3428,6 +3484,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         items={bulkDialogItems}
         onConfirm={handleBulkPaymentConfirm}
         isLoading={isBulkProcessing}
+        // Month selection props
+        periodType={companyFinancialData.filterType}
+        selectedYear={companyFinancialData.selectedYear}
+        selectedQuarter={companyFinancialData.selectedQuarter}
       />
 
   {/* EMI Payment Dialog */}

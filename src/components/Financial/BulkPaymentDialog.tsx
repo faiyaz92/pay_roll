@@ -29,6 +29,10 @@ interface BulkPaymentDialogProps {
   items: BulkPaymentItem[];
   onConfirm: (selectedItems: BulkPaymentItem[], emiPenalties?: Record<string, Record<number, string>>) => void;
   isLoading?: boolean;
+  // Month selection props for quarterly/yearly periods
+  periodType?: 'monthly' | 'quarterly' | 'yearly';
+  selectedYear?: string;
+  selectedQuarter?: string;
 }
 
 const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
@@ -39,14 +43,42 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
   paymentType,
   items,
   onConfirm,
-  isLoading = false
+  isLoading = false,
+  // Month selection props
+  periodType = 'monthly',
+  selectedYear = '',
+  selectedQuarter = ''
 }) => {
-  const [selectedItems, setSelectedItems] = useState<BulkPaymentItem[]>(items);
+  // State for selected items
+  const [selectedItems, setSelectedItems] = useState<BulkPaymentItem[]>([]);
+  
+  // State for EMI penalties and selections
   const [emiPenalties, setEmiPenalties] = useState<Record<string, Record<number, string>>>({});
   const [emiSelections, setEmiSelections] = useState<Record<string, number[]>>({});
+  
+  // State for rent selections
   const [rentSelections, setRentSelections] = useState<Record<string, number[]>>({});
+
+  // State for month selections (per-vehicle for quarterly/yearly periods)
+  const [monthSelections, setMonthSelections] = useState<Record<string, number[]>>({});
+
   const isEmi = paymentType === 'emi';
   const isRent = paymentType === 'rent';
+  const isQuarterlyOrYearly = periodType === 'quarterly' || periodType === 'yearly';
+
+  // Helper function to get months for the current period
+  const getPeriodMonths = () => {
+    const year = parseInt(selectedYear);
+    if (periodType === 'quarterly' && selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+      } as const;
+      return quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+    } else if (periodType === 'yearly') {
+      return Array.from({ length: 12 }, (_, i) => i);
+    }
+    return [];
+  };
 
   // Update selected items when dialog opens
   useEffect(() => {
@@ -104,6 +136,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         setEmiPenalties(initialPenalties);
         setEmiSelections(initialSelections);
         setRentSelections({});
+        setMonthSelections({});
       } else if (isRent) {
         const initialRentSelections: Record<string, number[]> = {};
         sortedItems.forEach(item => {
@@ -120,10 +153,26 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         setRentSelections(initialRentSelections);
         setEmiPenalties({});
         setEmiSelections({});
+        setMonthSelections({});
+      } else if (isQuarterlyOrYearly) {
+        // Initialize month selections for quarterly/yearly periods
+        const initialMonthSelections: Record<string, number[]> = {};
+        const periodMonths = getPeriodMonths();
+        sortedItems.forEach(item => {
+          if (item.monthBreakdown && item.monthBreakdown.length > 0) {
+            // For quarterly/yearly, select all months by default (like EMI dialog)
+            initialMonthSelections[item.vehicleId] = [...periodMonths];
+          }
+        });
+        setMonthSelections(initialMonthSelections);
+        setEmiPenalties({});
+        setEmiSelections({});
+        setRentSelections({});
       } else {
         setEmiPenalties({});
         setEmiSelections({});
         setRentSelections({});
+        setMonthSelections({});
       }
     }
   }, [isOpen, items, paymentType]);
@@ -197,6 +246,22 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         }));
       } else {
         setRentSelections(prev => {
+          if (!prev[vehicleId]) return prev;
+          const updated = { ...prev };
+          delete updated[vehicleId];
+          return updated;
+        });
+      }
+    } else if (isQuarterlyOrYearly) {
+      const periodMonths = getPeriodMonths();
+
+      if (newChecked) {
+        setMonthSelections(prev => ({
+          ...prev,
+          [vehicleId]: prev[vehicleId] && prev[vehicleId].length > 0 ? prev[vehicleId] : [...periodMonths]
+        }));
+      } else {
+        setMonthSelections(prev => {
           if (!prev[vehicleId]) return prev;
           const updated = { ...prev };
           delete updated[vehicleId];
@@ -428,6 +493,11 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         const selection = rentSelections[item.vehicleId] || [];
         return orderedIndices.length > 0 ? selection.length === orderedIndices.length : true;
       }
+      if (isQuarterlyOrYearly) {
+        const periodMonths = getPeriodMonths();
+        const selection = monthSelections[item.vehicleId] || [];
+        return periodMonths.length > 0 ? selection.length === periodMonths.length : true;
+      }
       return true;
     });
 
@@ -439,6 +509,9 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       }
       if (isRent) {
         setRentSelections({});
+      }
+      if (isQuarterlyOrYearly) {
+        setMonthSelections({});
       }
       return;
     }
@@ -475,6 +548,17 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       });
 
       setRentSelections(updatedSelections);
+    } else if (isQuarterlyOrYearly) {
+      const updatedSelections: Record<string, number[]> = {};
+      const periodMonths = getPeriodMonths();
+
+      selectedItems.forEach(item => {
+        if (item.monthBreakdown && item.monthBreakdown.length > 0) {
+          updatedSelections[item.vehicleId] = [...periodMonths];
+        }
+      });
+
+      setMonthSelections(updatedSelections);
     }
   };
 
@@ -544,6 +628,21 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       return sum + rentSum;
     }
 
+    if (isQuarterlyOrYearly && item.monthBreakdown) {
+      const selection = new Set(monthSelections[item.vehicleId] || []);
+      if (selection.size === 0) {
+        return sum;
+      }
+
+      const monthSum = item.monthBreakdown.reduce((monthTotal, month, monthIndex) => {
+        const periodMonths = getPeriodMonths();
+        const actualMonthIndex = periodMonths[monthIndex];
+        return selection.has(actualMonthIndex) ? monthTotal + month.amount : monthTotal;
+      }, 0);
+
+      return sum + monthSum;
+    }
+
     return sum + item.amount;
   }, 0);
 
@@ -575,6 +674,23 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           };
         }
 
+        if (isQuarterlyOrYearly && item.monthBreakdown) {
+          const selectionSet = new Set(monthSelections[item.vehicleId] || []);
+          const filteredMonths = item.monthBreakdown.filter((month, monthIndex) => {
+            const periodMonths = getPeriodMonths();
+            const actualMonthIndex = periodMonths[monthIndex];
+            return selectionSet.has(actualMonthIndex);
+          });
+          const recalculatedAmount = filteredMonths.reduce((sum, month) => sum + month.amount, 0);
+
+          return {
+            ...item,
+            amount: recalculatedAmount,
+            monthBreakdown: filteredMonths,
+            selectedMonthIndices: Array.from(selectionSet)
+          };
+        }
+
         return item;
       })
       .filter(item => {
@@ -583,6 +699,9 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
         }
         if (isRent) {
           return !!item.overdueWeeks && item.overdueWeeks.length > 0;
+        }
+        if (isQuarterlyOrYearly) {
+          return !!item.monthBreakdown && item.monthBreakdown.length > 0;
         }
         return true;
       });
@@ -752,8 +871,109 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                     </div>
                   </div>
 
-                  {/* Monthly Breakdown for Quarterly */}
-                  {item.monthBreakdown && item.monthBreakdown.length > 0 && (
+                  {/* Monthly Breakdown with Selection for Quarterly/Yearly */}
+                  {isQuarterlyOrYearly && item.monthBreakdown && item.monthBreakdown.length > 0 && (() => {
+                    const periodMonths = getPeriodMonths();
+                    const selectedMonthIndices = new Set(monthSelections[item.vehicleId] || []);
+                    const vehicleSelectedCount = selectedMonthIndices.size;
+                    const vehicleSelectedTotal = item.monthBreakdown.reduce((monthTotal, month, monthIndex) => {
+                      const actualMonthIndex = periodMonths[monthIndex];
+                      return selectedMonthIndices.has(actualMonthIndex) ? monthTotal + month.amount : monthTotal;
+                    }, 0);
+
+                    return (
+                      <div className="mt-3 pt-3 border-t space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Select Months to Pay:</p>
+                            <p className="text-xs text-gray-500">
+                              {vehicleSelectedCount} of {periodMonths.length} month{periodMonths.length > 1 ? 's' : ''} selected
+                            </p>
+                          </div>
+                          {vehicleSelectedCount < periodMonths.length && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setMonthSelections(prev => ({
+                                  ...prev,
+                                  [item.vehicleId]: [...periodMonths]
+                                }));
+                              }}
+                            >
+                              Select All Months
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="rounded border border-dashed border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                          Selecting a month allows you to pay for specific months within the period. You can select or deselect individual months for this vehicle.
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          {item.monthBreakdown.map((month, monthIndex) => {
+                            const actualMonthIndex = periodMonths[monthIndex];
+                            const isSelected = selectedMonthIndices.has(actualMonthIndex);
+                            const monthName = new Date(parseInt(selectedYear), actualMonthIndex).toLocaleString('default', { month: 'short' });
+
+                            return (
+                              <label
+                                key={monthIndex}
+                                htmlFor={`month-${item.vehicleId}-${actualMonthIndex}`}
+                                className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                                  isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
+                                }`}
+                              >
+                                <Checkbox
+                                  id={`month-${item.vehicleId}-${actualMonthIndex}`}
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    setMonthSelections(prev => {
+                                      const currentSelection = prev[item.vehicleId] || [];
+                                      let newSelection;
+                                      if (checked) {
+                                        newSelection = [...currentSelection, actualMonthIndex];
+                                      } else {
+                                        newSelection = currentSelection.filter(idx => idx !== actualMonthIndex);
+                                      }
+
+                                      const updated = { ...prev };
+                                      if (newSelection.length === 0) {
+                                        delete updated[item.vehicleId];
+                                        // Also uncheck the vehicle if no months selected
+                                        setSelectedItems(prevItems =>
+                                          prevItems.map(vehicleItem =>
+                                            vehicleItem.vehicleId === item.vehicleId
+                                              ? { ...vehicleItem, checked: false }
+                                              : vehicleItem
+                                          )
+                                        );
+                                      } else {
+                                        updated[item.vehicleId] = newSelection;
+                                      }
+                                      return updated;
+                                    });
+                                  }}
+                                />
+                                <div className="flex-1 text-center">
+                                  <div className="text-xs text-gray-600">{monthName} {selectedYear}</div>
+                                  <div className="text-sm font-medium">₹{month.amount.toLocaleString()}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                          <span>Selected Total</span>
+                          <span>₹{(vehicleSelectedCount === 0 ? 0 : vehicleSelectedTotal).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Monthly Breakdown Display for Monthly Period */}
+                  {!isQuarterlyOrYearly && item.monthBreakdown && item.monthBreakdown.length > 0 && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown:</p>
                       <div className="grid grid-cols-3 gap-2">
