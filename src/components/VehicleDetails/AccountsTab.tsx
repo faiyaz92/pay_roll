@@ -1397,128 +1397,172 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     }
   };
 
-  const handleCumulativeServiceChargeCollection = async () => {
-    if (cumulativeData.totalServiceCharge <= 0) return;
+  const handleCumulativeServiceChargeCollection = async (selectedMonthsData?: typeof monthlyData) => {
+    // For month period, use all months in the period
+    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedServiceChargeMonths);
+
+    if (monthsToPay.length === 0) {
+      toast({
+        title: 'No Months Selected',
+        description: 'Please select at least one month to collect service charge for.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
-      const periodStr = selectedPeriod === 'year'
-        ? selectedYear
-        : selectedPeriod === 'quarter'
-        ? `${selectedYear}-Q${selectedQuarter}`
-        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+      let totalPaid = 0;
 
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'service_charge',
-        amount: cumulativeData.totalServiceCharge,
-        month: periodStr,
-        description: `Cumulative Service Charge Collection for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      // Process each selected month
+      for (const monthData of monthsToPay) {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'service_charge',
+          amount: monthData.serviceCharge,
+          month: monthData.monthStr,
+          description: `Service Charge Collection for ${monthData.monthName} ${monthData.year}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
 
-      // Update cash in hand - DECREASE when owner withdraws service charge
+        totalPaid += monthData.serviceCharge;
+      }
+
+      // Update cash in hand once for total amount
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-cumulativeData.totalServiceCharge),
+        balance: increment(-totalPaid),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
         title: 'Service Charge Withdrawn',
-        description: `₹${cumulativeData.totalServiceCharge.toLocaleString()} cumulative service charge withdrawn`,
+        description: `₹${totalPaid.toLocaleString()} service charge withdrawn for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
       });
+
+      // Clear selections
+      setSelectedServiceChargeMonthIndices([]);
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to collect cumulative service charge',
+        description: 'Failed to collect service charge',
         variant: 'destructive'
       });
     }
   };
 
-  const handleCumulativePartnerPayment = async () => {
-    if (cumulativeData.totalPartnerShare <= 0) return;
+  const handleCumulativePartnerPayment = async (selectedMonthsData?: typeof monthlyData) => {
+    // For month period, use all months in the period
+    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedPartnerMonths);
+
+    if (monthsToPay.length === 0) {
+      toast({
+        title: 'No Months Selected',
+        description: 'Please select at least one month to pay partner for.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
-      const periodStr = selectedPeriod === 'year'
-        ? selectedYear
-        : selectedPeriod === 'quarter'
-        ? `${selectedYear}-Q${selectedQuarter}`
-        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+      let totalPaid = 0;
 
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'partner_payment',
-        amount: cumulativeData.totalPartnerShare,
-        month: periodStr,
-        description: `Cumulative Partner Payment for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      // Process each selected month
+      for (const monthData of monthsToPay) {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'partner_payment',
+          amount: monthData.partnerShare,
+          month: monthData.monthStr,
+          description: `Partner Payment for ${monthData.monthName} ${monthData.year}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
 
-      // Update cash in hand
+        totalPaid += monthData.partnerShare;
+      }
+
+      // Update cash in hand once for total amount
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-cumulativeData.totalPartnerShare),
+        balance: increment(-totalPaid),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
         title: 'Partner Paid Successfully',
-        description: `₹${cumulativeData.totalPartnerShare.toLocaleString()} cumulative partner payment recorded`,
+        description: `₹${totalPaid.toLocaleString()} paid to partner for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
       });
+
+      // Clear selections
+      setSelectedPartnerMonthIndices([]);
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to record cumulative partner payment',
+        description: 'Failed to record partner payment',
         variant: 'destructive'
       });
     }
   };
 
-  const handleCumulativeOwnerShareCollection = async () => {
-    const totalOwnerAmount = cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal;
-    if (totalOwnerAmount <= 0) return;
+  const handleCumulativeOwnerShareCollection = async (selectedMonthsData?: typeof monthlyData) => {
+    // For month period, use all months in the period
+    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedOwnerShareMonths);
+
+    if (monthsToPay.length === 0) {
+      toast({
+        title: 'No Months Selected',
+        description: 'Please select at least one month to collect owner share for.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
-      const periodStr = selectedPeriod === 'year'
-        ? selectedYear
-        : selectedPeriod === 'quarter'
-        ? `${selectedYear}-Q${selectedQuarter}`
-        : `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+      let totalPaid = 0;
 
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: cumulativeData.totalOwnerShare > 0 ? 'owner_share' : 'owner_withdrawal',
-        amount: totalOwnerAmount,
-        month: periodStr,
-        description: `Cumulative Owner Share Collection for ${selectedPeriod === 'year' ? selectedYear : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}`}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      // Process each selected month
+      for (const monthData of monthsToPay) {
+        const totalOwnerAmount = monthData.ownerShare + monthData.ownerFullShare;
+        if (totalOwnerAmount <= 0) continue;
 
-      // Update cash in hand
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: monthData.ownerShare > 0 ? 'owner_share' : 'owner_withdrawal',
+          amount: totalOwnerAmount,
+          month: monthData.monthStr,
+          description: `Owner Share Collection for ${monthData.monthName} ${monthData.year}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+
+        totalPaid += totalOwnerAmount;
+      }
+
+      // Update cash in hand once for total amount
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-totalOwnerAmount),
+        balance: increment(-totalPaid),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
         title: 'Owner Share Collected',
-        description: `₹${totalOwnerAmount.toLocaleString()} cumulative owner share collected`,
+        description: `₹${totalPaid.toLocaleString()} owner share collected for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
       });
+
+      // Clear selections
+      setSelectedOwnerShareMonthIndices([]);
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to collect cumulative owner share',
+        description: 'Failed to collect owner share',
         variant: 'destructive'
       });
     }
@@ -2883,14 +2927,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
             <AlertDialogAction
               onClick={() => {
                 if (selectedServiceChargeMonthTotal > 0) {
-                  setSelectedMonthData({
-                    serviceCharge: selectedServiceChargeMonthTotal,
-                    monthStr: selectedPeriod === 'year' ? selectedYear : `${selectedYear}-Q${selectedQuarter}`,
-                    periodLabel: selectedPeriod === 'year' ? selectedYear : `Q${selectedQuarter} ${selectedYear}`,
-                    isCumulative: true,
-                    selectedMonths: selectedServiceChargeMonths
-                  });
-                  setConfirmServiceChargeDialog(true);
+                  handleCumulativeServiceChargeCollection(selectedServiceChargeMonths);
                 }
                 setConfirmServiceChargeMonthSelectionDialog(false);
               }}
@@ -3092,14 +3129,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
             <AlertDialogAction
               onClick={() => {
                 if (selectedPartnerMonthTotal > 0) {
-                  setSelectedMonthData({
-                    partnerShare: selectedPartnerMonthTotal,
-                    monthStr: selectedPeriod === 'year' ? selectedYear : `${selectedYear}-Q${selectedQuarter}`,
-                    periodLabel: selectedPeriod === 'year' ? selectedYear : `Q${selectedQuarter} ${selectedYear}`,
-                    isCumulative: true,
-                    selectedMonths: selectedPartnerMonths
-                  });
-                  setConfirmPartnerPaymentDialog(true);
+                  handleCumulativePartnerPayment(selectedPartnerMonths);
                 }
                 setConfirmPartnerMonthSelectionDialog(false);
               }}
@@ -3302,15 +3332,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
             <AlertDialogAction
               onClick={() => {
                 if (selectedOwnerShareMonthTotal > 0) {
-                  setSelectedMonthData({
-                    ownerShare: selectedOwnerShareMonthTotal,
-                    ownerFullShare: selectedOwnerShareMonthTotal,
-                    monthStr: selectedPeriod === 'year' ? selectedYear : `${selectedYear}-Q${selectedQuarter}`,
-                    periodLabel: selectedPeriod === 'year' ? selectedYear : `Q${selectedQuarter} ${selectedYear}`,
-                    isCumulative: true,
-                    selectedMonths: selectedOwnerShareMonths
-                  });
-                  setConfirmOwnerShareDialog(true);
+                  handleCumulativeOwnerShareCollection(selectedOwnerShareMonths);
                 }
                 setConfirmOwnerShareMonthSelectionDialog(false);
               }}
@@ -3323,235 +3345,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Service Charge Collection Confirmation Dialog */}
-      <AlertDialog open={confirmServiceChargeDialog} onOpenChange={setConfirmServiceChargeDialog}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <SectionNumberBadge id="9" label="Service Charge Dialog" className="mb-2" />
-            <AlertDialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-500" />
-              Confirm Service Charge Collection
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p className="text-gray-700">
-                  You are about to withdraw service charge from <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
-                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
-                </p>
-
-                {isCumulativeSelection ? (
-                  <>
-                    {selectedPeriod === 'quarter' && (
-                      <div className="bg-green-50 p-3 rounded-md">
-                        <p className="font-semibold text-green-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
-                        <div className="space-y-1 text-sm">
-                          {(() => {
-                            const quarterMonths = {
-                              '1': ['January', 'February', 'March'],
-                              '2': ['April', 'May', 'June'],
-                              '3': ['July', 'August', 'September'],
-                              '4': ['October', 'November', 'December']
-                            } as const;
-                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
-                            return months.map((monthName, idx) => (
-                              <div key={idx} className="flex justify-between">
-                                <span>{monthName} {selectedYear}:</span>
-                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 3)}</span>
-                              </div>
-                            ));
-                          })()}
-                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                            <span>Total Service Charge:</span>
-                            <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPeriod === 'year' && (
-                      <div className="bg-green-50 p-3 rounded-md">
-                        <p className="font-semibold text-green-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
-                        <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
-                          {Array.from({ length: 12 }, (_, i) => {
-                            const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
-                            return (
-                              <div key={i} className="flex justify-between">
-                                <span>{monthName} {selectedYear}:</span>
-                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 12)}</span>
-                              </div>
-                            );
-                          })}
-                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                            <span>Total Service Charge:</span>
-                            <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPeriod === 'month' && (
-                      <div className="bg-green-50 p-3 rounded-md">
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-green-800">{selectedDialogPeriodLabel} Service Charge:</span>
-                          <span className="font-bold text-green-700 text-lg">₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="bg-green-50 p-3 rounded-md">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-green-800">
-                        {selectedMonthData?.monthName} {selectedMonthData?.year} Service Charge:
-                      </span>
-                      <span className="font-bold text-green-700 text-lg">
-                        ₹{formatCurrency(selectedMonthData?.serviceCharge)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-sm text-gray-600">
-                  This action will withdraw the service charge and update the cash balance.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (selectedMonthData?.isCumulative) {
-                  handleCumulativeServiceChargeCollection();
-                } else if (selectedMonthData) {
-                  handleServiceChargeCollection(selectedMonthData);
-                }
-                setConfirmServiceChargeDialog(false);
-                setSelectedMonthData(null);
-              }}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Withdraw ₹{formatCurrency(selectedMonthData?.serviceCharge)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Partner Payment Confirmation Dialog */}
-      <AlertDialog open={confirmPartnerPaymentDialog} onOpenChange={setConfirmPartnerPaymentDialog}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <SectionNumberBadge id="10" label="Partner Payment Dialog" className="mb-2" />
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Banknote className="h-5 w-5 text-purple-500" />
-              Confirm Partner Payment
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p className="text-gray-700">
-                  You are about to pay partner share to <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
-                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
-                </p>
-
-                {isCumulativeSelection ? (
-                  <>
-                    {selectedPeriod === 'quarter' && (
-                      <div className="bg-purple-50 p-3 rounded-md">
-                        <p className="font-semibold text-purple-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
-                        <div className="space-y-1 text-sm">
-                          {(() => {
-                            const quarterMonths = {
-                              '1': ['January', 'February', 'March'],
-                              '2': ['April', 'May', 'June'],
-                              '3': ['July', 'August', 'September'],
-                              '4': ['October', 'November', 'December']
-                            } as const;
-                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
-                            return months.map((monthName, idx) => (
-                              <div key={idx} className="flex justify-between">
-                                <span>{monthName} {selectedYear}:</span>
-                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 3)}</span>
-                              </div>
-                            ));
-                          })()}
-                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                            <span>Total Partner Share:</span>
-                            <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPeriod === 'year' && (
-                      <div className="bg-purple-50 p-3 rounded-md">
-                        <p className="font-semibold text-purple-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
-                        <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
-                          {Array.from({ length: 12 }, (_, i) => {
-                            const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
-                            return (
-                              <div key={i} className="flex justify-between">
-                                <span>{monthName} {selectedYear}:</span>
-                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 12)}</span>
-                              </div>
-                            );
-                          })}
-                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                            <span>Total Partner Share:</span>
-                            <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPeriod === 'month' && (
-                      <div className="bg-purple-50 p-3 rounded-md">
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-purple-800">{selectedDialogPeriodLabel} Partner Share:</span>
-                          <span className="font-bold text-purple-700 text-lg">₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="bg-purple-50 p-3 rounded-md">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-purple-800">
-                        {selectedMonthData?.monthName} {selectedMonthData?.year} Partner Share:
-                      </span>
-                      <span className="font-bold text-purple-700 text-lg">
-                        ₹{formatCurrency(selectedMonthData?.partnerShare)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-sm text-gray-600">
-                  This action will pay the partner share and update the cash balance.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (selectedMonthData?.isCumulative) {
-                  handleCumulativePartnerPayment();
-                } else if (selectedMonthData) {
-                  handlePartnerPayment(selectedMonthData);
-                }
-                setConfirmPartnerPaymentDialog(false);
-                setSelectedMonthData(null);
-              }}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              Pay Partner ₹{formatCurrency(selectedMonthData?.partnerShare)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Owner Share Collection Confirmation Dialog */}
+      {/* Owner Share Confirmation Dialog */}
       <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
