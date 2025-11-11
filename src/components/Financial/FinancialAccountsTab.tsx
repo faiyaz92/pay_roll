@@ -2495,16 +2495,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               <div className="text-sm text-gray-600">{companyFinancialData.periodLabel} Profit</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                ₹{periodTotals.totalGst.toLocaleString()}
+              <div className="text-2xl font-bold text-indigo-600">
+                ₹{Object.values(vehicleCashBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}
               </div>
-              <div className="text-sm text-gray-600">GST Payable</div>
+              <div className="text-sm text-gray-600">Current Cash</div>
             </div>
           </div>
 
           {/* Additional period breakdown */}
           <SectionNumberBadge id="2" label="Additional Period Breakdown" className="mb-2" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-600">
+                ₹{periodTotals.totalGst.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Payable</div>
+            </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-blue-600">
                 ₹{periodTotals.totalServiceCharge.toLocaleString()}
@@ -2522,12 +2528,6 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 ₹{(periodTotals.totalOwnerShare + periodTotals.totalOwnerFullShare).toLocaleString()}
               </div>
               <div className="text-xs text-gray-600">Owner Shares</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-indigo-600">
-                ₹{Object.values(vehicleCashBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-600">Current Cash</div>
             </div>
           </div>
 
