@@ -2175,7 +2175,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     // Filter vehicles based on partner filter
     const filteredVehicles = companyFinancialData.vehicleData.filter((vehicleInfo: any) => {
       if (companyFinancialData.partnerFilter === 'all') return true;
-      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.isPartnership === true;
+      if (companyFinancialData.partnerFilter === 'partner') {
+        const isPartnerVehicle = vehicleInfo.vehicle.isPartnership === true;
+        if (!isPartnerVehicle) return false;
+        // If a specific partner is selected, filter by that partner
+        if (companyFinancialData.selectedPartner && companyFinancialData.selectedPartner !== '') {
+          return vehicleInfo.vehicle.partnerId === companyFinancialData.selectedPartner;
+        }
+        return true;
+      }
       if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.isPartnership !== true;
       return true;
     });
