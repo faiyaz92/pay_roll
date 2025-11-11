@@ -80,6 +80,10 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const [penaltyAmounts, setPenaltyAmounts] = useState<Record<number, string>>({});
   const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
   const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
+  const [isProcessingGstPayment, setIsProcessingGstPayment] = useState(false);
+  const [isProcessingServiceCharge, setIsProcessingServiceCharge] = useState(false);
+  const [isProcessingPartnerPayment, setIsProcessingPartnerPayment] = useState(false);
+  const [isProcessingOwnerShare, setIsProcessingOwnerShare] = useState(false);
   const [selectedGstMonthIndices, setSelectedGstMonthIndices] = useState<number[]>([]);
   const [selectedServiceChargeMonthIndices, setSelectedServiceChargeMonthIndices] = useState<number[]>([]);
   const [selectedPartnerMonthIndices, setSelectedPartnerMonthIndices] = useState<number[]>([]);
@@ -1354,6 +1358,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       return;
     }
 
+    setIsProcessingGstPayment(true);
     try {
       let totalPaid = 0;
 
@@ -1394,6 +1399,8 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         description: 'Failed to record GST payment',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessingGstPayment(false);
     }
   };
 
@@ -1410,6 +1417,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       return;
     }
 
+    setIsProcessingServiceCharge(true);
     try {
       let totalPaid = 0;
 
@@ -1450,6 +1458,8 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         description: 'Failed to collect service charge',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessingServiceCharge(false);
     }
   };
 
@@ -1466,6 +1476,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       return;
     }
 
+    setIsProcessingPartnerPayment(true);
     try {
       let totalPaid = 0;
 
@@ -1506,6 +1517,8 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         description: 'Failed to record partner payment',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessingPartnerPayment(false);
     }
   };
 
@@ -1522,6 +1535,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       return;
     }
 
+    setIsProcessingOwnerShare(true);
     try {
       let totalPaid = 0;
 
@@ -1565,6 +1579,8 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         description: 'Failed to collect owner share',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessingOwnerShare(false);
     }
   };
 
@@ -2717,22 +2733,23 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (selectedPeriod === 'month') {
                   // For month, pay for the current month
-                  handleCumulativeGstPayment();
+                  await handleCumulativeGstPayment();
+                  setConfirmGstPaymentDialog(false);
                 } else {
                   // For quarter/year, pay for selected months
                   if (selectedGstMonthIndices.length > 0) {
-                    handleCumulativeGstPayment(selectedGstMonths);
+                    await handleCumulativeGstPayment(selectedGstMonths);
+                    setConfirmGstPaymentDialog(false);
                   }
                 }
-                setConfirmGstPaymentDialog(false);
               }}
-              disabled={selectedPeriod !== 'month' && selectedGstMonthIndices.length === 0}
+              disabled={isProcessingGstPayment || (selectedPeriod !== 'month' && selectedGstMonthIndices.length === 0)}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Pay GST ₹{selectedPeriod === 'month' ? cumulativeData.totalGst.toLocaleString() : selectedGstMonthTotal.toLocaleString()}
+              {isProcessingGstPayment ? 'Processing...' : `Pay GST ₹${selectedPeriod === 'month' ? cumulativeData.totalGst.toLocaleString() : selectedGstMonthTotal.toLocaleString()}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2925,16 +2942,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (selectedServiceChargeMonthTotal > 0) {
-                  handleCumulativeServiceChargeCollection(selectedServiceChargeMonths);
+                  await handleCumulativeServiceChargeCollection(selectedServiceChargeMonths);
+                  setConfirmServiceChargeMonthSelectionDialog(false);
                 }
-                setConfirmServiceChargeMonthSelectionDialog(false);
               }}
               disabled={selectedServiceChargeMonthTotal === 0}
               className="bg-green-600 hover:bg-green-700"
             >
-              Continue with ₹{selectedServiceChargeMonthTotal.toLocaleString()}
+              {isProcessingServiceCharge ? 'Processing...' : `Continue with ₹${selectedServiceChargeMonthTotal.toLocaleString()}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3127,16 +3144,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (selectedPartnerMonthTotal > 0) {
-                  handleCumulativePartnerPayment(selectedPartnerMonths);
+                  await handleCumulativePartnerPayment(selectedPartnerMonths);
+                  setConfirmPartnerMonthSelectionDialog(false);
                 }
-                setConfirmPartnerMonthSelectionDialog(false);
               }}
               disabled={selectedPartnerMonthTotal === 0}
               className="bg-purple-600 hover:bg-purple-700"
             >
-              Continue with ₹{selectedPartnerMonthTotal.toLocaleString()}
+              {isProcessingPartnerPayment ? 'Processing...' : `Continue with ₹${selectedPartnerMonthTotal.toLocaleString()}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3330,16 +3347,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (selectedOwnerShareMonthTotal > 0) {
-                  handleCumulativeOwnerShareCollection(selectedOwnerShareMonths);
+                  await handleCumulativeOwnerShareCollection(selectedOwnerShareMonths);
+                  setConfirmOwnerShareMonthSelectionDialog(false);
                 }
-                setConfirmOwnerShareMonthSelectionDialog(false);
               }}
               disabled={selectedOwnerShareMonthTotal === 0}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              Continue with ₹{selectedOwnerShareMonthTotal.toLocaleString()}
+              {isProcessingOwnerShare ? 'Processing...' : `Continue with ₹${selectedOwnerShareMonthTotal.toLocaleString()}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3454,6 +3471,236 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               Collect ₹{formatCurrency(selectedMonthData?.ownerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Service Charge Confirmation Dialog */}
+      <AlertDialog open={confirmServiceChargeDialog} onOpenChange={setConfirmServiceChargeDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="9" label="Service Charge Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Confirm Service Charge Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to collect service charges from <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
+                </p>
+
+                {isCumulativeSelection ? (
+                  <>
+                    {selectedPeriod === 'quarter' && (
+                      <div className="bg-green-50 p-3 rounded-md">
+                        <p className="font-semibold text-green-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
+                        <div className="space-y-1 text-sm">
+                          {(() => {
+                            const quarterMonths = {
+                              '1': ['January', 'February', 'March'],
+                              '2': ['April', 'May', 'June'],
+                              '3': ['July', 'August', 'September'],
+                              '4': ['October', 'November', 'December']
+                            } as const;
+                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                            return months.map((monthName, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 3)}</span>
+                              </div>
+                            ));
+                          })()}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Service Charge:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'year' && (
+                      <div className="bg-green-50 p-3 rounded-md">
+                        <p className="font-semibold text-green-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                        <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                            return (
+                              <div key={i} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.serviceCharge ?? 0) / 12)}</span>
+                              </div>
+                            );
+                          })}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Service Charge:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'month' && (
+                      <div className="bg-green-50 p-3 rounded-md">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-green-800">{selectedDialogPeriodLabel} Service Charge:</span>
+                          <span className="font-bold text-green-700 text-lg">₹{formatCurrency(selectedMonthData?.serviceCharge)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-green-50 p-3 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-green-800">
+                        {selectedMonthData?.monthName} {selectedMonthData?.year} Service Charge:
+                      </span>
+                      <span className="font-bold text-green-700 text-lg">
+                        ₹{formatCurrency(selectedMonthData?.serviceCharge)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600">
+                  This action will collect the service charge and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingServiceCharge}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData?.isCumulative) {
+                  handleCumulativeServiceChargeCollection();
+                } else if (selectedMonthData) {
+                  handleServiceChargeCollection(selectedMonthData);
+                }
+                setConfirmServiceChargeDialog(false);
+                setSelectedMonthData(null);
+              }}
+              disabled={isProcessingServiceCharge}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isProcessingServiceCharge ? 'Processing...' : `Collect ₹${formatCurrency(selectedMonthData?.serviceCharge)}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Partner Payment Confirmation Dialog */}
+      <AlertDialog open={confirmPartnerPaymentDialog} onOpenChange={setConfirmPartnerPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="10" label="Partner Payment Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-500" />
+              Confirm Partner Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to pay partner share to <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
+                </p>
+
+                {isCumulativeSelection ? (
+                  <>
+                    {selectedPeriod === 'quarter' && (
+                      <div className="bg-purple-50 p-3 rounded-md">
+                        <p className="font-semibold text-purple-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
+                        <div className="space-y-1 text-sm">
+                          {(() => {
+                            const quarterMonths = {
+                              '1': ['January', 'February', 'March'],
+                              '2': ['April', 'May', 'June'],
+                              '3': ['July', 'August', 'September'],
+                              '4': ['October', 'November', 'December']
+                            } as const;
+                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                            return months.map((monthName, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 3)}</span>
+                              </div>
+                            ));
+                          })()}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Partner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'year' && (
+                      <div className="bg-purple-50 p-3 rounded-md">
+                        <p className="font-semibold text-purple-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                        <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const monthName = new Date(parseInt(selectedYear), i).toLocaleString('default', { month: 'long' });
+                            return (
+                              <div key={i} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.partnerShare ?? 0) / 12)}</span>
+                              </div>
+                            );
+                          })}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Partner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'month' && (
+                      <div className="bg-purple-50 p-3 rounded-md">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-purple-800">{selectedDialogPeriodLabel} Partner Share:</span>
+                          <span className="font-bold text-purple-700 text-lg">₹{formatCurrency(selectedMonthData?.partnerShare)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-purple-50 p-3 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-purple-800">
+                        {selectedMonthData?.monthName} {selectedMonthData?.year} Partner Share:
+                      </span>
+                      <span className="font-bold text-purple-700 text-lg">
+                        ₹{formatCurrency(selectedMonthData?.partnerShare)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600">
+                  This action will pay the partner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingPartnerPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData?.isCumulative) {
+                  handleCumulativePartnerPayment();
+                } else if (selectedMonthData) {
+                  handlePartnerPayment(selectedMonthData);
+                }
+                setConfirmPartnerPaymentDialog(false);
+                setSelectedMonthData(null);
+              }}
+              disabled={isProcessingPartnerPayment}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isProcessingPartnerPayment ? 'Processing...' : `Pay ₹${formatCurrency(selectedMonthData?.partnerShare)}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
