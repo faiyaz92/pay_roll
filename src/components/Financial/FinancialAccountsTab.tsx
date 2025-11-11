@@ -447,6 +447,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [emiViewAllDialog, setEmiViewAllDialog] = useState(false);
   const [selectedVehicleForEMIView, setSelectedVehicleForEMIView] = useState<any>(null);
 
+  // Payment confirmation dialog states
+  const [confirmGstPaymentDialog, setConfirmGstPaymentDialog] = useState(false);
+  const [confirmServiceChargeDialog, setConfirmServiceChargeDialog] = useState(false);
+  const [confirmPartnerPaymentDialog, setConfirmPartnerPaymentDialog] = useState(false);
+  const [confirmOwnerShareDialog, setConfirmOwnerShareDialog] = useState(false);
+  const [confirmOwnerWithdrawalDialog, setConfirmOwnerWithdrawalDialog] = useState(false);
+  const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState<any>(null);
+
   // Utility function for currency formatting
   const formatCurrency = (value?: number | null) => (value ?? 0).toLocaleString();
 
@@ -2725,7 +2733,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     <span className="text-sm">GST Payment</span>
                     <Button
                       size="sm"
-                      onClick={() => handleGstPayment(vehicleInfo)}
+                      onClick={() => {
+                        setSelectedVehicleForPayment(vehicleInfo);
+                        setConfirmGstPaymentDialog(true);
+                      }}
                       disabled={vehicleInfo.gstAmount <= 0}
                     >
                       <CreditCard className="h-3 w-3 mr-1" />
@@ -2739,7 +2750,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Service Charge</span>
                       <Button
                         size="sm"
-                        onClick={() => handleServiceChargeCollection(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmServiceChargeDialog(true);
+                        }}
                         disabled={vehicleInfo.serviceCharge <= 0}
                       >
                         <DollarSign className="h-3 w-3 mr-1" />
@@ -2754,7 +2768,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Partner Payment</span>
                       <Button
                         size="sm"
-                        onClick={() => handlePartnerPayment(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmPartnerPaymentDialog(true);
+                        }}
                         disabled={vehicleInfo.partnerShare <= 0}
                       >
                         <Banknote className="h-3 w-3 mr-1" />
@@ -2769,7 +2786,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Collect Owner's Share</span>
                       <Button
                         size="sm"
-                        onClick={() => handleOwnerShareCollection(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmOwnerShareDialog(true);
+                        }}
                         disabled={vehicleInfo.ownerShare <= 0}
                       >
                         <DollarSign className="h-3 w-3 mr-1" />
@@ -2790,7 +2810,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleOwnerWithdrawal(vehicleInfo)}
+                          onClick={() => {
+                            setSelectedVehicleForPayment(vehicleInfo);
+                            setConfirmOwnerWithdrawalDialog(true);
+                          }}
                           disabled={vehicleInfo.ownerFullShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
@@ -3518,6 +3541,241 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRentPayment} className="bg-orange-600 hover:bg-orange-700">
               {selectedRentWeek?.isBulkPayment ? 'Pay All Due' : 'Pay Oldest Week'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* GST Payment Confirmation Dialog */}
+      <AlertDialog open={confirmGstPaymentDialog} onOpenChange={setConfirmGstPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.1" label="GST Payment Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-500" />
+              Confirm GST Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to pay GST for <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-blue-800">GST Amount:</span>
+                    <span className="font-bold text-blue-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.gstAmount)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will record the GST payment and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleGstPayment(selectedVehicleForPayment);
+                }
+                setConfirmGstPaymentDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Pay GST ₹{formatCurrency(selectedVehicleForPayment?.gstAmount)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Service Charge Collection Confirmation Dialog */}
+      <AlertDialog open={confirmServiceChargeDialog} onOpenChange={setConfirmServiceChargeDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.2" label="Service Charge Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              Confirm Service Charge Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw service charge from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-green-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-800">Service Charge Amount:</span>
+                    <span className="font-bold text-green-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.serviceCharge)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will withdraw the service charge and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleServiceChargeCollection(selectedVehicleForPayment);
+                }
+                setConfirmServiceChargeDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Withdraw ₹{formatCurrency(selectedVehicleForPayment?.serviceCharge)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Partner Payment Confirmation Dialog */}
+      <AlertDialog open={confirmPartnerPaymentDialog} onOpenChange={setConfirmPartnerPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.3" label="Partner Payment Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-purple-500" />
+              Confirm Partner Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to pay partner share to <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-purple-800">Partner Share Amount:</span>
+                    <span className="font-bold text-purple-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.partnerShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will pay the partner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handlePartnerPayment(selectedVehicleForPayment);
+                }
+                setConfirmPartnerPaymentDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Pay Partner ₹{formatCurrency(selectedVehicleForPayment?.partnerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Share Collection Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.4" label="Owner Share Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-indigo-500" />
+              Confirm Owner Share Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to collect owner share from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-indigo-800">Owner Share Amount:</span>
+                    <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.ownerShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will collect the owner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleOwnerShareCollection(selectedVehicleForPayment);
+                }
+                setConfirmOwnerShareDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              Collect ₹{formatCurrency(selectedVehicleForPayment?.ownerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Withdrawal Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerWithdrawalDialog} onOpenChange={setConfirmOwnerWithdrawalDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.5" label="Owner Withdrawal Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-orange-500" />
+              Confirm Owner Withdrawal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw owner share from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-orange-800">Owner Withdrawal Amount:</span>
+                    <span className="font-bold text-orange-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.ownerFullShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will withdraw the owner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleOwnerWithdrawal(selectedVehicleForPayment);
+                }
+                setConfirmOwnerWithdrawalDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Withdraw ₹{formatCurrency(selectedVehicleForPayment?.ownerFullShare)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
