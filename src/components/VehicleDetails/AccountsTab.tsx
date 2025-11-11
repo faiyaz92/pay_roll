@@ -1341,8 +1341,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const isCumulativeSelection = selectedMonthData?.isCumulative === true;
 
   // Cumulative payment handlers
-  const handleCumulativeGstPayment = async () => {
-    const monthsToPay = selectedMonthData?.selectedMonths || [];
+  const handleCumulativeGstPayment = async (selectedMonthsData?: typeof monthlyData) => {
+    // For month period, use all months in the period
+    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedGstMonths);
 
     if (monthsToPay.length === 0) {
       toast({
@@ -1749,26 +1750,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
           <div className="flex flex-wrap gap-2 justify-center">
             <Button
               onClick={() => {
-                if (selectedPeriod === 'month') {
-                  // For single month, use existing logic
-                  setSelectedMonthData({
-                    gstAmount: cumulativeData.totalGst,
-                    monthStr: cumulativePeriodKey,
-                    periodLabel: cumulativePeriodLabel,
-                    isCumulative: true
-                  });
-                } else {
-                  // For quarter/year, show selection dialog
-                  setSelectedMonthData({
-                    gstAmount: selectedGstMonthTotal,
-                    monthStr: cumulativePeriodKey,
-                    periodLabel: cumulativePeriodLabel,
-                    isCumulative: true,
-                    selectedMonths: selectedGstMonths
-                  });
-                }
                 setConfirmGstPaymentDialog(true);
               }}
+              disabled={cumulativeData.totalGst === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
@@ -2520,7 +2504,14 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
                 </p>
 
-                {isCumulativeSelection ? (
+                {selectedPeriod === 'month' ? (
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-blue-800">{selectedDialogPeriodLabel} GST:</span>
+                      <span className="font-bold text-blue-700 text-lg">₹{cumulativeData.totalGst.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ) : (
                   <>
                     {selectedPeriod === 'quarter' && (
                       <div className="bg-blue-50 p-3 rounded-md">
@@ -2670,27 +2661,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         </div>
                       </div>
                     )}
-
-                    {selectedPeriod === 'month' && (
-                      <div className="bg-blue-50 p-3 rounded-md">
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-blue-800">{selectedDialogPeriodLabel} GST:</span>
-                          <span className="font-bold text-blue-700 text-lg">₹{formatCurrency(selectedMonthData?.gstAmount)}</span>
-                        </div>
-                      </div>
-                    )}
                   </>
-                ) : (
-                  <div className="bg-blue-50 p-3 rounded-md">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-blue-800">
-                        {selectedMonthData?.monthName} {selectedMonthData?.year} GST:
-                      </span>
-                      <span className="font-bold text-blue-700 text-lg">
-                        ₹{formatCurrency(selectedMonthData?.gstAmount)}
-                      </span>
-                    </div>
-                  </div>
                 )}
 
                 <p className="text-sm text-gray-600">
@@ -2703,17 +2674,21 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (selectedMonthData?.isCumulative) {
+                if (selectedPeriod === 'month') {
+                  // For month, pay for the current month
                   handleCumulativeGstPayment();
-                } else if (selectedMonthData) {
-                  handleGstPayment(selectedMonthData);
+                } else {
+                  // For quarter/year, pay for selected months
+                  if (selectedGstMonthIndices.length > 0) {
+                    handleCumulativeGstPayment(selectedGstMonths);
+                  }
                 }
                 setConfirmGstPaymentDialog(false);
-                setSelectedMonthData(null);
               }}
+              disabled={selectedPeriod !== 'month' && selectedGstMonthIndices.length === 0}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Pay GST ₹{isCumulativeSelection && selectedPeriod !== 'month' ? selectedGstMonthTotal.toLocaleString() : formatCurrency(selectedMonthData?.gstAmount)}
+              Pay GST ₹{selectedPeriod === 'month' ? cumulativeData.totalGst.toLocaleString() : selectedGstMonthTotal.toLocaleString()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
