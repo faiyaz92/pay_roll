@@ -2409,6 +2409,72 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   const { periodData, periodTotals } = getPeriodData();
 
+  // Calculate actually payable amounts (Total - Already Paid for current period)
+  const calculateActuallyPayable = () => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    let periodStrings: string[] = [];
+
+    // Generate period strings based on current view
+    if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
+      periodStrings = [`${year}-${companyFinancialData.monthName}`];
+    } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+      };
+      const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      periodStrings = months.map(monthIndex => `${year}-${monthNames[monthIndex]}`);
+    } else if (companyFinancialData.filterType === 'yearly') {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      periodStrings = monthNames.map(monthName => `${year}-${monthName}`);
+    }
+
+    // Calculate paid amounts for current period
+    const paidAmounts = {
+      gst: 0,
+      serviceCharge: 0,
+      partnerShare: 0,
+      ownerShare: 0,
+      ownerWithdrawal: 0
+    };
+
+    periodStrings.forEach(periodStr => {
+      accountingTransactions.forEach((transaction: any) => {
+        if (transaction.status === 'completed' && transaction.month === periodStr) {
+          switch (transaction.type) {
+            case 'gst_payment':
+              paidAmounts.gst += transaction.amount;
+              break;
+            case 'service_charge':
+              paidAmounts.serviceCharge += transaction.amount;
+              break;
+            case 'partner_payment':
+              paidAmounts.partnerShare += transaction.amount;
+              break;
+            case 'owner_share':
+              paidAmounts.ownerShare += transaction.amount;
+              break;
+            case 'owner_withdrawal':
+              paidAmounts.ownerWithdrawal += transaction.amount;
+              break;
+          }
+        }
+      });
+    });
+
+    return {
+      gstActuallyPayable: Math.max(0, periodTotals.totalGst - paidAmounts.gst),
+      serviceChargeActuallyPayable: Math.max(0, periodTotals.totalServiceCharge - paidAmounts.serviceCharge),
+      partnerShareActuallyPayable: Math.max(0, periodTotals.totalPartnerShare - paidAmounts.partnerShare),
+      ownerShareActuallyPayable: Math.max(0, periodTotals.totalOwnerShare + periodTotals.totalOwnerFullShare - paidAmounts.ownerShare - paidAmounts.ownerWithdrawal),
+      paidAmounts
+    };
+  };
+
+  const actuallyPayable = calculateActuallyPayable();
+
   const rentCollectionOverview = useMemo(() => {
     const overview = {
       vehicles: [] as Array<{
@@ -2504,7 +2570,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
           {/* Additional period breakdown */}
           <SectionNumberBadge id="2" label="Additional Period Breakdown" className="mb-2" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-b border-dashed border-gray-300 pb-4">
             <div className="text-center">
               <div className="text-lg font-semibold text-orange-600">
                 ₹{periodTotals.totalGst.toLocaleString()}
@@ -2531,8 +2597,64 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             </div>
           </div>
 
+          {/* Paid Amounts */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 border-b border-dashed border-gray-300 pb-4">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-600">
+                ₹{actuallyPayable.paidAmounts.gst.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Paid</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-600">
+                ₹{actuallyPayable.paidAmounts.serviceCharge.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Service Charges Collected</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-600">
+                ₹{actuallyPayable.paidAmounts.partnerShare.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Partner Shares Paid</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-600">
+                ₹{(actuallyPayable.paidAmounts.ownerShare + actuallyPayable.paidAmounts.ownerWithdrawal).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Owner Shares Collected</div>
+            </div>
+          </div>
+
+          {/* Actually Payable Amounts */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 pb-4 border-b border-dashed border-gray-300">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-700">
+                ₹{actuallyPayable.gstActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-700">
+                ₹{actuallyPayable.serviceChargeActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Service Charges Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-700">
+                ₹{actuallyPayable.partnerShareActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Partner Shares Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-700">
+                ₹{actuallyPayable.ownerShareActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Owner Shares Actually Payable</div>
+            </div>
+          </div>
+
           {/* Bulk Payment Actions */}
-          <SectionNumberBadge id="3" label="Bulk Payment Actions" className="mb-2" />
+          <SectionNumberBadge id="4" label="Bulk Payment Actions" className="mb-2" />
           <div className="mt-6 pt-4 border-t">
             <div className="flex flex-wrap gap-2 justify-center">
               <Button
@@ -2613,7 +2735,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       </Card>
 
       {/* Vehicle Accounting Cards */}
-      <SectionNumberBadge id="4" label="Vehicle Accounting Cards" className="mb-2" />
+      <SectionNumberBadge id="5" label="Vehicle Accounting Cards" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {periodData.map((vehicleInfo: any) => (
           <Card key={vehicleInfo.vehicle.id} className="flex flex-col">
