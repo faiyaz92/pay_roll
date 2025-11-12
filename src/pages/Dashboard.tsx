@@ -139,6 +139,90 @@ const Dashboard: React.FC = () => {
       p.status === 'due' || p.status === 'overdue'
     );
 
+    // Due EMI and Rent Alerts (oldest one per vehicle type)
+    const dueEMIAlert = vehicles
+      .filter(v => v.loanDetails?.amortizationSchedule)
+      .map(vehicle => {
+        const schedule = vehicle.loanDetails.amortizationSchedule;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const threeDaysFromNow = new Date(today);
+        threeDaysFromNow.setDate(today.getDate() + 3);
+
+        const dueEmis = schedule
+          .map((emi: any, index: number) => {
+            const dueDate = new Date(emi.dueDate);
+            const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const canPayNow = dueDate <= threeDaysFromNow || daysDiff < 0;
+
+            if (emi.isPaid || !canPayNow) {
+              return null;
+            }
+
+            return { vehicle, index, emi, dueDate, daysDiff };
+          })
+          .filter((detail): detail is { vehicle: any; index: number; emi: any; dueDate: Date; daysDiff: number } => detail !== null)
+          .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()); // Sort by due date (oldest first)
+
+        return dueEmis.length > 0 ? dueEmis[0] : null;
+      })
+      .filter(alert => alert !== null)
+      .sort((a, b) => a!.dueDate.getTime() - b!.dueDate.getTime())[0] || null; // Get the oldest due EMI across all vehicles
+
+    const dueRentAlert = vehiclesWithFinancials
+      .filter(v => v.assignedDriverId && v.financialData?.currentAssignment)
+      .map(vehicle => {
+        const vehiclePayments = payments.filter((payment: any) => payment.vehicleId === vehicle.id);
+        const startDateRaw = vehicle.financialData.currentAssignment.startDate;
+        const assignmentStartDate = new Date(
+          typeof startDateRaw === 'string'
+            ? startDateRaw
+            : startDateRaw?.toDate?.() || startDateRaw
+        );
+
+        const agreementEndDate = new Date(assignmentStartDate);
+        agreementEndDate.setMonth(agreementEndDate.getMonth() + (vehicle.financialData.currentAssignment.agreementDuration || 12));
+        const totalWeeks = Math.ceil((agreementEndDate.getTime() - assignmentStartDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+        const today = new Date();
+
+        const overdueWeeks: Array<{ vehicle: any; weekIndex: number; weekStartDate: Date; amount: number }> = [];
+
+        for (let weekIndex = 0; weekIndex < Math.min(totalWeeks, 52); weekIndex++) {
+          const weekStartDate = new Date(assignmentStartDate);
+          weekStartDate.setDate(weekStartDate.getDate() + (weekIndex * 7));
+          weekStartDate.setHours(0, 0, 0, 0);
+
+          const weekEndDate = new Date(weekStartDate);
+          weekEndDate.setDate(weekEndDate.getDate() + 6);
+          weekEndDate.setHours(23, 59, 59, 999);
+
+          // Check if payment exists for this week
+          const weekRentPayment = vehiclePayments.find((payment: any) => {
+            if (payment.vehicleId !== vehicle.id || payment.status !== 'paid') return false;
+            const paymentWeekStart = new Date(payment.weekStart);
+            return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+          });
+
+          if (weekRentPayment) continue;
+
+          const isPastWeek = weekEndDate < today;
+
+          if (isPastWeek) {
+            overdueWeeks.push({
+              vehicle,
+              weekIndex,
+              weekStartDate,
+              amount: vehicle.financialData.currentAssignment.weeklyRent
+            });
+          }
+        }
+
+        // Return oldest overdue week
+        return overdueWeeks.length > 0 ? overdueWeeks[0] : null;
+      })
+      .filter(alert => alert !== null)
+      .sort((a, b) => a!.weekStartDate.getTime() - b!.weekStartDate.getTime())[0] || null; // Get the oldest due rent across all vehicles
+
     return {
       fleet: {
         totalVehicles,
@@ -161,14 +245,16 @@ const Dashboard: React.FC = () => {
       alerts: {
         expiringInsurance,
         expiredInsurance,
-        pendingCollections
+        pendingCollections,
+        dueEMIAlert,
+        dueRentAlert
       },
       activities: {
         recentActivities,
         activeAssignments
       }
     };
-  }, [vehicles, drivers, assignments, payments, expenses, loading]);
+  }, [vehicles, vehiclesWithFinancials, drivers, assignments, payments, expenses, loading]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -546,10 +632,56 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
+            {dashboardData.alerts.dueEMIAlert && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-medium text-red-800">
+                    EMI Due - {dashboardData.alerts.dueEMIAlert.vehicle.registrationNumber}
+                  </span>
+                </div>
+                <p className="text-xs text-red-700 mt-1">
+                  EMI for {dashboardData.alerts.dueEMIAlert.emi.month} is {dashboardData.alerts.dueEMIAlert.daysDiff < 0 ? `${Math.abs(dashboardData.alerts.dueEMIAlert.daysDiff)} days overdue` : `due in ${dashboardData.alerts.dueEMIAlert.daysDiff} days`}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => navigate(`/vehicles/${dashboardData.alerts.dueEMIAlert.vehicle.id}`)}
+                >
+                  View Vehicle
+                </Button>
+              </div>
+            )}
+
+            {dashboardData.alerts.dueRentAlert && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-yellow-500" />
+                  <span className="text-sm font-medium text-yellow-800">
+                    Rent Due - {dashboardData.alerts.dueRentAlert.vehicle.registrationNumber}
+                  </span>
+                </div>
+                <p className="text-xs text-yellow-700 mt-1">
+                  Week {dashboardData.alerts.dueRentAlert.weekIndex + 1} rent payment is overdue
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => navigate(`/vehicles/${dashboardData.alerts.dueRentAlert.vehicle.id}`)}
+                >
+                  View Vehicle
+                </Button>
+              </div>
+            )}
+
             {dashboardData.alerts.expiredInsurance.length === 0 &&
              dashboardData.alerts.expiringInsurance.length === 0 &&
              dashboardData.alerts.pendingCollections.length === 0 &&
-             dashboardData.fleet.maintenanceVehicles === 0 && (
+             dashboardData.fleet.maintenanceVehicles === 0 &&
+             !dashboardData.alerts.dueEMIAlert &&
+             !dashboardData.alerts.dueRentAlert && (
               <div className="p-6 text-center">
                 <Activity className="w-12 h-12 text-green-500 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">All systems running smoothly!</p>
