@@ -4031,10 +4031,6 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-
-
-
     </div>
     </TooltipProvider>
   );
