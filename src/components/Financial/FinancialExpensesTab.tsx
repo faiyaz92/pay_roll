@@ -21,15 +21,29 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
   selectedYear,
   selectedMonth
 }) => {
-  const { vehicleData } = companyFinancialData;
+  const { vehicleData, expenses } = companyFinancialData;
 
-  // Aggregate all expenses across vehicles
-  const allExpenses = vehicleData.flatMap((vehicle: any) =>
-    vehicle.expenses.map((expense: any) => ({
-      ...expense,
-      vehicleReg: vehicle.vehicle.registrationNumber
-    }))
+  // Get the date range for filtering
+  const year = parseInt(selectedYear);
+  const month = parseInt(selectedMonth) - 1; // Convert to 0-based
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+
+  // Filter expenses for the selected period
+  const periodExpenses = expenses.filter((expense: any) =>
+    expense.status === 'approved' &&
+    new Date(expense.createdAt) >= monthStart &&
+    new Date(expense.createdAt) <= monthEnd
   );
+
+  // Add vehicle registration to each expense
+  const allExpenses = periodExpenses.map((expense: any) => {
+    const vehicle = vehicleData.find((v: any) => v.vehicle.id === expense.vehicleId);
+    return {
+      ...expense,
+      vehicleReg: vehicle?.vehicle?.registrationNumber || 'Unknown'
+    };
+  });
 
   // Group expenses by category
   const expensesByCategory = allExpenses.reduce((acc: any, expense: any) => {

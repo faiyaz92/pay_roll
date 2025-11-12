@@ -516,7 +516,8 @@ const VehicleDetails: React.FC = () => {
         description: expense.description,
         paymentMethod: 'Bank Transfer',
         status: 'completed',
-        reference: expense.id || `EXP${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`
+        reference: expense.id || `EXP${vehicleId?.slice(-4)}${String(index + 1).padStart(2, '0')}`,
+        billUrl: expense.expenseDocuments?.mainDocument || expense.billUrl
       });
     });
 

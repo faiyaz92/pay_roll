@@ -22,28 +22,43 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
   selectedYear,
   selectedMonth
 }) => {
-  const { vehicleData } = companyFinancialData;
+  const { vehicleData, payments, expenses } = companyFinancialData;
 
-  // Aggregate all payments across vehicles
-  const allPayments = vehicleData.flatMap((vehicle: any) =>
-    vehicle.financialData?.payments || []
-  );
+  // Get the date range for filtering
+  const year = parseInt(selectedYear);
+  const month = parseInt(selectedMonth) - 1; // Convert to 0-based
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
   // Filter payments for the selected month
-  const monthPayments = allPayments.filter((payment: any) => {
+  const monthPayments = payments.filter((payment: any) => {
     const paymentDate = new Date(payment.paidAt || payment.collectionDate || payment.createdAt);
-    return paymentDate.getFullYear() === parseInt(selectedYear) &&
-           paymentDate.getMonth() === parseInt(selectedMonth) - 1;
+    return paymentDate >= monthStart && paymentDate <= monthEnd && payment.status === 'paid';
   });
 
-  // Separate income and expense transactions
-  const incomeTransactions = monthPayments.filter((p: any) => p.status === 'paid');
-  const expenseTransactions = vehicleData.flatMap((vehicle: any) =>
-    vehicle.expenses || []
-  ).filter((expense: any) => {
+  // Filter expenses for the selected month
+  const monthExpenses = expenses.filter((expense: any) => {
     const expenseDate = new Date(expense.createdAt);
-    return expenseDate.getFullYear() === parseInt(selectedYear) &&
-           expenseDate.getMonth() === parseInt(selectedMonth) - 1;
+    return expenseDate >= monthStart && expenseDate <= monthEnd && expense.status === 'approved';
+  });
+
+  // Add vehicle registration to payments and expenses
+  const incomeTransactions = monthPayments.map((payment: any) => {
+    const vehicle = vehicleData.find((v: any) => v.vehicle.id === payment.vehicleId);
+    return {
+      ...payment,
+      vehicleReg: vehicle?.vehicle?.registrationNumber || 'Unknown',
+      type: 'income'
+    };
+  });
+
+  const expenseTransactions = monthExpenses.map((expense: any) => {
+    const vehicle = vehicleData.find((v: any) => v.vehicle.id === expense.vehicleId);
+    return {
+      ...expense,
+      vehicleReg: vehicle?.vehicle?.registrationNumber || 'Unknown',
+      type: 'expense'
+    };
   });
 
   return (

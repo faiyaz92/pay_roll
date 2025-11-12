@@ -95,6 +95,8 @@ export interface Expense {
   coverageEndDate?: any; // Firebase Timestamp
   coverageMonths?: number;
   proratedMonthly?: number;
+  // Document fields
+  expenseDocuments?: Record<string, string>;
   [key: string]: any; // Allow additional fields
 }
 
@@ -114,6 +116,7 @@ export interface Payment {
   companyId: string;
   createdAt: string;
   updatedAt: string;
+  billUrl?: string; // Document URL for payment receipts
 }
 
 export interface PerTaxiReport {

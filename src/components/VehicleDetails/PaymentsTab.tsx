@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { TrendingDown, TrendingUp, CreditCard, CircleDollarSign, History, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TrendingDown, TrendingUp, CreditCard, CircleDollarSign, History, AlertTriangle, Eye, FileText, ExternalLink } from 'lucide-react';
 import { Payment } from '@/types/user';
 import { SectionNumberBadge } from './SectionNumberBadge';
 
@@ -41,6 +42,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   setShowExpenseForm,
   setShowExpenseCorrectionForm
 }) => {
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [selectedDocumentUrl, setSelectedDocumentUrl] = useState<string | null>(null);
   return (
     <div className="space-y-4">
       {/* Payment History Header and Filters */}
@@ -254,6 +257,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   <th className="text-left p-2 font-medium">Method</th>
                   <th className="text-left p-2 font-medium">Status</th>
                   <th className="text-left p-2 font-medium">Reference</th>
+                  <th className="text-left p-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -322,11 +326,29 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                       <td className="p-2 text-sm text-muted-foreground">
                         {payment.reference || payment.transactionId || '-'}
                       </td>
+                      <td className="p-2">
+                        <div className="flex gap-1">
+                          {payment.billUrl && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedDocumentUrl(payment.billUrl);
+                                setDocumentDialogOpen(true);
+                              }}
+                              className="h-8 w-8 p-0"
+                              title="View Document"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <History className="h-8 w-8 opacity-50" />
                         <p>No payment history found</p>
@@ -376,6 +398,42 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           Correction
         </Button>
       </div>
+
+      {/* Document Viewing Dialog */}
+      <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Payment Document
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            {selectedDocumentUrl && (
+              <div className="flex-1 min-h-[500px]">
+                <iframe
+                  src={selectedDocumentUrl}
+                  className="w-full h-full min-h-[500px] border rounded-lg"
+                  title="Payment Document"
+                />
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => window.open(selectedDocumentUrl || '', '_blank')}
+                className="flex items-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open in New Tab
+              </Button>
+              <Button onClick={() => setDocumentDialogOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
