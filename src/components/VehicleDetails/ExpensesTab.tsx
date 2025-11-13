@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Fuel, Settings, Shield, CreditCard, Banknote, DollarSign, Plus, AlertCircle, Eye, ExternalLink } from 'lucide-react';
 import { VehicleFinancialData, Expense } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
+import { Role } from '@/types/user';
 import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
 import { SectionNumberBadge } from './SectionNumberBadge';
 
@@ -42,6 +44,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   onInsuranceAdded
 }) => {
   const navigate = useNavigate();
+  const { userInfo } = useAuth();
   return (
     <div className="space-y-4">
       <div>
@@ -54,22 +57,26 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
             </p>
           </div>
           <div className="flex gap-2">
-            <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Expense
-                </Button>
-              </DialogTrigger>
-            </Dialog>
-            <Dialog open={addInsuranceDialogOpen} onOpenChange={setAddInsuranceDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Insurance
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            {userInfo?.role !== Role.PARTNER && (
+              <>
+                <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Expense
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+                <Dialog open={addInsuranceDialogOpen} onOpenChange={setAddInsuranceDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Insurance
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+              </>
+            )}
           </div>
         </div>
 

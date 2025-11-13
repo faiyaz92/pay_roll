@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Clock, CheckCircle, AlertCircle, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
-import { Vehicle } from '@/types/user';
+import { Vehicle, Role } from '@/types/user';
 import { VehicleFinancialData, Payment } from '@/hooks/useFirebaseData';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/contexts/AuthContext';
 import { SectionNumberBadge } from './SectionNumberBadge';
 import {
   AlertDialog,
@@ -38,6 +39,7 @@ export const RentTab: React.FC<RentTabProps> = ({
   markRentCollected,
   isProcessingRentPayment
 }) => {
+  const { userInfo } = useAuth();
   const [confirmPaymentDialog, setConfirmPaymentDialog] = React.useState(false);
   const [selectedPaymentWeek, setSelectedPaymentWeek] = React.useState<{
     weekIndex: number;
@@ -502,7 +504,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                               <div className={`text-xs ${textColor} mt-1 font-semibold`}>
                                 ₹{weekRentPayment.amountPaid.toLocaleString()}
                               </div>
-                            ) : canMarkPaid ? (
+                            ) : canMarkPaid && userInfo?.role !== Role.PARTNER ? (
                               <Button
                                 size="sm"
                                 className="text-xs py-1 px-2 h-6 w-full mt-2"
@@ -514,7 +516,7 @@ export const RentTab: React.FC<RentTabProps> = ({
                               >
                                 {isProcessingRentPayment === weekIndex ? 'Processing...' : 'Mark Collected'}
                               </Button>
-                            ) : (
+                            ) : canMarkPaid && userInfo?.role === Role.PARTNER ? null : (
                               <div className={`text-xs ${textColor} mt-1`}>
                                 ₹{currentAssignment.weeklyRent.toLocaleString()}
                               </div>
@@ -544,7 +546,9 @@ export const RentTab: React.FC<RentTabProps> = ({
           <Card>
             <CardContent className="p-8 text-center">
               <p className="text-gray-500 mb-4">No driver assigned to this vehicle</p>
-              <Button>Assign Driver</Button>
+              {userInfo?.role !== Role.PARTNER && (
+                <Button>Assign Driver</Button>
+              )}
             </CardContent>
           </Card>
         )}

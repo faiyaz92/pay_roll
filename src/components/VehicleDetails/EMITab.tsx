@@ -5,9 +5,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
-import { Vehicle } from '@/types/user';
+import { Vehicle, Role } from '@/types/user';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,7 @@ interface EMITabProps {
 }
 
 export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid, processEMIPayment }) => {
+  const { userInfo } = useAuth();
   const { toast } = useToast();
   const [bulkPaymentDialog, setBulkPaymentDialog] = useState(false);
   const [penaltyAmounts, setPenaltyAmounts] = useState<{[key: number]: string}>({});
@@ -430,7 +432,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                       <div className={`text-xs ${textColor}`}>
                         {status}
                       </div>
-                      {!emi.isPaid && canPayNow && (
+                      {!emi.isPaid && canPayNow && userInfo?.role !== Role.PARTNER && (
                         <Button
                           size="sm"
                           className="text-xs py-1 px-2 h-6 w-full mt-2"
@@ -455,68 +457,70 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Quick Actions</h4>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-blue-700 border-blue-300"
-                onClick={() => {
-                  // Scroll to prepayment calculator in Financials tab
-                  const financialsTab = document.querySelector('[value="financials"]') as HTMLElement;
-                  if (financialsTab) {
-                    financialsTab.click();
-                    setTimeout(() => {
-                      const prepaymentSection = document.querySelector('#prepayment');
-                      if (prepaymentSection) {
-                        prepaymentSection.scrollIntoView({ behavior: 'smooth' });
-                        (prepaymentSection as HTMLInputElement).focus();
-                      }
-                    }, 100);
-                  }
-                }}
-              >
-                <Calculator className="h-4 w-4 mr-1" />
-                Calculate Prepayment
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-blue-700 border-blue-300"
-                onClick={() => {
-                  toast({
-                    title: 'Reminder Set',
-                    description: `EMI payment reminders will be sent 3 days before each due date for ${vehicle.vehicleName || 'this vehicle'}.`,
-                  });
-                }}
-              >
-                <Calendar className="h-4 w-4 mr-1" />
-                Set Payment Reminders
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-blue-700 border-blue-300"
-                onClick={() => {
-                  const paidCount = vehicle.loanDetails?.amortizationSchedule?.filter(emi => emi.isPaid).length || 0;
-                  const totalCount = vehicle.loanDetails?.totalInstallments || 0;
-                  const completionPercentage = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0';
+          {userInfo?.role !== Role.PARTNER && (
+            <div className="mt-6 bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Quick Actions</h4>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-700 border-blue-300"
+                  onClick={() => {
+                    // Scroll to prepayment calculator in Financials tab
+                    const financialsTab = document.querySelector('[value="financials"]') as HTMLElement;
+                    if (financialsTab) {
+                      financialsTab.click();
+                      setTimeout(() => {
+                        const prepaymentSection = document.querySelector('#prepayment');
+                        if (prepaymentSection) {
+                          prepaymentSection.scrollIntoView({ behavior: 'smooth' });
+                          (prepaymentSection as HTMLInputElement).focus();
+                        }
+                      }, 100);
+                    }
+                  }}
+                >
+                  <Calculator className="h-4 w-4 mr-1" />
+                  Calculate Prepayment
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-700 border-blue-300"
+                  onClick={() => {
+                    toast({
+                      title: 'Reminder Set',
+                      description: `EMI payment reminders will be sent 3 days before each due date for ${vehicle.vehicleName || 'this vehicle'}.`,
+                    });
+                  }}
+                >
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Set Payment Reminders
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-700 border-blue-300"
+                  onClick={() => {
+                    const paidCount = vehicle.loanDetails?.amortizationSchedule?.filter(emi => emi.isPaid).length || 0;
+                    const totalCount = vehicle.loanDetails?.totalInstallments || 0;
+                    const completionPercentage = totalCount > 0 ? ((paidCount / totalCount) * 100).toFixed(1) : '0';
 
-                  toast({
-                    title: 'Payment History Summary',
-                    description: `EMIs Paid: ${paidCount} of ${totalCount}\nCompletion: ${completionPercentage}%\nRemaining: ${totalCount - paidCount} installments\nOutstanding: ₹${financialData.outstandingLoan.toLocaleString()}`,
-                  });
-                }}
-              >
-                <TrendingUp className="h-4 w-4 mr-1" />
-                View Payment History
-              </Button>
+                    toast({
+                      title: 'Payment History Summary',
+                      description: `EMIs Paid: ${paidCount} of ${totalCount}\nCompletion: ${completionPercentage}%\nRemaining: ${totalCount - paidCount} installments\nOutstanding: ₹${financialData.outstandingLoan.toLocaleString()}`,
+                    });
+                  }}
+                >
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                  View Payment History
+                </Button>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">
+                <strong>Note:</strong> EMI payments can be marked as paid starting 3 days before due date. Overdue payments can include penalty charges.
+              </p>
             </div>
-            <p className="text-xs text-blue-600 mt-2">
-              <strong>Note:</strong> EMI payments can be marked as paid starting 3 days before due date. Overdue payments can include penalty charges.
-            </p>
-          </div>
+          )}
         </div>
       ) : (
         <Card>

@@ -188,6 +188,7 @@ export interface Assignment {
   driverAddress: string;
   emergencyContact: string;
   specialTerms?: string;
+  partnerId?: string; // Added for partner filtering
   // Optional fields for document management:
   documents?: {
     agreement?: string;
@@ -223,6 +224,7 @@ export interface Payment {
   type: 'paid' | 'received';
   paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
   expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general' | 'emi' | 'prepayment';
+  partnerId?: string; // Added for partner filtering
   companyId: string;
   // Display properties (added when creating payment records)
   date?: string;
@@ -248,6 +250,7 @@ export interface Expense {
   type: 'paid' | 'received';
   paymentType: 'rent' | 'security' | 'emi' | 'prepayment' | 'expenses';
   expenseType?: 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general';
+  partnerId?: string; // Added for partner filtering
   verifiedKm?: number;
   companyId: string;
   createdAt: string;

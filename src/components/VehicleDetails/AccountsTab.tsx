@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
+import { Role } from '@/types/user';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, setDoc, getDoc, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
@@ -2084,59 +2085,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               </div>
 
               {/* Action Buttons - Always show at bottom for consistent alignment */}
-              <div className="flex-1 flex flex-col justify-end border-t pt-3">
-                <div className="space-y-2">
-                  {/* GST Payment - Always shown */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">GST Payment</span>
-                    {monthData.gstPaid ? (
-                      <Badge variant="default" className="bg-green-500">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Paid
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMonthData(monthData);
-                          setConfirmGstPaymentDialog(true);
-                        }}
-                      >
-                        <CreditCard className="h-3 w-3 mr-1" />
-                        Pay GST ₹{monthData.gstAmount.toLocaleString()}
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Service Charge Collection - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.serviceCharge > 0 && (
+              {userInfo?.role !== Role.PARTNER && (
+                <div className="flex-1 flex flex-col justify-end border-t pt-3">
+                  <div className="space-y-2">
+                    {/* GST Payment - Always shown */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Service Charge</span>
-                      {monthData.serviceChargeCollected ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmServiceChargeDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Service Charges ₹{monthData.serviceCharge.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Partner Payment - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.partnerShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Partner Share</span>
-                      {monthData.partnerPaid ? (
+                      <span className="text-sm">GST Payment</span>
+                      {monthData.gstPaid ? (
                         <Badge variant="default" className="bg-green-500">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Paid
@@ -2146,65 +2101,113 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           size="sm"
                           onClick={() => {
                             setSelectedMonthData(monthData);
-                            setConfirmPartnerPaymentDialog(true);
+                            setConfirmGstPaymentDialog(true);
                           }}
                         >
-                          <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner ₹{monthData.partnerShare.toLocaleString()}
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Pay GST ₹{monthData.gstAmount.toLocaleString()}
                         </Button>
                       )}
                     </div>
-                  )}
 
-                  {/* Owner's Share Collection - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.ownerShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Owner's Share</span>
-                      {monthData.ownerShareCollected ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmOwnerShareDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Owner Share ₹{monthData.ownerShare.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    {/* Service Charge Collection - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.serviceCharge > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Service Charge</span>
+                        {monthData.serviceChargeCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmServiceChargeDialog(true);
+                            }}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Service Charges ₹{monthData.serviceCharge.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Owner's Withdrawal - Only for company-owned taxis */}
-                  {!vehicle?.isPartnership && monthData.ownerFullShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Owner's Share</span>
-                      {monthData.ownerWithdrawn ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmOwnerWithdrawalDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Owner Share ₹{monthData.ownerFullShare.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    {/* Partner Payment - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.partnerShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Partner Share</span>
+                        {monthData.partnerPaid ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmPartnerPaymentDialog(true);
+                            }}
+                          >
+                            <Banknote className="h-3 w-3 mr-1" />
+                            Pay Partner ₹{monthData.partnerShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner's Share Collection - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.ownerShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Owner's Share</span>
+                        {monthData.ownerShareCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmOwnerShareDialog(true);
+                            }}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Owner Share ₹{monthData.ownerShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner's Withdrawal - Only for company-owned taxis */}
+                    {!vehicle?.isPartnership && monthData.ownerFullShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Owner's Share</span>
+                        {monthData.ownerWithdrawn ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmOwnerWithdrawalDialog(true);
+                            }}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Owner Share ₹{monthData.ownerFullShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         ))}
