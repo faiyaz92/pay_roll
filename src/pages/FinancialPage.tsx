@@ -1,30 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import {
   DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Banknote,
   Calculator,
   Calendar,
-  CheckCircle,
-  CreditCard,
   Receipt,
   BarChart3,
-  PieChart,
-  History,
-  FileText
-} from 'lucide-react';
+  History} from 'lucide-react';
 
 // Import tab components (we'll create these)
 import FinancialOverviewTab from '@/components/Financial/FinancialOverviewTab';
@@ -55,6 +45,9 @@ const FinancialPage: React.FC = () => {
   const [selectedQuarter, setSelectedQuarter] = useState('Q1');
   const [filterType, setFilterType] = useState<'yearly' | 'quarterly' | 'monthly'>('monthly');
   const [partnerFilter, setPartnerFilter] = useState('all'); // 'all' | 'partner' | 'company'
+  const [selectedPartner, setSelectedPartner] = useState<string>(''); // Selected partner ID when partnerFilter is 'partner'
+  const [partners, setPartners] = useState<any[]>([]);
+  const [loadingPartners, setLoadingPartners] = useState(false);
   const [accountingTransactions, setAccountingTransactions] = useState<AccountingTransaction[]>([]);
   const [companyCashInHand, setCompanyCashInHand] = useState(0);
 
@@ -97,6 +90,35 @@ const FinancialPage: React.FC = () => {
       setCompanyCashInHand(balances.reduce((sum, balance) => sum + balance, 0));
     });
   }, [userInfo?.companyId, vehicles]);
+
+  // Fetch partners for partner selection dropdown
+  useEffect(() => {
+    const fetchPartners = async () => {
+      setLoadingPartners(true);
+      try {
+        if (!userInfo?.companyId) return;
+
+        const partnersRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/users`);
+        const q = query(partnersRef, where('role', '==', 'partner'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const partnersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setPartners(partnersData);
+          setLoadingPartners(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('Error fetching partners:', error);
+        setLoadingPartners(false);
+      }
+    };
+
+    fetchPartners();
+  }, [userInfo?.companyId]);
 
   // Calculate company financial data
   const companyFinancialData = useMemo(() => {
@@ -207,6 +229,7 @@ const FinancialPage: React.FC = () => {
       selectedQuarter,
       filterType,
       partnerFilter,
+      selectedPartner,
       periodLabel,
       monthName: new Date(year, parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' }),
       totalEarnings,
@@ -218,7 +241,7 @@ const FinancialPage: React.FC = () => {
       payments, // Add payments data
       expenses  // Add expenses data
     };
-  }, [selectedYear, selectedMonth, selectedQuarter, filterType, partnerFilter, vehicles, payments, expenses, accountingTransactions, getVehicleFinancialData]);
+  }, [selectedYear, selectedMonth, selectedQuarter, filterType, partnerFilter, selectedPartner, vehicles, payments, expenses, accountingTransactions, getVehicleFinancialData]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -255,23 +278,23 @@ const FinancialPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Filter Type Selection */}
-            <div>
-              <label className="text-sm font-medium">Filter Type</label>
-              <Select value={filterType} onValueChange={(value: 'yearly' | 'quarterly' | 'monthly') => setFilterType(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* All Filters in One Row */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {/* Filter Type Selection */}
+              <div>
+                <label className="text-sm font-medium">Filter Type</label>
+                <Select value={filterType} onValueChange={(value: 'yearly' | 'quarterly' | 'monthly') => setFilterType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Dynamic Controls Based on Filter Type */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Year Selection - Always shown */}
               <div>
                 <label className="text-sm font-medium">Year</label>
@@ -292,45 +315,55 @@ const FinancialPage: React.FC = () => {
                 </Select>
               </div>
 
-              {/* Month Selection - Only for Monthly and Quarterly */}
-              {(filterType === 'monthly' || filterType === 'quarterly') && (
-                <div>
-                  <label className="text-sm font-medium">
-                    {filterType === 'monthly' ? 'Month' : 'Quarter'}
-                  </label>
-                  {filterType === 'monthly' ? (
-                    <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <SelectItem key={i + 1} value={(i + 1).toString()}>
-                            {new Date(2024, i).toLocaleString('default', { month: 'long' })}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Q1">Q1 (Jan-Mar)</SelectItem>
-                        <SelectItem value="Q2">Q2 (Apr-Jun)</SelectItem>
-                        <SelectItem value="Q3">Q3 (Jul-Sep)</SelectItem>
-                        <SelectItem value="Q4">Q4 (Oct-Dec)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
+              {/* Month/Quarter Selection - Only for Monthly and Quarterly */}
+              <div>
+                <label className="text-sm font-medium">
+                  {filterType === 'monthly' ? 'Month' : filterType === 'quarterly' ? 'Quarter' : 'Period'}
+                </label>
+                {filterType === 'monthly' ? (
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          {new Date(2024, i).toLocaleString('default', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : filterType === 'quarterly' ? (
+                  <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Q1">Q1 (Jan-Mar)</SelectItem>
+                      <SelectItem value="Q2">Q2 (Apr-Jun)</SelectItem>
+                      <SelectItem value="Q3">Q3 (Jul-Sep)</SelectItem>
+                      <SelectItem value="Q4">Q4 (Oct-Dec)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select disabled>
+                    <SelectTrigger>
+                      <SelectValue placeholder="N/A for Yearly" />
+                    </SelectTrigger>
+                  </Select>
+                )}
+              </div>
 
-              {/* Vehicle Type Filter - Always shown */}
+              {/* Vehicle Type Filter */}
               <div>
                 <label className="text-sm font-medium">Vehicle Type</label>
-                <Select value={partnerFilter} onValueChange={setPartnerFilter}>
+                <Select value={partnerFilter} onValueChange={(value) => {
+                  setPartnerFilter(value);
+                  // Reset selected partner when changing filter type
+                  if (value !== 'partner') {
+                    setSelectedPartner('');
+                  }
+                }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -340,6 +373,43 @@ const FinancialPage: React.FC = () => {
                     <SelectItem value="company">Company Vehicles</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Partner Selection - Only shown when partnerFilter is 'partner' */}
+              <div>
+                <label className="text-sm font-medium">
+                  {partnerFilter === 'partner' ? 'Select Partner' : 'Partner'}
+                </label>
+                {partnerFilter === 'partner' ? (
+                  <Select value={selectedPartner} onValueChange={setSelectedPartner}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a partner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {loadingPartners ? (
+                        <SelectItem value="loading" disabled>
+                          Loading partners...
+                        </SelectItem>
+                      ) : partners.length === 0 ? (
+                        <SelectItem value="no-partners" disabled>
+                          No partners available
+                        </SelectItem>
+                      ) : (
+                        partners.map((partner) => (
+                          <SelectItem key={partner.id} value={partner.id}>
+                            {partner.name} - {partner.email}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select disabled>
+                    <SelectTrigger>
+                      <SelectValue placeholder="N/A" />
+                    </SelectTrigger>
+                  </Select>
+                )}
               </div>
             </div>
 

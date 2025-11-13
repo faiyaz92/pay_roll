@@ -1,22 +1,17 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Fuel, Settings, Shield, CreditCard, Banknote, DollarSign, Plus, AlertCircle } from 'lucide-react';
-import { VehicleFinancialData } from '@/hooks/useFirebaseData';
+import { Fuel, Settings, Shield, CreditCard, Banknote, DollarSign, Plus, AlertCircle, Eye, ExternalLink } from 'lucide-react';
+import { VehicleFinancialData, Expense } from '@/hooks/useFirebaseData';
 import AddInsuranceRecordForm from '@/components/Forms/AddInsuranceRecordForm';
 import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface ExpenseData {
   totalExpenses: number;
   monthlyAverage: number;
-  recentExpenses: Array<{
-    id: string;
-    description: string;
-    amount: number;
-    type: string;
-    createdAt: string;
-  }>;
+  recentExpenses: Expense[];
   expenseRatio: number;
   fuelExpenses: number;
   maintenanceExpenses: number;
@@ -46,6 +41,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   setAddInsuranceDialogOpen,
   onInsuranceAdded
 }) => {
+  const navigate = useNavigate();
   return (
     <div className="space-y-4">
       <div>
@@ -317,9 +313,22 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-medium text-red-600">₹{expense.amount.toLocaleString()}</div>
-                        <div className="text-sm text-gray-500">{new Date(expense.createdAt).toLocaleDateString()}</div>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <div className="font-medium text-red-600">₹{expense.amount.toLocaleString()}</div>
+                          <div className="text-sm text-gray-500">{new Date(expense.createdAt).toLocaleDateString()}</div>
+                        </div>
+                        {expense.expenseDocuments && Object.keys(expense.expenseDocuments).length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/expense-details/${expense.id}`)}
+                            className="h-8 w-8 p-0"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}

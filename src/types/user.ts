@@ -231,6 +231,7 @@ export interface Payment {
   reference?: string;
   transactionId?: string;
   amount?: number; // For backward compatibility
+  billUrl?: string; // Document URL for payment receipts
 }
 
 export interface Expense {

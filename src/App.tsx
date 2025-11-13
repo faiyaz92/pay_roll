@@ -23,6 +23,8 @@ import NotFound from "@/pages/NotFound";
 import Partners from "@/pages/Partners";
 import Reports from "./pages/Reports";
 import FinancialPage from "./pages/FinancialPage";
+import PartnerDetails from "./pages/PartnerDetails";
+import ExpenseDetails from "./pages/ExpenseDetails";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -47,6 +49,8 @@ const App = () => (
               <Route path="financial" element={<FinancialPage />} />
               <Route path="drivers" element={<Drivers />} />
               <Route path="partners" element={<Partners />} />
+              <Route path="partners/:partnerId" element={<PartnerDetails />} />
+              <Route path="expense-details/:expenseId" element={<ExpenseDetails />} />
               <Route path="drivers/:driverId" element={<DriverDetails />} />
               <Route path="assignments" element={<Assignments />} />
               <Route path="insurance" element={<Insurance />} />

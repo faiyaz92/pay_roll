@@ -197,6 +197,14 @@ const Partners: React.FC = () => {
               {/* Action Buttons */}
               <div className="flex gap-2 pt-2">
                 <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate(`/partners/${partner.userId}`)}
+                >
+                  <Eye className="w-4 h-4 mr-1" />
+                  View Details
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {

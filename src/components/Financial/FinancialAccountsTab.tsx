@@ -447,6 +447,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [emiViewAllDialog, setEmiViewAllDialog] = useState(false);
   const [selectedVehicleForEMIView, setSelectedVehicleForEMIView] = useState<any>(null);
 
+  // Payment confirmation dialog states
+  const [confirmGstPaymentDialog, setConfirmGstPaymentDialog] = useState(false);
+  const [confirmServiceChargeDialog, setConfirmServiceChargeDialog] = useState(false);
+  const [confirmPartnerPaymentDialog, setConfirmPartnerPaymentDialog] = useState(false);
+  const [confirmOwnerShareDialog, setConfirmOwnerShareDialog] = useState(false);
+  const [confirmOwnerWithdrawalDialog, setConfirmOwnerWithdrawalDialog] = useState(false);
+  const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState<any>(null);
+
   // Utility function for currency formatting
   const formatCurrency = (value?: number | null) => (value ?? 0).toLocaleString();
 
@@ -635,15 +643,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   }, [userInfo?.companyId, vehicles]);
 
   // Handle GST payment
-  const handleGstPayment = async (vehicleInfo: any) => {
+  const handleGstPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.gstAmount;
+      let paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate GST for selected months only
+        const monthlyGst = vehicleInfo.gstAmount / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyGst;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'gst_payment',
-        amount: vehicleInfo.gstAmount,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -653,13 +675,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.gstAmount)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.gstAmount),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
@@ -671,7 +693,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       toast({
         title: 'GST Paid Successfully',
-        description: `₹${vehicleInfo.gstAmount.toLocaleString()} GST payment recorded for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} GST payment recorded for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -683,15 +705,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle service charge collection
-  const handleServiceChargeCollection = async (vehicleInfo: any) => {
+  const handleServiceChargeCollection = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.serviceCharge;
+      let paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate service charge for selected months only
+        const monthlyServiceCharge = vehicleInfo.serviceCharge / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyServiceCharge;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'service_charge',
-        amount: vehicleInfo.serviceCharge,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -701,25 +737,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.serviceCharge)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.serviceCharge),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - vehicleInfo.serviceCharge
+        [vehicleInfo.vehicle.id]: currentBalance - paymentAmount
       }));
 
       toast({
         title: 'Service Charge Withdrawn',
-        description: `₹${vehicleInfo.serviceCharge.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -731,15 +767,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle partner payment
-  const handlePartnerPayment = async (vehicleInfo: any) => {
+  const handlePartnerPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.partnerShare;
+      let paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate partner share for selected months only
+        const monthlyPartnerShare = vehicleInfo.partnerShare / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyPartnerShare;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'partner_payment',
-        amount: vehicleInfo.partnerShare,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -749,25 +799,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.partnerShare)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.partnerShare),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.partnerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
       }));
 
       toast({
         title: 'Partner Paid Successfully',
-        description: `₹${vehicleInfo.partnerShare.toLocaleString()} paid to partner for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} paid to partner for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -779,15 +829,29 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle owner's share collection
-  const handleOwnerShareCollection = async (vehicleInfo: any) => {
+  const handleOwnerShareCollection = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      // Calculate amount based on selected months for quarterly/yearly periods
+      let paymentAmount = vehicleInfo.ownerShare;
+      let paymentDescription = `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+
+      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
+        // For quarterly/yearly with month selection, calculate owner share for selected months only
+        const monthlyOwnerShare = vehicleInfo.ownerShare / (companyFinancialData.filterType === 'quarterly' ? 3 : 12);
+        paymentAmount = selectedMonths.length * monthlyOwnerShare;
+        const monthNames = selectedMonths.map(monthIdx => 
+          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
+        ).join(', ');
+        paymentDescription = `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      }
+
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'owner_share',
-        amount: vehicleInfo.ownerShare,
+        amount: paymentAmount,
         month: vehicleInfo.periodStr,
-        description: `Owner's Share Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
@@ -797,25 +861,25 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
       const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
       await setDoc(cashRef, {
-        balance: increment(-vehicleInfo.ownerShare)
+        balance: increment(-paymentAmount)
       }, { merge: true });
 
       // Update company-level cash balance
       const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
       await setDoc(companyCashRef, {
-        balance: increment(-vehicleInfo.ownerShare),
+        balance: increment(-paymentAmount),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.ownerShare
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
       }));
 
       toast({
         title: 'Owner\'s Share Collected',
-        description: `₹${vehicleInfo.ownerShare.toLocaleString()} collected as owner's share for ${vehicleInfo.vehicle.registrationNumber}`,
+        description: `₹${paymentAmount.toLocaleString()} collected as owner's share for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -1520,16 +1584,16 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             await handleBulkRentCollection(vehicleInfo, item);
             break;
           case 'gst':
-            await handleGstPayment(vehicleInfo);
+            await handleGstPayment(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'service_charge':
-            await handleServiceChargeCollection(vehicleInfo);
+            await handleServiceChargeCollection(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'partner_share':
-            await handlePartnerPayment(vehicleInfo);
+            await handlePartnerPayment(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'owner_share':
-            await handleOwnerShareCollection(vehicleInfo);
+            await handleOwnerShareCollection(vehicleInfo, item.selectedMonthIndices || []);
             break;
           case 'emi':
             await handleBulkEmiPayment(vehicleInfo, item, emiPenalties);
@@ -2167,7 +2231,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     // Filter vehicles based on partner filter
     const filteredVehicles = companyFinancialData.vehicleData.filter((vehicleInfo: any) => {
       if (companyFinancialData.partnerFilter === 'all') return true;
-      if (companyFinancialData.partnerFilter === 'partner') return vehicleInfo.vehicle.isPartnership === true;
+      if (companyFinancialData.partnerFilter === 'partner') {
+        const isPartnerVehicle = vehicleInfo.vehicle.isPartnership === true;
+        if (!isPartnerVehicle) return false;
+        // If a specific partner is selected, filter by that partner
+        if (companyFinancialData.selectedPartner && companyFinancialData.selectedPartner !== '') {
+          return vehicleInfo.vehicle.partnerId === companyFinancialData.selectedPartner;
+        }
+        return true;
+      }
       if (companyFinancialData.partnerFilter === 'company') return vehicleInfo.vehicle.isPartnership !== true;
       return true;
     });
@@ -2401,6 +2473,72 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   const { periodData, periodTotals } = getPeriodData();
 
+  // Calculate actually payable amounts (Total - Already Paid for current period)
+  const calculateActuallyPayable = () => {
+    const year = parseInt(companyFinancialData.selectedYear);
+    let periodStrings: string[] = [];
+
+    // Generate period strings based on current view
+    if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
+      periodStrings = [`${year}-${companyFinancialData.monthName}`];
+    } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+      };
+      const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      periodStrings = months.map(monthIndex => `${year}-${monthNames[monthIndex]}`);
+    } else if (companyFinancialData.filterType === 'yearly') {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      periodStrings = monthNames.map(monthName => `${year}-${monthName}`);
+    }
+
+    // Calculate paid amounts for current period
+    const paidAmounts = {
+      gst: 0,
+      serviceCharge: 0,
+      partnerShare: 0,
+      ownerShare: 0,
+      ownerWithdrawal: 0
+    };
+
+    periodStrings.forEach(periodStr => {
+      accountingTransactions.forEach((transaction: any) => {
+        if (transaction.status === 'completed' && transaction.month === periodStr) {
+          switch (transaction.type) {
+            case 'gst_payment':
+              paidAmounts.gst += transaction.amount;
+              break;
+            case 'service_charge':
+              paidAmounts.serviceCharge += transaction.amount;
+              break;
+            case 'partner_payment':
+              paidAmounts.partnerShare += transaction.amount;
+              break;
+            case 'owner_share':
+              paidAmounts.ownerShare += transaction.amount;
+              break;
+            case 'owner_withdrawal':
+              paidAmounts.ownerWithdrawal += transaction.amount;
+              break;
+          }
+        }
+      });
+    });
+
+    return {
+      gstActuallyPayable: Math.max(0, periodTotals.totalGst - paidAmounts.gst),
+      serviceChargeActuallyPayable: Math.max(0, periodTotals.totalServiceCharge - paidAmounts.serviceCharge),
+      partnerShareActuallyPayable: Math.max(0, periodTotals.totalPartnerShare - paidAmounts.partnerShare),
+      ownerShareActuallyPayable: Math.max(0, periodTotals.totalOwnerShare + periodTotals.totalOwnerFullShare - paidAmounts.ownerShare - paidAmounts.ownerWithdrawal),
+      paidAmounts
+    };
+  };
+
+  const actuallyPayable = calculateActuallyPayable();
+
   const rentCollectionOverview = useMemo(() => {
     const overview = {
       vehicles: [] as Array<{
@@ -2487,16 +2625,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               <div className="text-sm text-gray-600">{companyFinancialData.periodLabel} Profit</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                ₹{periodTotals.totalGst.toLocaleString()}
+              <div className="text-2xl font-bold text-indigo-600">
+                ₹{Object.values(vehicleCashBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}
               </div>
-              <div className="text-sm text-gray-600">GST Payable</div>
+              <div className="text-sm text-gray-600">Current Cash</div>
             </div>
           </div>
 
           {/* Additional period breakdown */}
           <SectionNumberBadge id="2" label="Additional Period Breakdown" className="mb-2" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-b border-dashed border-gray-300 pb-4">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-600">
+                ₹{periodTotals.totalGst.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Payable</div>
+            </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-blue-600">
                 ₹{periodTotals.totalServiceCharge.toLocaleString()}
@@ -2515,16 +2659,66 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               </div>
               <div className="text-xs text-gray-600">Owner Shares</div>
             </div>
+          </div>
+
+          {/* Paid Amounts */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 border-b border-dashed border-gray-300 pb-4">
             <div className="text-center">
-              <div className="text-lg font-semibold text-indigo-600">
-                ₹{Object.values(vehicleCashBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}
+              <div className="text-lg font-semibold text-orange-600">
+                ₹{actuallyPayable.paidAmounts.gst.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-600">Current Cash</div>
+              <div className="text-xs text-gray-600">GST Paid</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-600">
+                ₹{actuallyPayable.paidAmounts.serviceCharge.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Service Charges Collected</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-600">
+                ₹{actuallyPayable.paidAmounts.partnerShare.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Partner Shares Paid</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-600">
+                ₹{(actuallyPayable.paidAmounts.ownerShare + actuallyPayable.paidAmounts.ownerWithdrawal).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Owner Shares Collected</div>
+            </div>
+          </div>
+
+          {/* Actually Payable Amounts */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 pb-4 border-b border-dashed border-gray-300">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-700">
+                ₹{actuallyPayable.gstActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">GST Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-blue-700">
+                ₹{actuallyPayable.serviceChargeActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Service Charges Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-700">
+                ₹{actuallyPayable.partnerShareActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Partner Shares Actually Payable</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-green-700">
+                ₹{actuallyPayable.ownerShareActuallyPayable.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600">Owner Shares Actually Payable</div>
             </div>
           </div>
 
           {/* Bulk Payment Actions */}
-          <SectionNumberBadge id="3" label="Bulk Payment Actions" className="mb-2" />
+          <SectionNumberBadge id="4" label="Bulk Payment Actions" className="mb-2" />
           <div className="mt-6 pt-4 border-t">
             <div className="flex flex-wrap gap-2 justify-center">
               <Button
@@ -2605,7 +2799,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       </Card>
 
       {/* Vehicle Accounting Cards */}
-      <SectionNumberBadge id="4" label="Vehicle Accounting Cards" className="mb-2" />
+      <SectionNumberBadge id="5" label="Vehicle Accounting Cards" className="mb-2" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {periodData.map((vehicleInfo: any) => (
           <Card key={vehicleInfo.vehicle.id} className="flex flex-col">
@@ -2725,7 +2919,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     <span className="text-sm">GST Payment</span>
                     <Button
                       size="sm"
-                      onClick={() => handleGstPayment(vehicleInfo)}
+                      onClick={() => {
+                        setSelectedVehicleForPayment(vehicleInfo);
+                        setConfirmGstPaymentDialog(true);
+                      }}
                       disabled={vehicleInfo.gstAmount <= 0}
                     >
                       <CreditCard className="h-3 w-3 mr-1" />
@@ -2739,7 +2936,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Service Charge</span>
                       <Button
                         size="sm"
-                        onClick={() => handleServiceChargeCollection(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmServiceChargeDialog(true);
+                        }}
                         disabled={vehicleInfo.serviceCharge <= 0}
                       >
                         <DollarSign className="h-3 w-3 mr-1" />
@@ -2754,7 +2954,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Partner Payment</span>
                       <Button
                         size="sm"
-                        onClick={() => handlePartnerPayment(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmPartnerPaymentDialog(true);
+                        }}
                         disabled={vehicleInfo.partnerShare <= 0}
                       >
                         <Banknote className="h-3 w-3 mr-1" />
@@ -2769,7 +2972,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       <span className="text-sm">Collect Owner's Share</span>
                       <Button
                         size="sm"
-                        onClick={() => handleOwnerShareCollection(vehicleInfo)}
+                        onClick={() => {
+                          setSelectedVehicleForPayment(vehicleInfo);
+                          setConfirmOwnerShareDialog(true);
+                        }}
                         disabled={vehicleInfo.ownerShare <= 0}
                       >
                         <DollarSign className="h-3 w-3 mr-1" />
@@ -2790,7 +2996,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleOwnerWithdrawal(vehicleInfo)}
+                          onClick={() => {
+                            setSelectedVehicleForPayment(vehicleInfo);
+                            setConfirmOwnerWithdrawalDialog(true);
+                          }}
                           disabled={vehicleInfo.ownerFullShare <= 0}
                         >
                           <Banknote className="h-3 w-3 mr-1" />
@@ -3275,6 +3484,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         items={bulkDialogItems}
         onConfirm={handleBulkPaymentConfirm}
         isLoading={isBulkProcessing}
+        // Month selection props
+        periodType={companyFinancialData.filterType}
+        selectedYear={companyFinancialData.selectedYear}
+        selectedQuarter={companyFinancialData.selectedQuarter}
       />
 
   {/* EMI Payment Dialog */}
@@ -3523,6 +3736,241 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* GST Payment Confirmation Dialog */}
+      <AlertDialog open={confirmGstPaymentDialog} onOpenChange={setConfirmGstPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.1" label="GST Payment Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-500" />
+              Confirm GST Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to pay GST for <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-blue-800">GST Amount:</span>
+                    <span className="font-bold text-blue-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.gstAmount)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will record the GST payment and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleGstPayment(selectedVehicleForPayment);
+                }
+                setConfirmGstPaymentDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Pay GST ₹{formatCurrency(selectedVehicleForPayment?.gstAmount)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Service Charge Collection Confirmation Dialog */}
+      <AlertDialog open={confirmServiceChargeDialog} onOpenChange={setConfirmServiceChargeDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.2" label="Service Charge Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              Confirm Service Charge Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw service charge from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-green-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-800">Service Charge Amount:</span>
+                    <span className="font-bold text-green-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.serviceCharge)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will withdraw the service charge and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleServiceChargeCollection(selectedVehicleForPayment);
+                }
+                setConfirmServiceChargeDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Withdraw ₹{formatCurrency(selectedVehicleForPayment?.serviceCharge)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Partner Payment Confirmation Dialog */}
+      <AlertDialog open={confirmPartnerPaymentDialog} onOpenChange={setConfirmPartnerPaymentDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.3" label="Partner Payment Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-purple-500" />
+              Confirm Partner Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to pay partner share to <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-purple-800">Partner Share Amount:</span>
+                    <span className="font-bold text-purple-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.partnerShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will pay the partner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handlePartnerPayment(selectedVehicleForPayment);
+                }
+                setConfirmPartnerPaymentDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Pay Partner ₹{formatCurrency(selectedVehicleForPayment?.partnerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Share Collection Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.4" label="Owner Share Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-indigo-500" />
+              Confirm Owner Share Collection
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to collect owner share from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-indigo-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-indigo-800">Owner Share Amount:</span>
+                    <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.ownerShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will collect the owner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleOwnerShareCollection(selectedVehicleForPayment);
+                }
+                setConfirmOwnerShareDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              Collect ₹{formatCurrency(selectedVehicleForPayment?.ownerShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owner Withdrawal Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerWithdrawalDialog} onOpenChange={setConfirmOwnerWithdrawalDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="5.5" label="Owner Withdrawal Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-orange-500" />
+              Confirm Owner Withdrawal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw owner share from <span className="font-semibold">{selectedVehicleForPayment?.vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{companyFinancialData.filterType === 'monthly' ? `${companyFinancialData.selectedMonth} ${companyFinancialData.selectedYear}` : companyFinancialData.filterType === 'quarterly' ? `${companyFinancialData.selectedQuarter} ${companyFinancialData.selectedYear}` : companyFinancialData.selectedYear}</span>.
+                </p>
+
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-orange-800">Owner Withdrawal Amount:</span>
+                    <span className="font-bold text-orange-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.ownerFullShare)}</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  This action will withdraw the owner share and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedVehicleForPayment) {
+                  handleOwnerWithdrawal(selectedVehicleForPayment);
+                }
+                setConfirmOwnerWithdrawalDialog(false);
+                setSelectedVehicleForPayment(null);
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Withdraw ₹{formatCurrency(selectedVehicleForPayment?.ownerFullShare)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Backdoor Cash Increase Dialog (Testing Only) */}
       <Dialog open={backdoorDialogOpen} onOpenChange={setBackdoorDialogOpen}>
         <DialogContent className="max-w-md">
@@ -3583,10 +4031,6 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-
-
-
     </div>
     </TooltipProvider>
   );
