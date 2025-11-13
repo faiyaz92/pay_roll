@@ -1813,20 +1813,20 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               onClick={() => {
                 setConfirmGstPaymentDialog(true);
               }}
-              disabled={cumulativeData.totalGst === 0}
+              disabled={actuallyPayable.gstActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <CreditCard className="h-4 w-4" />
-              Pay GST ({selectedPeriod === 'month' ? cumulativeData.totalGst.toLocaleString() : selectedGstMonthTotal.toLocaleString()})
+              Pay GST ({selectedPeriod === 'month' ? actuallyPayable.gstActuallyPayable.toLocaleString() : selectedGstMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
                   setSelectedMonthData({
-                    serviceCharge: cumulativeData.totalServiceCharge,
+                    serviceCharge: actuallyPayable.serviceChargeActuallyPayable,
                     monthStr: cumulativePeriodKey,
                     periodLabel: cumulativePeriodLabel,
                     isCumulative: true
@@ -1837,20 +1837,20 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmServiceChargeMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalServiceCharge === 0}
+              disabled={actuallyPayable.serviceChargeActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <TrendingUp className="h-4 w-4" />
-              Withdraw Service Charges ({selectedPeriod === 'month' ? cumulativeData.totalServiceCharge.toLocaleString() : selectedServiceChargeMonthTotal.toLocaleString()})
+              Withdraw Service Charges ({selectedPeriod === 'month' ? actuallyPayable.serviceChargeActuallyPayable.toLocaleString() : selectedServiceChargeMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
                   setSelectedMonthData({
-                    partnerShare: cumulativeData.totalPartnerShare,
+                    partnerShare: actuallyPayable.partnerShareActuallyPayable,
                     monthStr: cumulativePeriodKey,
                     periodLabel: cumulativePeriodLabel,
                     isCumulative: true
@@ -1861,13 +1861,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmPartnerMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalPartnerShare === 0}
+              disabled={actuallyPayable.partnerShareActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <Users className="h-4 w-4" />
-              Pay Partner ({selectedPeriod === 'month' ? cumulativeData.totalPartnerShare.toLocaleString() : selectedPartnerMonthTotal.toLocaleString()})
+              Pay Partner ({selectedPeriod === 'month' ? actuallyPayable.partnerShareActuallyPayable.toLocaleString() : selectedPartnerMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
@@ -1932,7 +1932,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
-                  const totalOwnerAmount = cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal;
+                  const totalOwnerAmount = actuallyPayable.ownerShareActuallyPayable;
                   setSelectedMonthData({
                     ownerShare: totalOwnerAmount,
                     ownerFullShare: totalOwnerAmount,
@@ -1946,7 +1946,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmOwnerShareMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
+              disabled={actuallyPayable.ownerShareActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
@@ -2662,7 +2662,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         </p>
                         {(() => {
                           const gstMonths = monthlyData
-                            .filter(m => m.gstAmount > 0)
+                            .filter(m => m.gstAmount > 0 && !m.gstPaid)
                             .map(m => ({
                               month: m.month,
                               monthName: m.monthName,
@@ -2793,7 +2793,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       const serviceChargeMonths = months
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
-                          return monthData && monthData.serviceCharge > 0 ? {
+                          return monthData && monthData.serviceCharge > 0 && !monthData.serviceChargeCollected ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             serviceCharge: monthData.serviceCharge,
@@ -2995,7 +2995,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       const partnerMonths = months
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
-                          return monthData && monthData.partnerShare > 0 ? {
+                          return monthData && monthData.partnerShare > 0 && !monthData.partnerPaid ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             partnerShare: monthData.partnerShare,
@@ -3073,7 +3073,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     </p>
                     {(() => {
                       const partnerMonths = monthlyData
-                        .filter(m => m.partnerShare > 0)
+                        .filter(m => m.partnerShare > 0 && !m.partnerPaid)
                         .map(m => ({
                           month: m.month,
                           monthName: m.monthName,
@@ -3198,7 +3198,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
                           const totalOwnerAmount = (monthData?.ownerShare || 0) + (monthData?.ownerFullShare || 0);
-                          return monthData && totalOwnerAmount > 0 ? {
+                          return monthData && totalOwnerAmount > 0 && !(monthData.ownerShareCollected || monthData.ownerWithdrawn) ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             ownerShare: totalOwnerAmount,
@@ -3276,7 +3276,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     </p>
                     {(() => {
                       const ownerShareMonths = monthlyData
-                        .filter(m => (m.ownerShare || 0) + (m.ownerFullShare || 0) > 0)
+                        .filter(m => (m.ownerShare || 0) + (m.ownerFullShare || 0) > 0 && !(m.ownerShareCollected || m.ownerWithdrawn))
                         .map(m => ({
                           month: m.month,
                           monthName: m.monthName,
