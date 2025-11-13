@@ -87,15 +87,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    // Create user document in the company's users collection
-    const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${partnerData.companyId}/users/${user.uid}`);
-    await setDoc(userDocRef, {
+    // Prepare user data for both collections
+    const userData = {
       userId: user.uid,
       email: user.email,
       role: Role.PARTNER,
       ...partnerData,
       createdAt: new Date().toISOString(),
-    });
+    };
+    
+    // Store in company-specific users collection (existing logic)
+    const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${partnerData.companyId}/users/${user.uid}`);
+    await setDoc(userDocRef, userData);
+    
+    // Store in common users collection for faster login lookup
+    const commonUserDocRef = doc(db, `Easy2Solutions/companyDirectory/users/${user.uid}`);
+    await setDoc(commonUserDocRef, userData);
   };
 
   const fetchUserInfo = async (user: User) => {

@@ -17,19 +17,20 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Role } from '@/types/user';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Vehicles', href: '/vehicles', icon: Car },
-  { name: 'Financial', href: '/financial', icon: Calculator },
-  { name: 'Drivers', href: '/drivers', icon: Users },
-  { name: 'Partners', href: '/partners', icon: UserPlus },
-  { name: 'Assignments', href: '/assignments', icon: FileText },
-  { name: 'Insurance', href: '/insurance', icon: Shield },
-  { name: 'Payments', href: '/payments', icon: DollarSign },
-  { name: 'Fuel Records', href: '/fuel-records', icon: Fuel },
-  { name: 'Maintenance', href: '/maintenance-records', icon: Wrench },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
+  { name: 'Vehicles', href: '/vehicles', icon: Car, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
+  { name: 'Financial', href: '/financial', icon: Calculator, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
+  { name: 'Drivers', href: '/drivers', icon: Users, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Partners', href: '/partners', icon: UserPlus, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Assignments', href: '/assignments', icon: FileText, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Insurance', href: '/insurance', icon: Shield, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Payments', href: '/payments', icon: DollarSign, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Fuel Records', href: '/fuel-records', icon: Fuel, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Maintenance', href: '/maintenance-records', icon: Wrench, roles: [Role.COMPANY_ADMIN] },
+  { name: 'Reports', href: '/reports', icon: BarChart3, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
 ];
 
 interface SidebarProps {
@@ -39,6 +40,11 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const location = useLocation();
   const { logout, userInfo } = useAuth();
+
+  // Filter navigation items based on user role
+  const filteredNavigation = navigation.filter(item => 
+    userInfo?.role && item.roles.includes(userInfo.role)
+  );
 
   const handleLogout = async () => {
     try {
@@ -70,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
             <NavLink
