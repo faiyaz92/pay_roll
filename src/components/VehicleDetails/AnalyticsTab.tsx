@@ -292,7 +292,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
     const projectionData = [];
     const isPartnerTaxi = vehicle?.ownershipType === 'partner';
     const partnerSharePercentage = vehicle?.partnerShare || 0.50;
-    const serviceChargeRate = vehicle?.serviceChargeRate || 0.10;
+    const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal
 
     // Use current projection settings
     const assumedRent = projectionMode === 'assumed' && assumedMonthlyRent ?

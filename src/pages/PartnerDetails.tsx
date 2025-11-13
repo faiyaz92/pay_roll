@@ -286,86 +286,6 @@ const PartnerDetails: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Partner Investment Summary */}
-      <Card className="border-2 border-blue-200 bg-blue-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-800">
-            <Banknote className="w-6 h-6" />
-            Partner Investment Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center p-4 bg-white rounded-lg border">
-              <div className="text-3xl font-bold text-purple-600 mb-2">
-                {formatCurrency(partnerFinancials.totalVehicleInvestment)}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Total Investment</div>
-              <div className="text-xs text-gray-500 mt-1">Total vehicle investments</div>
-            </div>
-
-            <div className="text-center p-4 bg-white rounded-lg border">
-              <div className="text-3xl font-bold text-blue-600 mb-2">
-                {formatCurrency(partnerFinancials.totalInvestment)}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Partner's Investment</div>
-              <div className="text-xs text-gray-500 mt-1">Partner's share of total vehicle investments</div>
-            </div>
-
-            <div className="text-center p-4 bg-white rounded-lg border">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {formatCurrency(partnerFinancials.totalPaid)}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Total Returned</div>
-              <div className="text-xs text-gray-500 mt-1">Amount received through settlements</div>
-            </div>
-
-            <div className="text-center p-4 bg-white rounded-lg border">
-              <div className={`text-3xl font-bold mb-2 ${partnerFinancials.totalPaid - partnerFinancials.totalInvestment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(partnerFinancials.totalPaid - partnerFinancials.totalInvestment)}
-              </div>
-              <div className="text-sm font-medium text-gray-600">Net Position</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {partnerFinancials.totalPaid - partnerFinancials.totalInvestment >= 0 ? 'Profit' : 'Outstanding'}
-              </div>
-            </div>
-          </div>
-
-          {/* Investment Details */}
-          <div className="mt-6 pt-4 border-t border-blue-200">
-            <h4 className="font-semibold text-blue-800 mb-3">Investment Breakdown by Vehicle</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {partnerFinancials.vehicleFinancials?.map((vehicleData: any) => (
-                <div key={vehicleData.vehicle.id} className="bg-white p-3 rounded border">
-                  <div className="font-medium text-sm text-gray-800 mb-1">
-                    {vehicleData.vehicle.make} {vehicleData.vehicle.model}
-                  </div>
-                  <div className="text-xs text-gray-600 mb-2">
-                    {vehicleData.vehicle.registrationNumber}
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <div className="text-lg font-bold text-purple-600">
-                        {formatCurrency(vehicleData.totalVehicleInvestment)}
-                      </div>
-                      <div className="text-xs text-gray-500">Total Investment</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-blue-600">
-                        {formatCurrency(vehicleData.investment)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Partner's {vehicleData.vehicle.partnershipPercentage}% share
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Period Selection */}
       <Card>
         <CardHeader>
@@ -450,16 +370,14 @@ const PartnerDetails: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Financial Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Financial Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Period Earnings</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(partnerFinancials.totalEarnings)}
-                </p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(partnerFinancials.totalEarnings)}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-green-600" />
             </div>
@@ -467,29 +385,25 @@ const PartnerDetails: React.FC = () => {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Current Payable</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {formatCurrency(partnerFinancials.currentPayable)}
-                </p>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrency(partnerFinancials.currentPayable)}</p>
               </div>
-              <DollarSign className="w-8 h-8 text-purple-600" />
+              <DollarSign className="w-8 h-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Outstanding Amount</p>
-                <p className={`text-2xl font-bold ${partnerFinancials.outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatCurrency(partnerFinancials.outstanding)}
-                </p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(partnerFinancials.outstanding)}</p>
               </div>
-              <Receipt className="w-8 h-8 text-red-600" />
+              <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -517,7 +431,7 @@ const PartnerDetails: React.FC = () => {
                       </Badge>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-600">Partner Investment</p>
+                      <p className="text-sm text-gray-600">{userInfo?.role === Role.PARTNER ? 'Your Investment' : 'Partner Investment'}</p>
                       <p className="font-semibold text-blue-600">{formatCurrency(vehicleData.investment)}</p>
                     </div>
                   </div>
@@ -538,7 +452,7 @@ const PartnerDetails: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Partner Share:</span>
+                      <span className="text-gray-600">{userInfo?.role === Role.PARTNER ? 'Your Share:' : 'Partner Share:'}</span>
                       <div className="font-semibold text-purple-600">{formatCurrency(vehicleData.partnerShare)}</div>
                     </div>
                   </div>
@@ -632,6 +546,86 @@ const PartnerDetails: React.FC = () => {
                   {partnerFinancials.outstanding > 0 ? 'Outstanding' : 'Overpaid'}
                 </p>
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Partner Investment Summary */}
+      <Card className="border-2 border-blue-200 bg-blue-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-blue-800">
+            <Banknote className="w-6 h-6" />
+            {userInfo?.role === Role.PARTNER ? 'Your Investment Summary' : 'Partner Investment Summary'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="text-center p-4 bg-white rounded-lg border">
+              <div className="text-3xl font-bold text-purple-600 mb-2">
+                {formatCurrency(partnerFinancials.totalVehicleInvestment)}
+              </div>
+              <div className="text-sm font-medium text-gray-600">Total Investment</div>
+              <div className="text-xs text-gray-500 mt-1">Total vehicle investments</div>
+            </div>
+
+            <div className="text-center p-4 bg-white rounded-lg border">
+              <div className="text-3xl font-bold text-blue-600 mb-2">
+                {formatCurrency(partnerFinancials.totalInvestment)}
+              </div>
+              <div className="text-sm font-medium text-gray-600">{userInfo?.role === Role.PARTNER ? "Your Investment" : "Partner's Investment"}</div>
+              <div className="text-xs text-gray-500 mt-1">{userInfo?.role === Role.PARTNER ? "Your share of total vehicle investments" : "Partner's share of total vehicle investments"}</div>
+            </div>
+
+            <div className="text-center p-4 bg-white rounded-lg border">
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                {formatCurrency(partnerFinancials.totalPaid)}
+              </div>
+              <div className="text-sm font-medium text-gray-600">Total Returned</div>
+              <div className="text-xs text-gray-500 mt-1">Amount received through settlements</div>
+            </div>
+
+            <div className="text-center p-4 bg-white rounded-lg border">
+              <div className={`text-3xl font-bold mb-2 ${partnerFinancials.totalPaid - partnerFinancials.totalInvestment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(partnerFinancials.totalPaid - partnerFinancials.totalInvestment)}
+              </div>
+              <div className="text-sm font-medium text-gray-600">Net Position</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {partnerFinancials.totalPaid - partnerFinancials.totalInvestment >= 0 ? 'Profit' : 'Outstanding'}
+              </div>
+            </div>
+          </div>
+
+          {/* Investment Details */}
+          <div className="mt-6 pt-4 border-t border-blue-200">
+            <h4 className="font-semibold text-blue-800 mb-3">Investment Breakdown by Vehicle</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {partnerFinancials.vehicleFinancials?.map((vehicleData: any) => (
+                <div key={vehicleData.vehicle.id} className="bg-white p-3 rounded border">
+                  <div className="font-medium text-sm text-gray-800 mb-1">
+                    {vehicleData.vehicle.make} {vehicleData.vehicle.model}
+                  </div>
+                  <div className="text-xs text-gray-600 mb-2">
+                    {vehicleData.vehicle.registrationNumber}
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-lg font-bold text-purple-600">
+                        {formatCurrency(vehicleData.totalVehicleInvestment)}
+                      </div>
+                      <div className="text-xs text-gray-500">Total Investment</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-blue-600">
+                        {formatCurrency(vehicleData.investment)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {userInfo?.role === Role.PARTNER ? 'Your' : 'Partner\'s'} {vehicleData.vehicle.partnershipPercentage}% share
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>

@@ -892,7 +892,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Service charge (10% for partner taxis - only if profit is positive)
       const isPartnerTaxi = vehicle?.isPartnership === true;
-      const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
+      const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
       const serviceCharge = isPartnerTaxi && profit > 0 ? profit * serviceChargeRate : 0;
 
       // Partner share (configurable percentage after GST and service charge - only if remaining profit is positive)
@@ -1168,7 +1168,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
     // Service charge (10% for partner taxis - only if total profit is positive)
     const isPartnerTaxi = vehicle?.isPartnership === true;
-    const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
+    const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
     const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
 
     // Partner share and owner share calculations (on remaining profit after GST and service charge)

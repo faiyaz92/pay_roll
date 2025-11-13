@@ -1226,7 +1226,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const monthProfit = monthEarnings - monthExpensesAmount;
 
       const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
-      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal
       const monthServiceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1272,7 +1272,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
       const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
-      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
@@ -1323,7 +1323,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       const gstAmount = monthProfit > 0 ? monthProfit * 0.04 : 0;
       const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
-      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal
       const serviceCharge = isPartnerTaxi && monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
@@ -2310,7 +2310,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       // Service charge (configurable rate for partner taxis - only if cumulative profit is positive)
       const isPartnerTaxi = vehicleInfo.vehicle.isPartnership === true;
-      const serviceChargeRate = vehicleInfo.vehicle.serviceChargeRate || 0.10;
+      const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal
       cumulativeServiceCharge = isPartnerTaxi && cumulativeProfit > 0 ? cumulativeProfit * serviceChargeRate : 0;
 
       // Partner share and owner share calculations (on remaining profit after GST and service charge)

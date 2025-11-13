@@ -131,7 +131,7 @@ const Vehicles: React.FC = () => {
 
     // For partners, only show vehicles where they are the partner
     const matchesPartner = userInfo?.role === Role.PARTNER 
-      ? vehicle.partnerId === userInfo.userId 
+      ? (vehicle.partnerId && vehicle.partnerId === userInfo.userId)
       : true;
 
     return matchesSearch && matchesStatus && matchesPartner;
@@ -140,7 +140,7 @@ const Vehicles: React.FC = () => {
   const getVehicleStats = () => {
     // For partners, only count their vehicles
     const relevantVehicles = userInfo?.role === Role.PARTNER 
-      ? vehicles.filter(v => v.partnerId === userInfo.userId)
+      ? vehicles.filter(v => v.partnerId && v.partnerId === userInfo.userId)
       : vehicles;
 
     const total = relevantVehicles.length;
@@ -254,9 +254,13 @@ const Vehicles: React.FC = () => {
             <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
             <p className="text-gray-600 mb-4">
-              {vehicles.length === 0
-                ? "Get started by adding your first vehicle to the fleet."
-                : "Try adjusting your search or filter criteria."
+              {userInfo?.role === Role.PARTNER
+                ? vehicles.length === 0
+                  ? "No vehicles are currently assigned to your partnership."
+                  : "No vehicles match your search criteria."
+                : vehicles.length === 0
+                  ? "Get started by adding your first vehicle to the fleet."
+                  : "Try adjusting your search or filter criteria."
               }
             </p>
           </CardContent>
