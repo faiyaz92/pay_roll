@@ -1237,24 +1237,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     const year = parseInt(selectedYear);
     let periodStrings: string[] = [];
 
-    // Generate period strings based on current view
+    // Generate period strings based on current view - use same format as monthlyData.monthStr
     if (selectedPeriod === 'month' && selectedMonth) {
-      const monthName = new Date(year, parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' });
-      periodStrings = [`${year}-${monthName}`];
+      periodStrings = [`${year}-${selectedMonth.padStart(2, '0')}`];
     } else if (selectedPeriod === 'quarter' && selectedQuarter) {
       const quarterMonths = {
-        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+        '1': ['01', '02', '03'], '2': ['04', '05', '06'], '3': ['07', '08', '09'], '4': ['10', '11', '12']
       };
-      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths];
-      if (months) {
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                           'July', 'August', 'September', 'October', 'November', 'December'];
-        periodStrings = months.map(monthIndex => `${year}-${monthNames[monthIndex]}`);
-      }
+      periodStrings = quarterMonths[selectedQuarter as keyof typeof quarterMonths].map(month => `${year}-${month}`);
     } else if (selectedPeriod === 'year') {
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                         'July', 'August', 'September', 'October', 'November', 'December'];
-      periodStrings = monthNames.map(monthName => `${year}-${monthName}`);
+      periodStrings = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
     }
 
     // Calculate paid amounts for current period
