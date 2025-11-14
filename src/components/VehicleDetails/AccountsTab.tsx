@@ -2095,6 +2095,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                             setSelectedMonthData(monthData);
                             setConfirmGstPaymentDialog(true);
                           }}
+                          disabled={monthData.gstAmount <= 0}
                         >
                           <CreditCard className="h-3 w-3 mr-1" />
                           Pay GST ₹{monthData.gstAmount.toLocaleString()}
@@ -2118,6 +2119,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                               setSelectedMonthData(monthData);
                               setConfirmServiceChargeDialog(true);
                             }}
+                            disabled={monthData.serviceCharge <= 0}
                           >
                             <DollarSign className="h-3 w-3 mr-1" />
                             Withdraw Service Charges ₹{monthData.serviceCharge.toLocaleString()}
@@ -2142,6 +2144,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                               setSelectedMonthData(monthData);
                               setConfirmPartnerPaymentDialog(true);
                             }}
+                            disabled={monthData.partnerShare <= 0}
                           >
                             <Banknote className="h-3 w-3 mr-1" />
                             Pay Partner ₹{monthData.partnerShare.toLocaleString()}
@@ -2166,6 +2169,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                               setSelectedMonthData(monthData);
                               setConfirmOwnerShareDialog(true);
                             }}
+                            disabled={monthData.ownerShare <= 0}
                           >
                             <DollarSign className="h-3 w-3 mr-1" />
                             Withdraw Owner Share ₹{monthData.ownerShare.toLocaleString()}
@@ -2190,6 +2194,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                               setSelectedMonthData(monthData);
                               setConfirmOwnerWithdrawalDialog(true);
                             }}
+                            disabled={monthData.ownerFullShare <= 0}
                           >
                             <DollarSign className="h-3 w-3 mr-1" />
                             Withdraw Owner Share ₹{monthData.ownerFullShare.toLocaleString()}
