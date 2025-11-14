@@ -646,6 +646,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   // Handle GST payment
   const handleGstPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
+      const year = parseInt(companyFinancialData.selectedYear);
+      
       // Calculate amount based on selected months for quarterly/yearly periods
       let paymentAmount = vehicleInfo.gstAmount;
       let paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
@@ -665,7 +667,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         vehicleId: vehicleInfo.vehicle.id,
         type: 'gst_payment',
         amount: paymentAmount,
-        month: vehicleInfo.periodStr,
+        month: companyFinancialData.filterType === 'monthly' 
+          ? vehicleInfo.periodStr 
+          : companyFinancialData.filterType === 'quarterly'
+          ? `${year}-${companyFinancialData.selectedQuarter}`
+          : `${year}`,
         description: paymentDescription,
         status: 'completed',
         createdAt: new Date().toISOString(),
@@ -689,7 +695,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Update local state
       setVehicleCashBalances(prev => ({
         ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - vehicleInfo.gstAmount
+        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
       }));
 
       toast({
@@ -2329,7 +2335,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         ? `${year}`
         : companyFinancialData.filterType === 'quarterly'
         ? `${year}-${companyFinancialData.selectedQuarter}`
-        : `${year}-${companyFinancialData.monthName}`;
+        : `${year}-${String(parseInt(companyFinancialData.selectedMonth)).padStart(2, '0')}`;
 
       const gstPaid = accountingTransactions.some((t: any) =>
         t.vehicleId === vehicleInfo.vehicle.id && t.type === 'gst_payment' && t.month === periodStr && t.status === 'completed'
@@ -2479,21 +2485,17 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const year = parseInt(companyFinancialData.selectedYear);
     let periodStrings: string[] = [];
 
-    // Generate period strings based on current view
+    // Generate period strings based on current view - use same format as AccountsTab.tsx
     if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
-      periodStrings = [`${year}-${companyFinancialData.monthName}`];
+      periodStrings = [`${year}-${String(parseInt(companyFinancialData.selectedMonth)).padStart(2, '0')}`];
     } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
       const quarterMonths = {
-        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+        'Q1': ['01', '02', '03'], 'Q2': ['04', '05', '06'], 'Q3': ['07', '08', '09'], 'Q4': ['10', '11', '12']
       };
       const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                         'July', 'August', 'September', 'October', 'November', 'December'];
-      periodStrings = months.map(monthIndex => `${year}-${monthNames[monthIndex]}`);
+      periodStrings = months.map(month => `${year}-${month}`);
     } else if (companyFinancialData.filterType === 'yearly') {
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                         'July', 'August', 'September', 'October', 'November', 'December'];
-      periodStrings = monthNames.map(monthName => `${year}-${monthName}`);
+      periodStrings = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
     }
 
     // Calculate paid amounts for current period
@@ -2923,33 +2925,47 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     {userInfo?.role !== Role.PARTNER && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm">GST Payment</span>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedVehicleForPayment(vehicleInfo);
-                            setConfirmGstPaymentDialog(true);
-                          }}
-                          disabled={vehicleInfo.gstAmount <= 0}
-                        >
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          Pay GST ₹{vehicleInfo.gstAmount.toLocaleString()}
-                        </Button>
+                        {vehicleInfo.gstPaid ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicleForPayment(vehicleInfo);
+                              setConfirmGstPaymentDialog(true);
+                            }}
+                            disabled={vehicleInfo.gstAmount <= 0}
+                          >
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Pay GST ₹{vehicleInfo.gstAmount.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}                    {/* Service Charge Collection - Only for partner taxis */}
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Service Charge</span>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedVehicleForPayment(vehicleInfo);
-                            setConfirmServiceChargeDialog(true);
-                          }}
-                          disabled={vehicleInfo.serviceCharge <= 0}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw ₹{vehicleInfo.serviceCharge.toLocaleString()}
-                        </Button>
+                        {vehicleInfo.serviceChargeCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Collected
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicleForPayment(vehicleInfo);
+                              setConfirmServiceChargeDialog(true);
+                            }}
+                            disabled={vehicleInfo.serviceCharge <= 0}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw ₹{vehicleInfo.serviceCharge.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -2957,17 +2973,24 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Partner Payment</span>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedVehicleForPayment(vehicleInfo);
-                            setConfirmPartnerPaymentDialog(true);
-                          }}
-                          disabled={vehicleInfo.partnerShare <= 0}
-                        >
-                          <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner ₹{vehicleInfo.partnerShare.toLocaleString()}
-                        </Button>
+                        {vehicleInfo.partnerPaid ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicleForPayment(vehicleInfo);
+                              setConfirmPartnerPaymentDialog(true);
+                            }}
+                            disabled={vehicleInfo.partnerShare <= 0}
+                          >
+                            <Banknote className="h-3 w-3 mr-1" />
+                            Pay Partner ₹{vehicleInfo.partnerShare.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -2975,17 +2998,24 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Collect Owner's Share</span>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedVehicleForPayment(vehicleInfo);
-                            setConfirmOwnerShareDialog(true);
-                          }}
-                          disabled={vehicleInfo.ownerShare <= 0}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw ₹{vehicleInfo.ownerShare.toLocaleString()}
-                        </Button>
+                        {vehicleInfo.ownerShareCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Collected
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicleForPayment(vehicleInfo);
+                              setConfirmOwnerShareDialog(true);
+                            }}
+                            disabled={vehicleInfo.ownerShare <= 0}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw ₹{vehicleInfo.ownerShare.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}
 
