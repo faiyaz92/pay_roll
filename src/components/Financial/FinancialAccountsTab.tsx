@@ -652,10 +652,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      const newTransactions: AccountingTransaction[] = [];
+      
       if (selectedMonths && selectedMonths.length > 0) {
         for (const monthIndex of selectedMonths) {
           const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          await addDoc(transactionRef, {
+          const docRef = await addDoc(transactionRef, {
+            vehicleId: vehicleInfo.vehicle.id,
+            type: 'gst_payment',
+            amount: vehicleInfo.gstAmount / monthsInPeriod,
+            month: monthStr,
+            description: paymentDescription,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          });
+          newTransactions.push({
+            id: docRef.id,
             vehicleId: vehicleInfo.vehicle.id,
             type: 'gst_payment',
             amount: vehicleInfo.gstAmount / monthsInPeriod,
@@ -666,6 +679,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             completedAt: new Date().toISOString()
           });
         }
+      }
+
+      // Update local accounting transactions state
+      if (newTransactions.length > 0) {
+        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
       }
 
       // Update cash in hand for this vehicle
@@ -710,10 +728,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      const newTransactions: AccountingTransaction[] = [];
+      
       if (selectedMonths && selectedMonths.length > 0) {
         for (const monthIndex of selectedMonths) {
           const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          await addDoc(transactionRef, {
+          const docRef = await addDoc(transactionRef, {
+            vehicleId: vehicleInfo.vehicle.id,
+            type: 'service_charge',
+            amount: vehicleInfo.serviceCharge / monthsInPeriod,
+            month: monthStr,
+            description: paymentDescription,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          });
+          newTransactions.push({
+            id: docRef.id,
             vehicleId: vehicleInfo.vehicle.id,
             type: 'service_charge',
             amount: vehicleInfo.serviceCharge / monthsInPeriod,
@@ -724,6 +755,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             completedAt: new Date().toISOString()
           });
         }
+      }
+
+      // Update local accounting transactions state
+      if (newTransactions.length > 0) {
+        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
       }
 
       // Update cash in hand - DECREASE when owner withdraws service charge
@@ -768,10 +804,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      const newTransactions: AccountingTransaction[] = [];
+      
       if (selectedMonths && selectedMonths.length > 0) {
         for (const monthIndex of selectedMonths) {
           const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          await addDoc(transactionRef, {
+          const docRef = await addDoc(transactionRef, {
+            vehicleId: vehicleInfo.vehicle.id,
+            type: 'partner_payment',
+            amount: vehicleInfo.partnerShare / monthsInPeriod,
+            month: monthStr,
+            description: paymentDescription,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          });
+          newTransactions.push({
+            id: docRef.id,
             vehicleId: vehicleInfo.vehicle.id,
             type: 'partner_payment',
             amount: vehicleInfo.partnerShare / monthsInPeriod,
@@ -782,6 +831,11 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             completedAt: new Date().toISOString()
           });
         }
+      }
+
+      // Update local accounting transactions state
+      if (newTransactions.length > 0) {
+        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
       }
 
       // Update cash in hand
@@ -835,7 +889,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       }
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
+      const newTransaction: AccountingTransaction = {
+        id: '', // Will be set after adding to Firestore
         vehicleId: vehicleInfo.vehicle.id,
         type: 'owner_share',
         amount: paymentAmount,
@@ -844,7 +899,12 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         status: 'completed',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
-      });
+      };
+      
+      const docRef = await addDoc(transactionRef, newTransaction);
+
+      // Update local accounting transactions state
+      setAccountingTransactions([...accountingTransactions, { ...newTransaction, id: docRef.id }]);
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
@@ -883,7 +943,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const handleOwnerWithdrawal = async (vehicleInfo: any) => {
     try {
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
+      const docRef = await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'owner_withdrawal',
         amount: vehicleInfo.ownerFullShare,
@@ -893,6 +953,20 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString()
       });
+
+      // Update local accounting transactions state
+      const newTransaction = {
+        id: docRef.id,
+        vehicleId: vehicleInfo.vehicle.id,
+        type: 'owner_withdrawal' as const,
+        amount: vehicleInfo.ownerFullShare,
+        month: vehicleInfo.periodStr,
+        description: `Owner's Withdrawal for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
+        status: 'completed' as const,
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      };
+      setAccountingTransactions([...accountingTransactions, newTransaction]);
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
@@ -2475,107 +2549,37 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   // Calculate actually payable amounts (Total - Already Paid for current period)
   const calculateActuallyPayable = () => {
-    const year = parseInt(companyFinancialData.selectedYear);
-    let periodStrings: string[] = [];
+    // Calculate amounts for vehicles that haven't paid yet
+    const gstActuallyPayable = periodData
+      .filter(v => !v.gstPaid)
+      .reduce((sum, v) => sum + v.gstAmount, 0);
 
-    // Generate period strings based on current view - use same format as AccountsTab.tsx
-    if (companyFinancialData.filterType === 'monthly' && companyFinancialData.selectedMonth) {
-      periodStrings = [`${year}-${String(parseInt(companyFinancialData.selectedMonth)).padStart(2, '0')}`];
-    } else if (companyFinancialData.filterType === 'quarterly' && companyFinancialData.selectedQuarter) {
-      const quarterMonths = {
-        'Q1': ['01', '02', '03'], 'Q2': ['04', '05', '06'], 'Q3': ['07', '08', '09'], 'Q4': ['10', '11', '12']
-      };
-      const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
-      periodStrings = months.map(month => `${year}-${month}`);
-    } else if (companyFinancialData.filterType === 'yearly') {
-      periodStrings = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-    }
+    const serviceChargeActuallyPayable = periodData
+      .filter(v => !v.serviceChargeCollected)
+      .reduce((sum, v) => sum + v.serviceCharge, 0);
 
-    // Calculate paid amounts for current period
+    const partnerShareActuallyPayable = periodData
+      .filter(v => !v.partnerPaid)
+      .reduce((sum, v) => sum + v.partnerShare, 0);
+
+    const ownerShareActuallyPayable = periodData
+      .filter(v => !v.ownerShareCollected && !v.ownerWithdrawn)
+      .reduce((sum, v) => sum + v.ownerShare + v.ownerFullShare, 0);
+
+    // Calculate paid amounts (total - actually payable)
     const paidAmounts = {
-      gst: 0,
-      serviceCharge: 0,
-      partnerShare: 0,
-      ownerShare: 0,
-      ownerWithdrawal: 0
+      gst: periodTotals.totalGst - gstActuallyPayable,
+      serviceCharge: periodTotals.totalServiceCharge - serviceChargeActuallyPayable,
+      partnerShare: periodTotals.totalPartnerShare - partnerShareActuallyPayable,
+      ownerShare: periodTotals.totalOwnerShare + periodTotals.totalOwnerFullShare - ownerShareActuallyPayable,
+      ownerWithdrawal: 0 // Owner withdrawals are separate from owner shares
     };
 
-    periodStrings.forEach(periodStr => {
-      accountingTransactions.forEach((transaction: any) => {
-        if (transaction.status === 'completed' && transaction.month === periodStr) {
-          switch (transaction.type) {
-            case 'gst_payment':
-              paidAmounts.gst += transaction.amount;
-              break;
-            case 'service_charge':
-              paidAmounts.serviceCharge += transaction.amount;
-              break;
-            case 'partner_payment':
-              paidAmounts.partnerShare += transaction.amount;
-              break;
-            case 'owner_share':
-              paidAmounts.ownerShare += transaction.amount;
-              break;
-            case 'owner_withdrawal':
-              paidAmounts.ownerWithdrawal += transaction.amount;
-              break;
-          }
-        }
-      });
-    });
-
-    // Add quarterly/yearly transactions
-    if (companyFinancialData.filterType === 'quarterly') {
-      accountingTransactions.forEach((transaction: any) => {
-        if (transaction.status === 'completed' && transaction.month === `${year}-${companyFinancialData.selectedQuarter}`) {
-          switch (transaction.type) {
-            case 'gst_payment':
-              paidAmounts.gst += transaction.amount;
-              break;
-            case 'service_charge':
-              paidAmounts.serviceCharge += transaction.amount;
-              break;
-            case 'partner_payment':
-              paidAmounts.partnerShare += transaction.amount;
-              break;
-            case 'owner_share':
-              paidAmounts.ownerShare += transaction.amount;
-              break;
-            case 'owner_withdrawal':
-              paidAmounts.ownerWithdrawal += transaction.amount;
-              break;
-          }
-        }
-      });
-    } else if (companyFinancialData.filterType === 'yearly') {
-      accountingTransactions.forEach((transaction: any) => {
-        if (transaction.status === 'completed' && transaction.month === `${year}`) {
-          switch (transaction.type) {
-            case 'gst_payment':
-              paidAmounts.gst += transaction.amount;
-              break;
-            case 'service_charge':
-              paidAmounts.serviceCharge += transaction.amount;
-              break;
-            case 'partner_payment':
-              paidAmounts.partnerShare += transaction.amount;
-              break;
-            case 'owner_share':
-              paidAmounts.ownerShare += transaction.amount;
-              break;
-            case 'owner_withdrawal':
-              paidAmounts.ownerWithdrawal += transaction.amount;
-              break;
-          }
-        }
-      });
-    }
-
     return {
-      gstActuallyPayable: Math.max(0, periodTotals.totalGst - paidAmounts.gst),
-      serviceChargeActuallyPayable: Math.max(0, periodTotals.totalServiceCharge - paidAmounts.serviceCharge),
-      partnerShareActuallyPayable: Math.max(0, periodTotals.totalPartnerShare - paidAmounts.partnerShare),
-      ownerShareActuallyPayable: Math.max(0, periodTotals.totalOwnerShare + periodTotals.totalOwnerFullShare - paidAmounts.ownerShare - paidAmounts.ownerWithdrawal),
+      gstActuallyPayable,
+      serviceChargeActuallyPayable,
+      partnerShareActuallyPayable,
+      ownerShareActuallyPayable,
       paidAmounts
     };
   };
@@ -2726,7 +2730,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-green-600">
-                ₹{(actuallyPayable.paidAmounts.ownerShare + actuallyPayable.paidAmounts.ownerWithdrawal).toLocaleString()}
+                ₹{actuallyPayable.paidAmounts.ownerShare.toLocaleString()}
               </div>
               <div className="text-xs text-gray-600">Owner Shares Collected</div>
             </div>
