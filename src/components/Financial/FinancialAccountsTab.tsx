@@ -2965,17 +2965,24 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     {userInfo?.role !== Role.PARTNER && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm">GST Payment</span>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedVehicleForPayment(vehicleInfo);
-                            setConfirmGstPaymentDialog(true);
-                          }}
-                          disabled={vehicleInfo.gstActuallyPayable <= 0}
-                        >
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          Pay GST ₹{vehicleInfo.gstActuallyPayable.toLocaleString()}
-                        </Button>
+                        {vehicleInfo.gstPaid ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicleForPayment(vehicleInfo);
+                              setConfirmGstPaymentDialog(true);
+                            }}
+                            disabled={vehicleInfo.gstActuallyPayable <= 0}
+                          >
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Pay GST ₹{vehicleInfo.gstActuallyPayable.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}                    {/* Service Charge Collection - Only for partner taxis */}
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
