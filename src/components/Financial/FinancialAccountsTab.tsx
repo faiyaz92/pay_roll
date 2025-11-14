@@ -1058,7 +1058,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk GST Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Pay GST for all vehicles in the selected period. You can deselect vehicles that should not have GST paid.`;
         items = periodData
-          .filter(vehicle => vehicle.gstAmount > 0)
+          .filter(vehicle => vehicle.gstAmount > 0 && !vehicle.gstPaid)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -1072,7 +1072,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Service Charge Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect service charges from all partner vehicles in the selected period. You can deselect vehicles that should not have service charges collected.`;
         items = periodData
-          .filter(vehicle => vehicle.serviceCharge > 0 && vehicle.vehicle.isPartnership === true)
+          .filter(vehicle => vehicle.serviceCharge > 0 && vehicle.vehicle.isPartnership === true && !vehicle.serviceChargeCollected)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -1086,7 +1086,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Partner Share Payment - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Pay partner shares for all partner vehicles in the selected period. You can deselect vehicles that should not have partner shares paid.`;
         items = periodData
-          .filter(vehicle => vehicle.partnerShare > 0 && vehicle.vehicle.isPartnership === true)
+          .filter(vehicle => vehicle.partnerShare > 0 && vehicle.vehicle.isPartnership === true && !vehicle.partnerPaid)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -1100,7 +1100,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         title = `Bulk Owner Share Collection - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
         description = `Collect owner shares from all partner vehicles in the selected period. You can deselect vehicles that should not have owner shares collected.`;
         items = periodData
-          .filter(vehicle => vehicle.ownerShare > 0 && vehicle.vehicle.isPartnership === true)
+          .filter(vehicle => vehicle.ownerShare > 0 && vehicle.vehicle.isPartnership === true && !vehicle.ownerShareCollected)
           .map(vehicle => ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
@@ -2738,43 +2738,43 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   </Button>
                   <Button
                     onClick={() => openBulkPaymentDialog('gst')}
-                    disabled={periodTotals.totalGst === 0}
+                    disabled={actuallyPayable.gstActuallyPayable <= 0}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
                   >
                     <CreditCard className="h-4 w-4" />
-                    Pay GST ({periodTotals.totalGst.toLocaleString()})
+                    Pay GST (₹{actuallyPayable.gstActuallyPayable.toLocaleString()})
                   </Button>
                   <Button
                     onClick={() => openBulkPaymentDialog('service_charge')}
-                    disabled={periodTotals.totalServiceCharge === 0}
+                    disabled={actuallyPayable.serviceChargeActuallyPayable <= 0}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
                   >
                     <DollarSign className="h-4 w-4" />
-                    Withdraw Service Charges ({periodTotals.totalServiceCharge.toLocaleString()})
+                    Withdraw Service Charges (₹{actuallyPayable.serviceChargeActuallyPayable.toLocaleString()})
                   </Button>
                   <Button
                     onClick={() => openBulkPaymentDialog('partner_share')}
-                    disabled={periodTotals.totalPartnerShare === 0}
+                    disabled={actuallyPayable.partnerShareActuallyPayable <= 0}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
                   >
                     <Users className="h-4 w-4" />
-                    Pay Partner Shares ({periodTotals.totalPartnerShare.toLocaleString()})
+                    Pay Partner Shares (₹{actuallyPayable.partnerShareActuallyPayable.toLocaleString()})
                   </Button>
                   <Button
                     onClick={() => openBulkPaymentDialog('owner_share')}
-                    disabled={periodTotals.totalOwnerShare === 0}
+                    disabled={actuallyPayable.ownerShareActuallyPayable <= 0}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
                   >
                     <User className="h-4 w-4" />
-                    Withdraw Owner Share ({periodTotals.totalOwnerShare.toLocaleString()})
+                    Withdraw Owner Share (₹{actuallyPayable.ownerShareActuallyPayable.toLocaleString()})
                   </Button>
                   <Button
                     onClick={() => openBulkPaymentDialog('emi')}
