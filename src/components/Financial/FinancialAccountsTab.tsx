@@ -2916,17 +2916,28 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   </div>
                 )}
 
+                {/* Owner Payment (for both partner and company taxis) */}
+                {vehicleInfo.ownerPayment > 0 && (
+                  <div className="flex justify-between text-sm border-t pt-1">
+                    <span className="font-medium">Owner Payment ({vehicleInfo.vehicle.isPartnership === true ? `${100 - (vehicleInfo.vehicle.partnershipPercentage || 50)}%` : '100%'})</span>
+                    <span className="font-bold text-green-600">
+                      ₹{vehicleInfo.ownerPayment.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+
                 {/* Debug info for partner share calculation */}
                 {vehicleInfo.vehicle.isPartnership === true && (
                   <div className="text-xs text-gray-500 bg-blue-50 p-1 rounded">
                     Debug: partnershipPercentage={vehicleInfo.vehicle.partnershipPercentage || 50}%, 
                     remainingProfit={vehicleInfo.profit - vehicleInfo.gstAmount - vehicleInfo.serviceCharge}, 
-                    partnerShare={vehicleInfo.partnerShare}
+                    partnerShare={vehicleInfo.partnerShare}, 
+                    ownerPayment={vehicleInfo.ownerPayment}
                   </div>
                 )}
 
-                {/* Owner's Full Share (only for company-owned taxis) */}
-                {vehicleInfo.ownerFullShare > 0 && (
+                {/* Owner's Full Share (only for company-owned taxis) - Keep for backward compatibility */}
+                {vehicleInfo.ownerFullShare > 0 && !vehicleInfo.ownerPayment && (
                   <div className="flex justify-between text-sm border-t pt-1">
                     <span className="font-medium">Owner's Share (100%)</span>
                     <span className="font-bold text-green-600">
