@@ -190,7 +190,7 @@ const AccountingTransactionsTab: React.FC<AccountingTransactionsTabProps> = ({
       partner_payment: 'bg-purple-100 text-purple-800',
       owner_payment: 'bg-green-100 text-green-800'
     };
-    return colorMap[type as keyof typeof typeMap] || 'bg-gray-100 text-gray-800';
+    return colorMap[type as keyof typeof colorMap] || 'bg-gray-100 text-gray-800';
   };
 
   // Handle undo transaction
@@ -203,7 +203,8 @@ const AccountingTransactionsTab: React.FC<AccountingTransactionsTabProps> = ({
       const transactionRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`, transactionToUndo.id);
       await updateDoc(transactionRef, {
         status: 'reversed',
-        reversedAt: new Date().toISOString()
+        reversedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString() // Update completedAt as last updated timestamp
       });
 
       // Reverse cash balance updates (add back the deducted amount)
@@ -221,7 +222,7 @@ const AccountingTransactionsTab: React.FC<AccountingTransactionsTabProps> = ({
       // Update local state
       setAccountingTransactions(prev => prev.map(t =>
         t.id === transactionToUndo.id
-          ? { ...t, status: 'reversed' as const, reversedAt: new Date().toISOString() }
+          ? { ...t, status: 'reversed' as const, reversedAt: new Date().toISOString(), completedAt: new Date().toISOString() }
           : t
       ));
 

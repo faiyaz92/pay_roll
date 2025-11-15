@@ -107,13 +107,13 @@ interface AccountingTransaction {
 {
   "id": "auto-generated-firestore-id",
   "vehicleId": "vehicle-doc-id-789",
-  "type": "partner_payment", 
+  "type": "partner_payment",
   "amount": 15000,
   "month": "2025-10",
   "description": "Partner Payment for MH12EF9012 - October 2025",
   "status": "reversed",
   "createdAt": "2025-11-10T09:00:00.000Z",
-  "completedAt": "2025-11-10T09:00:00.000Z",
+  "completedAt": "2025-11-15T11:00:00.000Z", // Updated to reversal timestamp (last updated)
   "reversedAt": "2025-11-15T11:00:00.000Z"
 }
 ```
@@ -125,28 +125,104 @@ interface AccountingTransaction {
 - `amount`: Must be positive number > 0
 - `month`: Must follow period string format (YYYY-MM, YYYY-Q#, YYYY)
 - `status`: Defaults to 'completed' for new payments
-- `createdAt` & `completedAt`: ISO 8601 timestamp strings
+- `createdAt`: ISO 8601 timestamp when transaction was created
+- `completedAt`: ISO 8601 timestamp representing the last time transaction status was updated (serves as "last updated" timestamp)
 - `reversedAt`: Only present when status is 'reversed'
+
+## Section 5.1: GST Payment Button Display Logic with All Months Check
+
+### Overview
+The GST payment button display follows a "thumb rule": the "Paid" status badge only shows if ALL months in the selected period have GST > 0. If any month has GST = 0 (no profit), the badge is not shown to avoid misleading users about the payment status.
+
+### allMonthsHaveGst Calculation
+Before displaying buttons, the system calculates whether all months in the period have positive GST:
+
+```javascript
+let allMonthsHaveGst = true;
+months.forEach(monthIndex => {
+  const monthProfit = calculateMonthProfit(monthIndex);
+  if (monthProfit <= 0) {
+    allMonthsHaveGst = false; // GST = 0 for this month
+  }
+});
+```
+
+### Updated GST Button Display Logic
+
+#### For Monthly Selection
+- **Standard logic applies** (unchanged)
+- Badge shows if GST paid for that month
+
+#### For Quarterly/Yearly Selection  
+- **If gstActuallyPayable > 0**: Show "Pay GST ₹{amount}" (enabled)
+- **If gstActuallyPayable = 0 AND allMonthsHaveGst = true**: Show "GST Paid" badge
+- **If gstActuallyPayable = 0 AND allMonthsHaveGst = false**: Show "Pay GST ₹0" (disabled)
+
+### Examples
+
+**Quarterly Example (Q4 2025 - All Months Have Profit):**
+- All 3 months have profit > 0 → `allMonthsHaveGst = true`
+- GST paid → Shows "GST Paid" badge
+
+**Quarterly Example (Q4 2025 - Mixed Months):**
+- October: profit > 0 (GST > 0)
+- November: profit = 0 (GST = 0)  
+- December: profit > 0 (GST > 0)
+- `allMonthsHaveGst = false` (because November has GST = 0)
+- Even if GST paid for Oct/Dec → Shows "Pay GST ₹0" (disabled) instead of "Paid"
+
+This ensures users only see "Paid" when the entire period is actually payable and paid.
 
 ### Query Patterns Used in Section 5
 
-#### Find Paid Amount for Period
+#### Find Paid Amount for Period (Latest Transaction Logic)
 ```javascript
-const paidAmount = accountingTransactions
-  .filter(t => 
-    t.vehicleId === vehicleId && 
-    t.type === paymentType && // 'gst_payment', etc.
-    periodStrings.includes(t.month) && 
-    t.status === 'completed'
-  )
-  .reduce((sum, t) => sum + t.amount, 0);
+// IMPROVED: Get latest transaction per month to handle multiple undo/redo operations
+const getLatestTransactionAmount = (paymentType) => {
+  // Group transactions by month
+  const transactionsByMonth = new Map();
+
+  accountingTransactions
+    .filter(t => t.vehicleId === vehicleId && t.type === paymentType)
+    .forEach(t => {
+      if (!transactionsByMonth.has(t.month)) {
+        transactionsByMonth.set(t.month, []);
+      }
+      transactionsByMonth.get(t.month).push(t);
+    });
+
+  let totalPaid = 0;
+
+  // For each month in period, get latest transaction
+  transactionsByMonth.forEach(monthTransactions => {
+    if (periodStrings.includes(monthTransactions[0].month)) {
+      // Sort by completedAt descending
+      const sortedTransactions = monthTransactions.sort((a, b) => {
+        const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+        const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      const latestTransaction = sortedTransactions[0];
+      // Only count if latest transaction is completed
+      if (latestTransaction.status === 'completed') {
+        totalPaid += latestTransaction.amount;
+      }
+      // If latest is 'reversed', amount = 0 for this month
+    }
+  });
+
+  return totalPaid;
+};
+
+const paidAmount = getLatestTransactionAmount(paymentType);
 ```
 
 #### Find Transactions for Undo
 ```javascript
-const transactionsToReverse = accountingTransactions.filter(t => 
-  t.vehicleId === vehicleId && 
-  t.type === paymentType && 
+const transactionsToReverse = accountingTransactions.filter(t =>
+  t.vehicleId === vehicleId &&
+  t.type === paymentType &&
   periodStrings.includes(t.month) &&
   t.status === 'completed'
 );
@@ -177,16 +253,47 @@ const totalAmountDue = vehicleInfo.gstAmount; // or serviceCharge, partnerShare,
 // This is the calculated amount for the entire period (sum of all months in period)
 ```
 
-#### Step 3: Calculate Already Paid Amount
+#### Step 3: Calculate Already Paid Amount (Latest Transaction Logic)
 ```javascript
-const paidAmount = accountingTransactions
-  .filter(t => 
-    t.vehicleId === vehicleId && 
-    t.type === 'gst_payment' && // changes per payment type
-    periodStrings.includes(t.month) && 
-    t.status === 'completed'
-  )
-  .reduce((sum, t) => sum + t.amount, 0);
+// IMPROVED: Use latest transaction per month to handle multiple undo/redo operations
+const getLatestTransactionAmount = (paymentType) => {
+  // Group transactions by month
+  const transactionsByMonth = new Map();
+
+  accountingTransactions
+    .filter(t => t.vehicleId === vehicleId && t.type === paymentType)
+    .forEach(t => {
+      if (!transactionsByMonth.has(t.month)) {
+        transactionsByMonth.set(t.month, []);
+      }
+      transactionsByMonth.get(t.month).push(t);
+    });
+
+  let totalPaid = 0;
+
+  // For each month in period, get latest transaction
+  transactionsByMonth.forEach(monthTransactions => {
+    if (periodStrings.includes(monthTransactions[0].month)) {
+      // Sort by completedAt descending (latest first)
+      const sortedTransactions = monthTransactions.sort((a, b) => {
+        const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+        const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      const latestTransaction = sortedTransactions[0];
+      // Only count if latest transaction is completed
+      if (latestTransaction.status === 'completed') {
+        totalPaid += latestTransaction.amount;
+      }
+      // If latest is 'reversed', amount = 0 for this month
+    }
+  });
+
+  return totalPaid;
+};
+
+const paidAmount = getLatestTransactionAmount('gst_payment'); // changes per payment type
 ```
 
 #### Step 4: Calculate Actually Payable Amount
@@ -515,15 +622,16 @@ Same pattern for all payments - sum across all 12 months
 ```
 periodStrings = ["2025-11"]
 Total GST = GST for November
-Paid GST Amount = Î£(amount) from accountingTransactions where:
+Paid GST Amount = Amount from LATEST transaction where:
   - vehicleId matches
   - type === 'gst_payment'
   - month === "2025-11"
-  - status === 'completed'
+  - Latest transaction status === 'completed' (else 0)
 GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 
-If Paid GST Amount >= Total GST â†’ Button Amount = 0
-If Paid GST Amount < Total GST â†’ Button Amount = Total GST - Paid GST Amount
+If Latest Transaction Status = 'completed' → Paid GST Amount = transaction amount
+If Latest Transaction Status = 'reversed' → Paid GST Amount = 0
+If No Transaction → Paid GST Amount = 0
 ```
 
 #### Quarterly Selection (e.g., Q4 2025, November paid, Oct & Dec not paid)
@@ -531,17 +639,17 @@ If Paid GST Amount < Total GST â†’ Button Amount = Total GST - Paid GST Amo
 periodStrings = ["2025-10", "2025-11", "2025-12"]
 Total GST = GST for Oct + GST for Nov + GST for Dec
 
-Paid GST Amount = Î£(amount) from accountingTransactions where:
+Paid GST Amount = Î£(amount) from LATEST transaction per month where:
   - vehicleId matches
   - type === 'gst_payment' 
   - month in ["2025-10", "2025-11", "2025-12"]
-  - status === 'completed'
+  - Latest transaction status === 'completed' (else 0 for that month)
 
 GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 
-Example: If November GST = â‚¹800 already paid
+Example: If November GST = â‚¹800 already paid (latest transaction completed)
 Total GST = â‚¹2,400 (for 3 months)
-Paid GST Amount = â‚¹800
+Paid GST Amount = â‚¹800 (only November paid, Oct & Dec = 0)
 GST Button Amount = â‚¹2,400 - â‚¹800 = â‚¹1,600 (Oct + Dec GST)
 ```
 
@@ -550,11 +658,11 @@ GST Button Amount = â‚¹2,400 - â‚¹800 = â‚¹1,600 (Oct + Dec GST)
 periodStrings = ["2025-01", ..., "2025-12"]
 Total GST = Î£(GST for all 12 months)
 
-Paid GST Amount = Î£(amount) from accountingTransactions where:
+Paid GST Amount = Î£(amount) from LATEST transaction per month where:
   - vehicleId matches
   - type === 'gst_payment'
   - month in periodStrings
-  - status === 'completed'
+  - Latest transaction status === 'completed' (else 0 for that month)
 
 GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 ```
@@ -566,11 +674,11 @@ GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 #### Any Selection (Monthly/Quarterly/Yearly)
 ```
 Total [Payment Type] = Calculated amount for period
-Paid [Payment Type] Amount = Î£(amount) from accountingTransactions where:
+Paid [Payment Type] Amount = Î£(amount) from LATEST transaction per month where:
   - vehicleId matches
   - type matches payment type
   - month in periodStrings
-  - status === 'completed'
+  - Latest transaction status === 'completed' (else 0 for that month)
 
 [Payment Type] Button Amount = MAX(0, Total [Payment Type] - Paid [Payment Type] Amount)
 

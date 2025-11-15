@@ -668,37 +668,61 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     try {
       const year = parseInt(companyFinancialData.selectedYear);
       const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
-      const paymentAmount = (vehicleInfo.gstAmount / monthsInPeriod) * (selectedMonths ? selectedMonths.length : 1);
+
+      // Generate period strings based on filter type or selected months
+      let periodStrings: string[] = [];
+      let paymentAmount: number;
+
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Bulk payment - use selected months
+        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+        paymentAmount = (vehicleInfo.gstAmount / monthsInPeriod) * selectedMonths.length;
+      } else {
+        // Individual payment - use entire period
+        if (companyFinancialData.filterType === 'monthly') {
+          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
+        } else if (companyFinancialData.filterType === 'quarterly') {
+          const quarterMonths = {
+            'Q1': ['01', '02', '03'],
+            'Q2': ['04', '05', '06'],
+            'Q3': ['07', '08', '09'],
+            'Q4': ['10', '11', '12']
+          };
+          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
+        } else {
+          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+        }
+        paymentAmount = vehicleInfo.gstAmount;
+      }
+
       const paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       const newTransactions: AccountingTransaction[] = [];
-      
-      if (selectedMonths && selectedMonths.length > 0) {
-        for (const monthIndex of selectedMonths) {
-          const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          const docRef = await addDoc(transactionRef, {
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'gst_payment',
-            amount: vehicleInfo.gstAmount / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-          newTransactions.push({
-            id: docRef.id,
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'gst_payment',
-            amount: vehicleInfo.gstAmount / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-        }
+
+      // Create transactions for all months in the period
+      for (const monthStr of periodStrings) {
+        const docRef = await addDoc(transactionRef, {
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'gst_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+        newTransactions.push({
+          id: docRef.id,
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'gst_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
       }
 
       // Update local accounting transactions state
@@ -2268,6 +2292,36 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
     // Calculate cumulative data for the selected period
     const periodData = filteredVehicles.map((vehicleInfo: any) => {
+      // Calculate allMonthsHaveGst - check if ALL months have positive profit (GST > 0)
+      let allMonthsHaveGst = true;
+      months.forEach(monthIndex => {
+        const monthStart = new Date(year, monthIndex, 1);
+        const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+        // Get payments and expenses for this month
+        const monthPayments = payments.filter((p: any) =>
+          p.vehicleId === vehicleInfo.vehicle.id &&
+          p.status === 'paid' &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+        ) || [];
+
+        const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+          e.vehicleId === vehicleInfo.vehicle.id &&
+          e.status === 'approved' &&
+          new Date(e.createdAt) >= monthStart &&
+          new Date(e.createdAt) <= monthEnd
+        ) || [];
+
+        const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+        const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+        const monthProfit = monthEarnings - monthExpensesAmount;
+
+        // If any month has profit <= 0, GST = 0 for that month
+        if (monthProfit <= 0) {
+          allMonthsHaveGst = false;
+        }
+      });
       // Find current active assignment for this vehicle
       const currentAssignment = assignments.find((a: any) =>
         a.vehicleId === vehicleInfo.vehicle.id && a.status === 'active'
@@ -2356,21 +2410,104 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       // Generate period strings
       let periodStrings: string[] = months.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
 
-      const gstPaid = periodStrings.some(periodStr => accountingTransactions.some((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'gst_payment' && t.month === periodStr && t.status === 'completed'));
-      const serviceChargeCollected = periodStrings.some(periodStr => accountingTransactions.some((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'service_charge' && t.month === periodStr && t.status === 'completed'));
-      const partnerPaid = periodStrings.some(periodStr => accountingTransactions.some((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'partner_payment' && t.month === periodStr && t.status === 'completed'));
-      const ownerPaid = periodStrings.some(periodStr => accountingTransactions.some((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'owner_payment' && t.month === periodStr && t.status === 'completed'));
+      // Helper function to check if payment type is paid (latest transaction is completed)
+      const isPaymentTypePaid = (paymentType: string) => {
+        // Group transactions by month for this vehicle and payment type
+        const transactionsByMonth = new Map();
 
-      const paidGstAmount = accountingTransactions.filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'gst_payment' && (periodStrings.includes(t.month) || (companyFinancialData.filterType === 'quarterly' && t.month === `${year}-${companyFinancialData.selectedQuarter}`) || (companyFinancialData.filterType === 'yearly' && t.month === `${year}`))).reduce((sum, t) => sum + t.amount, 0);
+        accountingTransactions
+          .filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === paymentType)
+          .forEach((t: any) => {
+            const monthKey = t.month;
+            if (!transactionsByMonth.has(monthKey)) {
+              transactionsByMonth.set(monthKey, []);
+            }
+            transactionsByMonth.get(monthKey).push(t);
+          });
+
+        // Check if any month in our period has a completed latest transaction
+        for (const [monthKey, monthTransactions] of transactionsByMonth) {
+          const isInPeriod = periodStrings.includes(monthKey) ||
+            (companyFinancialData.filterType === 'quarterly' && monthKey === `${year}-${companyFinancialData.selectedQuarter}`) ||
+            (companyFinancialData.filterType === 'yearly' && monthKey === `${year}`);
+
+          if (isInPeriod) {
+            // Sort by completedAt descending to get the latest transaction
+            const sortedTransactions = monthTransactions.sort((a: any, b: any) => {
+              const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+              const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+              return bTime - aTime;
+            });
+
+            const latestTransaction = sortedTransactions[0];
+            if (latestTransaction.status === 'completed') {
+              return true; // At least one month has a completed latest transaction
+            }
+          }
+        }
+
+        return false; // No months have completed latest transactions
+      };
+
+      const gstPaid = isPaymentTypePaid('gst_payment');
+      const serviceChargeCollected = isPaymentTypePaid('service_charge');
+      const partnerPaid = isPaymentTypePaid('partner_payment');
+      const ownerPaid = isPaymentTypePaid('owner_payment');
+
+      // Helper function to get the latest transaction amount for a payment type
+      const getLatestTransactionAmount = (paymentType: string) => {
+        // Group transactions by month for this vehicle and payment type
+        const transactionsByMonth = new Map();
+
+        accountingTransactions
+          .filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === paymentType)
+          .forEach((t: any) => {
+            const monthKey = t.month;
+            if (!transactionsByMonth.has(monthKey)) {
+              transactionsByMonth.set(monthKey, []);
+            }
+            transactionsByMonth.get(monthKey).push(t);
+          });
+
+        let totalPaid = 0;
+
+        // For each month, get the latest transaction
+        transactionsByMonth.forEach((monthTransactions) => {
+          // Check if this month is in our period
+          const isInPeriod = periodStrings.includes(monthTransactions[0].month) ||
+            (companyFinancialData.filterType === 'quarterly' && monthTransactions[0].month === `${year}-${companyFinancialData.selectedQuarter}`) ||
+            (companyFinancialData.filterType === 'yearly' && monthTransactions[0].month === `${year}`);
+
+          if (isInPeriod) {
+            // Sort by completedAt descending to get the latest transaction
+            const sortedTransactions = monthTransactions.sort((a: any, b: any) => {
+              const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+              const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+              return bTime - aTime;
+            });
+
+            const latestTransaction = sortedTransactions[0];
+            // Only count as paid if the latest transaction is completed
+            if (latestTransaction.status === 'completed') {
+              totalPaid += latestTransaction.amount;
+            }
+            // If latest is 'reversed', we don't add anything (amount = 0 for this month)
+          }
+        });
+
+        return totalPaid;
+      };
+
+      const paidGstAmount = getLatestTransactionAmount('gst_payment');
       const gstActuallyPayable = Math.max(0, cumulativeGst - paidGstAmount);
 
-      const paidServiceChargeAmount = accountingTransactions.filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'service_charge' && (periodStrings.includes(t.month) || (companyFinancialData.filterType === 'quarterly' && t.month === `${year}-${companyFinancialData.selectedQuarter}`) || (companyFinancialData.filterType === 'yearly' && t.month === `${year}`))).reduce((sum, t) => sum + t.amount, 0);
+      const paidServiceChargeAmount = getLatestTransactionAmount('service_charge');
       const serviceChargeActuallyPayable = Math.max(0, cumulativeServiceCharge - paidServiceChargeAmount);
 
-      const paidPartnerAmount = accountingTransactions.filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'partner_payment' && (periodStrings.includes(t.month) || (companyFinancialData.filterType === 'quarterly' && t.month === `${year}-${companyFinancialData.selectedQuarter}`) || (companyFinancialData.filterType === 'yearly' && t.month === `${year}`))).reduce((sum, t) => sum + t.amount, 0);
+      const paidPartnerAmount = getLatestTransactionAmount('partner_payment');
       const partnerShareActuallyPayable = Math.max(0, cumulativePartnerShare - paidPartnerAmount);
 
-      const paidOwnerAmount = accountingTransactions.filter((t: any) => t.vehicleId === vehicleInfo.vehicle.id && t.type === 'owner_payment' && (periodStrings.includes(t.month) || (companyFinancialData.filterType === 'quarterly' && t.month === `${year}-${companyFinancialData.selectedQuarter}`) || (companyFinancialData.filterType === 'yearly' && t.month === `${year}`))).reduce((sum, t) => sum + t.amount, 0);
+      const paidOwnerAmount = getLatestTransactionAmount('owner_payment');
 
       const ownerActuallyPayable = Math.max(0, cumulativeOwnerPayment - paidOwnerAmount);
 
@@ -2394,7 +2531,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         gstActuallyPayable,
         serviceChargeActuallyPayable,
         partnerShareActuallyPayable,
-        ownerActuallyPayable
+        ownerActuallyPayable,
+        allMonthsHaveGst
       };
     });
 
@@ -2983,8 +3121,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               );
                             }
                           } else {
-                            // For non-monthly views, use existing logic
-                            return vehicleInfo.gstPaid ? (
+                            // For non-monthly views, use thumb rule: only show Paid if all months have GST > 0 AND gstPaid
+                            return vehicleInfo.allMonthsHaveGst && vehicleInfo.gstPaid ? (
                               <Badge variant="default" className="bg-green-500">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Paid
@@ -3248,6 +3386,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                   size="sm"
                                   onClick={() => {
                                     setSelectedVehicleForPayment(vehicleInfo);
+                                    setConfirmOwnerPaymentDialog(true);
                                   }}
                                   disabled={vehicleInfo.ownerActuallyPayable <= 0}
                                 >
@@ -4042,23 +4181,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             <AlertDialogAction
               onClick={() => {
                 if (selectedVehicleForPayment) {
-                  const year = parseInt(companyFinancialData.selectedYear);
-                  let periodStrings: string[] = [];
-                  if (companyFinancialData.filterType === 'monthly') {
-                    periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
-                  } else if (companyFinancialData.filterType === 'quarterly') {
-                    const quarterMonths = {
-                      'Q1': ['01', '02', '03'],
-                      'Q2': ['04', '05', '06'],
-                      'Q3': ['07', '08', '09'],
-                      'Q4': ['10', '11', '12']
-                    };
-                    periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
-                  } else {
-                    periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-                  }
-                  const unpaidMonths = periodStrings.filter(periodStr => !accountingTransactions.some(t => t.vehicleId === selectedVehicleForPayment.vehicle.id && t.type === 'gst_payment' && t.month === periodStr)).map(periodStr => parseInt(periodStr.split('-')[1]) - 1);
-                  handleGstPayment(selectedVehicleForPayment, unpaidMonths);
+                  handleGstPayment(selectedVehicleForPayment);
                 }
                 setConfirmGstPaymentDialog(false);
                 setSelectedVehicleForPayment(null);
