@@ -2937,7 +2937,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         {(() => {
                           // For monthly view, use latest transaction status logic
                           if (companyFinancialData.filterType === 'monthly') {
-                            const monthStr = `${companyFinancialData.selectedYear}-${String(companyFinancialData.selectedMonthIndex + 1).padStart(2, '0')}`;
+                            const monthStr = `${companyFinancialData.selectedYear}-${companyFinancialData.selectedMonth.padStart(2, '0')}`;
                             const latestGstStatus = getLatestTransactionStatus(accountingTransactions, vehicleInfo.vehicle.id, 'gst_payment', monthStr);
 
                             if (vehicleInfo.gstAmount <= 0) {
@@ -3012,7 +3012,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         {(() => {
                           // For monthly view, use latest transaction status logic
                           if (companyFinancialData.filterType === 'monthly') {
-                            const monthStr = `${companyFinancialData.selectedYear}-${String(companyFinancialData.selectedMonthIndex + 1).padStart(2, '0')}`;
+                            const monthStr = `${companyFinancialData.selectedYear}-${companyFinancialData.selectedMonth.padStart(2, '0')}`;
                             const latestServiceChargeStatus = getLatestTransactionStatus(accountingTransactions, vehicleInfo.vehicle.id, 'service_charge', monthStr);
 
                             if (vehicleInfo.serviceCharge <= 0) {
@@ -3166,7 +3166,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         {(() => {
                           // For monthly view, calculate monthly owner payment
                           if (companyFinancialData.filterType === 'monthly') {
-                            const monthStr = `${companyFinancialData.selectedYear}-${String(companyFinancialData.selectedMonthIndex + 1).padStart(2, '0')}`;
+                            const monthStr = `${companyFinancialData.selectedYear}-${companyFinancialData.selectedMonth.padStart(2, '0')}`;
                             const latestOwnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleInfo.vehicle.id, 'owner_payment', monthStr);
 
                             // Calculate monthly owner payment for this vehicle

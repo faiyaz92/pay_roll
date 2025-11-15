@@ -1,4 +1,4 @@
-# Profit Distribution Flow - Payment Calculations & Processing
+﻿# Profit Distribution Flow - Payment Calculations & Processing
 
 ## Overview
 This document outlines the complete profit distribution flow and payment calculations for **Section 5 individual vehicle buttons** in `FinancialAccountsTab.tsx` (GST, Service Charge, Partner Payment, Owner Payment). All payments follow the same transaction pattern with different calculation formulas.
@@ -197,7 +197,7 @@ const actuallyPayable = Math.max(0, totalAmountDue - paidAmount);
 #### Step 5: Determine Button State
 ```javascript
 const isEnabled = actuallyPayable > 0;
-const buttonText = `Pay GST ₹${actuallyPayable.toLocaleString()}`; // changes per type
+const buttonText = `Pay GST â‚¹${actuallyPayable.toLocaleString()}`; // changes per type
 ```
 
 #### Step 6: Handle Payment (Same for All Types)
@@ -227,80 +227,80 @@ const handlePayment = async (vehicleInfo, selectedMonths = null) => {
 ### Payment Flow Diagram
 
 ```
-┌─────────────────┐
-│   User Clicks   │
-│ Payment Button  │
-│ (Section 5)     │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Get Period Data │────▶│ periodStrings[] │
-│ (getPeriodData) │     │ ["2025-11"] etc │
-└─────────┬───────┘     └─────────────────┘
-          │
-          ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Calculate Total │────▶│ totalAmountDue  │
-│ Amount Due      │     │ (gstAmount, etc)│
-│ (Formula)       │     └─────────────────┘
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Find Paid       │────▶│ paidAmount      │
-│ Transactions    │     │ (from existing  │
-│ (Filter by      │     │  transactions)  │
-│  periodStrings) │     └─────────────────┘
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Calculate       │────▶│ actuallyPayable │
-│ Actually Payable│     │ MAX(0, total - │
-│ Amount          │     │       paid)     │
-└─────────┬───────┘     └─────────────────┘
-          │
-          ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Button State    │────▶│ isEnabled:      │
-│ (Enable/Disable)│     │ actuallyPayable │
-│                 │     │ > 0             │
-└─────────┬───────┘     └─────────────────┘
-          │
-     ┌────▼────┐
-     │Enabled? │
-     └────┬────┘
-          │
-    ┌─────┴─────┐
-    │   YES    │     NO
-    └─────┬────┘     │
-          │          │
-          ▼          ▼
-┌─────────────────┐ ┌─────────────────┐
-│ Show Dialog     │ │ Button Disabled │
-│ (Confirm Amount)│ │ (Grayed Out)    │
-└─────────┬───────┘ └─────────────────┘
-          │
-          ▼
-┌─────────────────┐
-│ User Confirms   │
-│ Payment         │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Process Payment │
-│ (Same for all   │
-│ payment types)  │
-│                 │
-│ 1. Create       │
-│    Transaction  │
-│ 2. Update Cash  │
-│    Balances     │
-│ 3. Update Local │
-│    State        │
-└─────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚   User Clicks   â”‚
+â”‚ Payment Button  â”‚
+â”‚ (Section 5)     â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Get Period Data â”‚â”€â”€â”€â”€â–¶â”‚ periodStrings[] â”‚
+â”‚ (getPeriodData) â”‚     â”‚ ["2025-11"] etc â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Calculate Total â”‚â”€â”€â”€â”€â–¶â”‚ totalAmountDue  â”‚
+â”‚ Amount Due      â”‚     â”‚ (gstAmount, etc)â”‚
+â”‚ (Formula)       â”‚     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Find Paid       â”‚â”€â”€â”€â”€â–¶â”‚ paidAmount      â”‚
+â”‚ Transactions    â”‚     â”‚ (from existing  â”‚
+â”‚ (Filter by      â”‚     â”‚  transactions)  â”‚
+â”‚  periodStrings) â”‚     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Calculate       â”‚â”€â”€â”€â”€â–¶â”‚ actuallyPayable â”‚
+â”‚ Actually Payableâ”‚     â”‚ MAX(0, total - â”‚
+â”‚ Amount          â”‚     â”‚       paid)     â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Button State    â”‚â”€â”€â”€â”€â–¶â”‚ isEnabled:      â”‚
+â”‚ (Enable/Disable)â”‚     â”‚ actuallyPayable â”‚
+â”‚                 â”‚     â”‚ > 0             â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+     â”Œâ”€â”€â”€â”€â–¼â”€â”€â”€â”€â”
+     â”‚Enabled? â”‚
+     â””â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”˜
+          â”‚
+    â”Œâ”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”
+    â”‚   YES    â”‚     NO
+    â””â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”˜     â”‚
+          â”‚          â”‚
+          â–¼          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Show Dialog     â”‚ â”‚ Button Disabled â”‚
+â”‚ (Confirm Amount)â”‚ â”‚ (Grayed Out)    â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ User Confirms   â”‚
+â”‚ Payment         â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜
+          â”‚
+          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Process Payment â”‚
+â”‚ (Same for all   â”‚
+â”‚ payment types)  â”‚
+â”‚                 â”‚
+â”‚ 1. Create       â”‚
+â”‚    Transaction  â”‚
+â”‚ 2. Update Cash  â”‚
+â”‚    Balances     â”‚
+â”‚ 3. Update Local â”‚
+â”‚    State        â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Implementation Notes for All Payment Types
@@ -399,9 +399,9 @@ const handleGenericPayment = async (
 ## Core Concepts
 
 ### Period Types & Period Strings
-- **Monthly**: Single month (e.g., "2025-11") → periodStrings: ["2025-11"]
-- **Quarterly**: 3 months (e.g., "2025-Q4" includes Oct, Nov, Dec) → periodStrings: ["2025-10", "2025-11", "2025-12"]
-- **Yearly**: 12 months (e.g., "2025") → periodStrings: ["2025-01", "2025-02", ..., "2025-12"]
+- **Monthly**: Single month (e.g., "2025-11") â†’ periodStrings: ["2025-11"]
+- **Quarterly**: 3 months (e.g., "2025-Q4" includes Oct, Nov, Dec) â†’ periodStrings: ["2025-10", "2025-11", "2025-12"]
+- **Yearly**: 12 months (e.g., "2025") â†’ periodStrings: ["2025-01", "2025-02", ..., "2025-12"]
 
 ### Payment Tracking
 All payments tracked in `accountingTransactions` collection with:
@@ -413,29 +413,29 @@ All payments tracked in `accountingTransactions` collection with:
 ## Base Profit Calculation (Per Vehicle, Per Period)
 
 ```
-Monthly Earnings = Σ(payments.amountPaid) for that month where status === 'paid'
-Monthly Expenses = Σ(expenses.amount) for that month where status === 'approved'
+Monthly Earnings = Î£(payments.amountPaid) for that month where status === 'paid'
+Monthly Expenses = Î£(expenses.amount) for that month where status === 'approved'
 Monthly Profit = Monthly Earnings - Monthly Expenses
 
-Cumulative Earnings = Σ(Monthly Earnings) for all months in period
-Cumulative Expenses = Σ(Monthly Expenses) for all months in period
+Cumulative Earnings = Î£(Monthly Earnings) for all months in period
+Cumulative Expenses = Î£(Monthly Expenses) for all months in period
 Cumulative Profit = Cumulative Earnings - Cumulative Expenses
 ```
 
 ## Payment Type Calculations
 
 ### 1. GST Payment (4% to Government)
-**Formula**: `GST = Cumulative Profit > 0 ? Cumulative Profit × 0.04 : 0`
+**Formula**: `GST = Cumulative Profit > 0 ? Cumulative Profit Ã— 0.04 : 0`
 
 ### 2. Service Charge (Company Fee on Partner Vehicles)
-**Formula**: `Service Charge = (isPartnerVehicle && Cumulative Profit > 0) ? Cumulative Profit × serviceChargeRate : 0`
+**Formula**: `Service Charge = (isPartnerVehicle && Cumulative Profit > 0) ? Cumulative Profit Ã— serviceChargeRate : 0`
 **Where**: `serviceChargeRate = (vehicle.serviceChargeRate || 10) / 100`
 
 ### 3. Partner Share & Owner Payment (Profit Distribution)
 **Remaining Profit**: `Remaining Profit = Cumulative Profit - GST - Service Charge`
 
-**Partner Share**: `Partner Share = Remaining Profit × partnerPercentage` (if partner vehicle)
-**Owner Payment**: `Owner Payment = Remaining Profit × (1 - partnerPercentage)` (if partner vehicle)
+**Partner Share**: `Partner Share = Remaining Profit Ã— partnerPercentage` (if partner vehicle)
+**Owner Payment**: `Owner Payment = Remaining Profit Ã— (1 - partnerPercentage)` (if partner vehicle)
 **Owner Payment**: `Owner Payment = Cumulative Profit - GST` (if company vehicle)
 
 ### 4. Owner Payment (Consolidated for All Vehicles)
@@ -469,10 +469,40 @@ GST Button Amount = Total GST
 Same pattern for all payments - sum across all 3 months
 ```
 
+### How Quarterly Individual Payments Work
+
+**Individual Vehicle Button Behavior (Section 5):**
+- **Button Shows**: Total amount for the entire quarter (sum of all 3 months)
+- **Payment Process**: When clicked, creates individual transactions for each unpaid month in the quarter
+- **Status Logic**: Uses `gstPaid = periodStrings.some(...)` - shows "Paid" when ANY month in the quarter has a transaction
+- **Result**: After payment, status immediately shows "Paid" for the entire quarter
+
+**Example**: For Q4 2025 with no prior payments:
+- Button shows: "Pay GST ₹9,000" (₹3,000 × 3 months)
+- User clicks → confirmation dialog
+- User confirms → creates 3 transactions: one for "2025-10" ₹3,000, one for "2025-11" ₹3,000, one for "2025-12" ₹3,000
+- Status immediately changes to "Paid" because `periodStrings.some()` finds transactions for the quarter months
+
+**Why it shows "Paid" immediately**: The individual button pays for the entire quarter at once by creating transactions for all unpaid months, so the quarter status becomes "paid" right after the payment.
+
+### Individual Buttons vs Bulk Buttons for Quarterly
+
+**Individual Vehicle Buttons (Section 5):**
+- Pay for entire quarter at once
+- Create transactions for all unpaid months
+- Status shows "Paid" immediately
+- No month selection - pays everything
+
+**Bulk Payment Buttons (Section 5 Top):**
+- Allow selective month payment
+- Show month selection checkboxes
+- Can pay for partial quarters
+- Status remains "unpaid" for unselected months
+
 #### Yearly Selection (e.g., 2025)
 ```
 periodStrings = ["2025-01", "2025-02", ..., "2025-12"]
-Total GST = Σ(GST for all 12 months)
+Total GST = Î£(GST for all 12 months)
 Paid GST Amount = 0
 GST Button Amount = Total GST
 
@@ -485,15 +515,15 @@ Same pattern for all payments - sum across all 12 months
 ```
 periodStrings = ["2025-11"]
 Total GST = GST for November
-Paid GST Amount = Σ(amount) from accountingTransactions where:
+Paid GST Amount = Î£(amount) from accountingTransactions where:
   - vehicleId matches
   - type === 'gst_payment'
   - month === "2025-11"
   - status === 'completed'
 GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 
-If Paid GST Amount >= Total GST → Button Amount = 0
-If Paid GST Amount < Total GST → Button Amount = Total GST - Paid GST Amount
+If Paid GST Amount >= Total GST â†’ Button Amount = 0
+If Paid GST Amount < Total GST â†’ Button Amount = Total GST - Paid GST Amount
 ```
 
 #### Quarterly Selection (e.g., Q4 2025, November paid, Oct & Dec not paid)
@@ -501,7 +531,7 @@ If Paid GST Amount < Total GST → Button Amount = Total GST - Paid GST Amount
 periodStrings = ["2025-10", "2025-11", "2025-12"]
 Total GST = GST for Oct + GST for Nov + GST for Dec
 
-Paid GST Amount = Σ(amount) from accountingTransactions where:
+Paid GST Amount = Î£(amount) from accountingTransactions where:
   - vehicleId matches
   - type === 'gst_payment' 
   - month in ["2025-10", "2025-11", "2025-12"]
@@ -509,18 +539,18 @@ Paid GST Amount = Σ(amount) from accountingTransactions where:
 
 GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 
-Example: If November GST = ₹800 already paid
-Total GST = ₹2,400 (for 3 months)
-Paid GST Amount = ₹800
-GST Button Amount = ₹2,400 - ₹800 = ₹1,600 (Oct + Dec GST)
+Example: If November GST = â‚¹800 already paid
+Total GST = â‚¹2,400 (for 3 months)
+Paid GST Amount = â‚¹800
+GST Button Amount = â‚¹2,400 - â‚¹800 = â‚¹1,600 (Oct + Dec GST)
 ```
 
 #### Yearly Selection (e.g., 2025, some months paid)
 ```
 periodStrings = ["2025-01", ..., "2025-12"]
-Total GST = Σ(GST for all 12 months)
+Total GST = Î£(GST for all 12 months)
 
-Paid GST Amount = Σ(amount) from accountingTransactions where:
+Paid GST Amount = Î£(amount) from accountingTransactions where:
   - vehicleId matches
   - type === 'gst_payment'
   - month in periodStrings
@@ -536,7 +566,7 @@ GST Button Amount = MAX(0, Total GST - Paid GST Amount)
 #### Any Selection (Monthly/Quarterly/Yearly)
 ```
 Total [Payment Type] = Calculated amount for period
-Paid [Payment Type] Amount = Σ(amount) from accountingTransactions where:
+Paid [Payment Type] Amount = Î£(amount) from accountingTransactions where:
   - vehicleId matches
   - type matches payment type
   - month in periodStrings
@@ -548,624 +578,433 @@ Since all months paid: Paid Amount >= Total Amount
 Button Amount = 0 (button disabled/hidden)
 ```
 
-## Section 5 Individual Vehicle Payment Buttons - Monthly View Logic
+## Section 5: Individual Vehicle Payment Buttons - Complete Calculation Flow
 
 ### Overview
-This section documents the specific implementation for **individual vehicle payment buttons** in Section 5 of `FinancialAccountsTab.tsx` when **monthly view** is selected. Each vehicle card shows payment buttons based on per-month calculations and the most recent transaction status.
+Section 5 displays individual payment buttons for each vehicle card in `FinancialAccountsTab.tsx`. Each vehicle shows its financial breakdown and payment buttons based on calculated amounts for the selected period (monthly/quarterly/yearly). The calculations follow a strict sequence: **Gross Profit â†’ GST Deduction â†’ Service Charge Deduction â†’ Net Profit â†’ Partner/Owner Distribution**.
 
-### GST Calculation for Single Month
+**Key Changes (Updated Implementation):**
+- Removed separate "Owner's Share" and "Owner's Withdrawal" buttons
+- Introduced unified "Owner Payment" button with transaction type `'owner_payment'`
+- Consolidated owner payments for both partner and company vehicles under single logic
 
-#### Monthly GST Formula
-When monthly period is selected (e.g., November 2025), GST is calculated as:
-```
-Monthly GST = (Monthly Profit > 0) ? Monthly Profit × 0.04 : 0
+### Step-by-Step Calculation Flow for Each Vehicle in Section 5
 
-Where:
-- Monthly Profit = Monthly Earnings - Monthly Expenses
-- Monthly Earnings = Σ(payments.amountPaid) for the selected month where status === 'paid'
-- Monthly Expenses = Σ(expenses.amount) for the selected month where status === 'approved'
-```
+#### Step 1: Determine Period Months Based on Selection Type
+The `getPeriodData()` function uses the same logic for all period types, but determines different month arrays:
 
-#### Implementation in getPeriodData()
 ```javascript
-// For monthly view, months array contains only 1 month
-const months = [selectedMonthIndex]; // e.g., [10] for November
+// Same method handles all period types
+const year = parseInt(selectedYear);
+let months: number[] = [];
 
-// Calculate cumulative data (which becomes monthly data for single month)
-months.forEach(monthIndex => {
-  // Calculate monthEarnings, monthExpenses for this month
-  cumulativeEarnings += monthEarnings;
-  cumulativeExpenses += monthExpenses;
+// Period type determines which months to include
+if (filterType === 'monthly') {
+  // Single month: Find month index from month name
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthIndex = monthNames.indexOf(monthName); // e.g., 'November' â†’ 10
+  months = [monthIndex]; // e.g., [10] for November only
+} else if (filterType === 'quarterly') {
+  // Quarter months: 3 months based on selected quarter
+  const quarterMonths = {
+    'Q1': [0, 1, 2],    // Jan, Feb, Mar
+    'Q2': [3, 4, 5],    // Apr, May, Jun
+    'Q3': [6, 7, 8],    // Jul, Aug, Sep
+    'Q4': [9, 10, 11]   // Oct, Nov, Dec
+  };
+  months = quarterMonths[selectedQuarter]; // e.g., [9,10,11] for Q4
+} else if (filterType === 'yearly') {
+  // All months: 12 months for full year
+  months = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+}
+```
+
+**Example for Monthly Selection (November 2025):**
+- `months = [10]` (November is month index 10)
+- Only November data will be calculated
+
+**Example for Quarterly Selection (Q4 2025):**
+- `months = [9, 10, 11]` (October, November, December)
+- Data from all 3 months will be accumulated
+
+#### Step 2: Filter Vehicles Based on Partner Filter
+```javascript
+const filteredVehicles = vehicleData.filter(vehicleInfo => {
+  if (partnerFilter === 'all') return true;
+  if (partnerFilter === 'partner') {
+    return vehicleInfo.vehicle.isPartnership === true;
+  }
+  if (partnerFilter === 'company') {
+    return vehicleInfo.vehicle.isPartnership !== true;
+  }
+  return true;
 });
+```
 
+#### Step 3: Calculate Cumulative Earnings and Expenses
+**Same logic for all period types - accumulates data across selected months:**
+
+```javascript
+// Initialize cumulative variables for each vehicle
+let cumulativeEarnings = 0;
+let cumulativeExpenses = 0;
+
+// Loop through each month in the period (1 month for monthly, 3 for quarterly, 12 for yearly)
+months.forEach(monthIndex => {
+  const monthStart = new Date(year, monthIndex, 1);        // 1st of month
+  const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59); // Last day of month
+
+  // Get payments for this specific month
+  const monthPayments = payments.filter(p =>
+    p.vehicleId === vehicleId &&
+    p.status === 'paid' &&
+    new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+    new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+  );
+
+  // Get expenses for this specific month
+  const monthExpenses = expenses.filter(e =>
+    e.vehicleId === vehicleId &&
+    e.status === 'approved' &&
+    new Date(e.createdAt) >= monthStart &&
+    new Date(e.createdAt) <= monthEnd
+  );
+
+  // Sum amounts for this month
+  const monthEarnings = monthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const monthExpensesAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  // Add to cumulative totals
+  cumulativeEarnings += monthEarnings;
+  cumulativeExpenses += monthExpensesAmount;
+});
+```
+
+**Monthly Example (November 2025):**
+- `months = [10]` (only November)
+- Calculates earnings/expenses only for November
+- `cumulativeEarnings = November earnings only`
+- `cumulativeExpenses = November expenses only`
+
+**Quarterly Example (Q4 2025):**
+- `months = [9, 10, 11]` (Oct, Nov, Dec)
+- Calculates earnings/expenses for all 3 months
+- `cumulativeEarnings = Oct + Nov + Dec earnings`
+- `cumulativeExpenses = Oct + Nov + Dec expenses`
+
+#### Step 3: Calculate Gross Profit
+```javascript
 cumulativeProfit = cumulativeEarnings - cumulativeExpenses;
+```
+
+#### Step 4: Calculate GST (4% on Gross Profit)
+```javascript
+// GST only applies to positive profit
 cumulativeGst = cumulativeProfit > 0 ? cumulativeProfit * 0.04 : 0;
 ```
 
-### Button Display Logic for Monthly View
+#### Step 5: Calculate Service Charge (Partner Vehicles Only)
+```javascript
+const isPartnerVehicle = vehicle.isPartnership === true;
+const serviceChargeRate = (vehicle.serviceChargeRate || 10) / 100; // Default 10%
 
-#### Latest Transaction Status Check
-For each payment type, the system finds the most recent transaction for the specific month:
+// Service charge only for partner vehicles with positive profit
+cumulativeServiceCharge = isPartnerVehicle && cumulativeProfit > 0 
+  ? cumulativeProfit * serviceChargeRate 
+  : 0;
+```
+
+#### Step 6: Calculate Net Profit
+```javascript
+// Deduct GST and service charge from gross profit
+const netProfit = cumulativeProfit > 0 
+  ? cumulativeProfit - cumulativeGst - cumulativeServiceCharge 
+  : 0;
+```
+
+#### Step 7: Calculate Partner Share and Owner Payment
+```javascript
+const partnerSharePercentage = vehicle.partnershipPercentage 
+  ? vehicle.partnershipPercentage / 100 
+  : 0.50; // Default 50%
+
+if (isPartnerVehicle) {
+  // Partner vehicles: Split net profit between partner and owner
+  cumulativePartnerShare = netProfit * partnerSharePercentage;
+  cumulativeOwnerPayment = netProfit - cumulativePartnerShare;
+} else {
+  // Company vehicles: All net profit goes to owner
+  cumulativeOwnerPayment = netProfit;
+  cumulativePartnerShare = 0;
+}
+```
+
+#### Step 8: Generate Period Strings for Transaction Lookup
+**Critical for payment status checking and actually payable calculations:**
 
 ```javascript
-const getLatestTransactionStatus = (vehicleId: string, transactionType: string, monthStr: string) => {
-  const relevantTransactions = accountingTransactions.filter((t: any) =>
+// Generate period strings array (same format for all period types)
+let periodStrings: string[] = months.map(monthIndex =>
+  `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+);
+
+// Also create a single periodStr for transaction creation
+const periodStr = filterType === 'yearly' ? `${year}` :
+                  filterType === 'quarterly' ? `${year}-${selectedQuarter}` :
+                  `${year}-${String(parseInt(selectedMonth)).padStart(2, '0')}`;
+```
+
+**Monthly Example (November 2025):**
+- `periodStrings = ["2025-11"]` (single month string)
+- `periodStr = "2025-11"`
+
+**Quarterly Example (Q4 2025):**
+- `periodStrings = ["2025-10", "2025-11", "2025-12"]` (3 month strings)
+- `periodStr = "2025-Q4"`
+
+#### Step 9: Check Payment Status for Period
+**Uses periodStrings to check if payments exist for the selected period:**
+
+```javascript
+// Check if ANY transaction exists for the period (same logic for all types)
+const gstPaid = periodStrings.some(periodStr =>
+  accountingTransactions.some(t =>
     t.vehicleId === vehicleId &&
-    t.type === transactionType &&
-    t.month === monthStr
-  );
-
-  if (relevantTransactions.length === 0) return null;
-
-  // Sort by completedAt descending to get most recent
-  const sortedTransactions = relevantTransactions.sort((a, b) => {
-    const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-    const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-    return bTime - aTime;
-  });
-
-  return sortedTransactions[0].status; // 'completed', 'reversed', or null
-};
-```
-
-#### GST Button Display Cases
-
-##### Case 1: GST Amount = 0
-```
-Condition: vehicleInfo.gstAmount <= 0
-Display: Disabled "Pay GST" button with ₹0
-Logic: No need to check accountingTransactions since GST was never calculated
-```
-
-##### Case 2: GST Amount > 0, No Transaction Found
-```
-Condition: vehicleInfo.gstAmount > 0 AND getLatestTransactionStatus() === null
-Display: Enabled "Pay GST ₹{gstAmount.toLocaleString()}" button
-Logic: GST calculated but never paid
-```
-
-##### Case 3: GST Amount > 0, Latest Transaction Status = 'completed'
-```
-Condition: vehicleInfo.gstAmount > 0 AND getLatestTransactionStatus() === 'completed'
-Display: Green "Paid" badge with checkmark icon
-Logic: Most recent transaction shows payment was completed
-```
-
-##### Case 4: GST Amount > 0, Latest Transaction Status = 'reversed'
-```
-Condition: vehicleInfo.gstAmount > 0 AND getLatestTransactionStatus() === 'reversed'
-Display: Enabled "Pay GST ₹{gstAmount.toLocaleString()}" button
-Logic: Payment was undone, user can pay again
-```
-
-#### Same Logic Applies to All Payment Types
-
-**Service Charge Button:**
-- Amount Source: `vehicleInfo.serviceCharge`
-- Transaction Type: `'service_charge'`
-- Button Text: `"Withdraw ₹{serviceCharge.toLocaleString()}"`
-- Badge Text: `"Collected"`
-
-**Partner Payment Button:**
-- Amount Source: `vehicleInfo.partnerShare`
-- Transaction Type: `'partner_payment'`
-- Button Text: `"Pay Partner ₹{partnerShare.toLocaleString()}"`
-- Badge Text: `"Paid"`
-
-**Owner's Share Button:**
-- Amount Source: `vehicleInfo.ownerShare`
-- Transaction Type: `'owner_share'`
-- Button Text: `"Withdraw ₹{ownerShare.toLocaleString()}"`
-- Badge Text: `"Collected"`
-
-**Owner's Withdrawal Button:**
-- Amount Source: `vehicleInfo.ownerFullShare`
-- Transaction Type: `'owner_withdrawal'`
-- Button Text: `"Withdraw ₹{ownerFullShare.toLocaleString()}"`
-- Badge Text: `"Withdrawn"`
-
-### Confirmation Dialog Flow for Individual Payments
-
-#### Dialog Trigger
-- User clicks any enabled payment button in Section 5
-- Dialog opens with confirmation details
-- **No additional validation** - button enable/disable logic already handles all restrictions
-
-#### Dialog Content
-```javascript
-// Example for GST Payment Dialog
-const dialogContent = {
-  title: `Confirm GST Payment`,
-  description: `Pay GST for ${vehicleInfo.vehicle.vehicleName} - ${periodLabel} ${selectedYear}`,
-  amount: vehicleInfo.gstAmount, // Same amount shown on button
-  vehicle: vehicleInfo.vehicle,
-  paymentType: 'gst_payment'
-};
-```
-
-#### Dialog Validation
-- **No amount validation** - uses exact amount from button
-- **No cash balance checks** - assumes button enable logic prevents insufficient funds
-- **No period restrictions** - single month payment for monthly view
-
-#### Payment Processing
-```javascript
-const handleGstPayment = async (vehicleInfo: any) => {
-  const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const amount = vehicleInfo.gstAmount;
-
-  // 1. Create transaction document
-  const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-  const docRef = await addDoc(transactionRef, {
-    vehicleId: vehicleInfo.vehicle.id,
-    type: 'gst_payment',
-    amount: amount,
-    month: monthStr,
-    description: `GST Payment for ${vehicleInfo.vehicle.vehicleName} - ${periodLabel} ${selectedYear}`,
-    status: 'completed',
-    createdAt: new Date().toISOString(),
-    completedAt: new Date().toISOString()
-  });
-
-  // 2. Update vehicle cash balance
-  const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
-  await setDoc(cashRef, {
-    balance: increment(-amount)
-  }, { merge: true });
-
-  // 3. Update company cash balance
-  const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-  await setDoc(companyCashRef, {
-    balance: increment(-amount),
-    lastUpdated: new Date().toISOString()
-  }, { merge: true });
-
-  // 4. Update local state
-  const newTransaction = {
-    id: docRef.id,
-    vehicleId: vehicleInfo.vehicle.id,
-    type: 'gst_payment',
-    amount: amount,
-    month: monthStr,
-    description: `GST Payment for ${vehicleInfo.vehicle.vehicleName} - ${periodLabel} ${selectedYear}`,
-    status: 'completed',
-    createdAt: new Date().toISOString(),
-    completedAt: new Date().toISOString()
-  };
-
-  setAccountingTransactions(prev => [...prev, newTransaction]);
-  setVehicleCashBalances(prev => ({
-    ...prev,
-    [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - amount
-  }));
-
-  // Close dialog and show success
-  setConfirmGstPaymentDialog(false);
-  toast.success('GST Payment completed successfully');
-};
-```
-
-#### Key Principles for Section 5 Individual Payments
-
-1. **Single Month Focus**: All calculations and transactions are for the selected month only
-2. **Latest Transaction Priority**: Always check the most recent transaction status
-3. **No Dialog Restrictions**: When button is enabled, dialog allows instant payment
-4. **Atomic Operations**: All database updates use Firestore increment() for thread safety
-5. **Immediate UI Updates**: Local state updated immediately for responsive UX
-6. **Same Pattern for All Types**: GST, Service Charge, Partner Payment, Owner's Share, Owner's Withdrawal all follow identical logic
-
-### Implementation Status
-✅ **COMPLETED**: The FinancialAccountsTab.tsx has been updated to implement the exact logic described above for monthly view. The `getLatestTransactionStatus()` helper function has been added and all payment buttons (GST, Service Charge, Partner Payment, Owner's Share, Owner's Withdrawal) now use the latest transaction status for monthly view instead of checking if any transaction exists in the period.
-
-## Payment Processing Flow
-
-### 1. User Clicks Payment Button
-- Button shows "Actually Payable" amount (after deductions)
-- Opens confirmation dialog
-
-### 2. Dialog Shows Month Selection (Quarterly/Yearly only)
-- Lists all months in period
-- Shows payment status for each month:
-  - ✅ Paid (with amount and date)
-  - ⏳ Unpaid (with calculated amount)
-- User selects months to pay (unpaid months selected by default)
-- Amount updates based on selection
-
-### 3. Payment Confirmation
-- Creates transaction document(s) in `accountingTransactions`:
-  - One document per selected month
-  - `month`: Individual month string (e.g., "2025-11")
-  - `amount`: Payment amount for that month
-  - `type`: Payment type
-  - `status`: 'completed'
-
-### 4. Database Operations (Per Transaction)
-```
-1. accountingTransactions Collection:
-   - Path: Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/accountingTransactions
-   - Operation: addDoc() - create new document
-
-2. cashInHand Subcollection:
-   - Path: Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/cashInHand/{vehicleId}
-   - Operation: setDoc(..., { balance: increment(-amount) }, { merge: true })
-
-3. companyCashInHand Collection:
-   - Path: Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/companyCashInHand/main
-   - Operation: setDoc(..., { balance: increment(-amount), lastUpdated: new Date() }, { merge: true })
-```
-
-### 5. Local State Updates
-- Add new transaction to `accountingTransactions` array
-- Update `vehicleCashBalances[vehicleId] -= totalAmount`
-- Recalculate button amounts (should become 0 for paid months)
-
-## Key Technical Implementation Notes
-
-1. **Period String Matching**: Always use `periodStrings.includes(t.month)` for finding existing payments
-2. **Atomic Updates**: All cash operations use `increment()` for thread safety
-3. **Bulk Payments**: Create multiple transaction documents for quarterly/yearly selections
-4. **Status Tracking**: Only `status === 'completed'` counts as paid
-5. **Amount Deduction**: Button amount = MAX(0, calculated - paid) to prevent negative values
-
-## Undo Process (Reverse Payment)
-1. Find transaction(s) by vehicleId, type, periodStrings.includes(month), status === 'completed'
-2. Update transaction status to 'reversed', add reversedAt timestamp
-3. Increment cash balances by +originalAmount
-4. Update local state: remove from accountingTransactions or mark as reversed
-
-This flow ensures accurate profit distribution and payment tracking using only existing fields in the accountingTransactions collection.
-
-### Document ID
-- **Auto-generated** by Firestore using `addDoc()`
-- Stored in the `id` field of the local state object
-
-### Transaction Types by Button
-
-| Button | Transaction Type | Amount Source |
-|--------|------------------|---------------|
-| GST Payment | `'gst_payment'` | `vehicleInfo.gstAmount` |
-| Service Charge | `'service_charge'` | `vehicleInfo.serviceCharge` |
-| Partner Payment | `'partner_payment'` | `vehicleInfo.partnerShare` |
-| Owner's Share | `'owner_share'` | `vehicleInfo.ownerShare` |
-| Owner's Withdrawal | `'owner_withdrawal'` | `vehicleInfo.ownerFullShare` |
-
-## How Documents Are Added
-
-### Firestore Operation
-```javascript
-const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-
-const docRef = await addDoc(transactionRef, {
-  vehicleId: vehicleInfo.vehicle.id,
-  type: 'gst_payment', // varies by button
-  amount: paymentAmount,
-  month: monthStr, // period string
-  description: paymentDescription,
-  status: 'completed',
-  createdAt: new Date().toISOString(),
-  completedAt: new Date().toISOString()
-});
-```
-
-### Local State Update
-```javascript
-const newTransaction = {
-  id: docRef.id, // Firestore auto-generated ID
-  vehicleId: vehicleInfo.vehicle.id,
-  type: 'gst_payment',
-  amount: paymentAmount,
-  month: monthStr,
-  description: paymentDescription,
-  status: 'completed',
-  createdAt: new Date().toISOString(),
-  completedAt: new Date().toISOString()
-};
-
-setAccountingTransactions([...accountingTransactions, newTransaction]);
-```
-
-## Database Operations Per Button
-
-Each button performs **exactly 3 database operations**:
-
-### 1. accountingTransactions Collection
-- **Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/accountingTransactions`
-- **Operation**: Creates **1 new document** with transaction details
-- **Fields**: vehicleId, type, amount, month, description, status, createdAt, completedAt
-
-### 2. cashInHand Subcollection
-- **Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/cashInHand/{vehicleId}`
-- **Operation**: Updates **1 document** (vehicle-specific cash balance)
-- **Update**: `balance` field using `increment(-amount)` (decreases cash)
-
-### 3. companyCashInHand Collection
-- **Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/companyCashInHand/main`
-- **Operation**: Updates **1 document** (company-wide cash balance)
-- **Update**: `balance` field using `increment(-amount)` and `lastUpdated` timestamp
-
-## Total Impact Summary
-
-### Individual Button Impact
-- **3 collections** updated per button
-- **3 documents** modified per button
-- All operations are **cash outflows** (negative amounts)
-
-### Combined Impact (All 4 Buttons)
-- **3 collections** total (same for all buttons)
-- **12 documents** updated across all buttons
-- **12 database operations** total
-
-## Undo Operations Required
-
-For proper undo functionality, each payment must be reversed by:
-
-### 1. Update Transaction Status
-- Change `status` from `'completed'` to `'reversed'`
-- Add `reversedAt` timestamp
-
-### 2. Reverse Cash Balance Updates
-- **cashInHand**: `increment(+originalAmount)` (add back the deducted amount)
-- **companyCashInHand**: `increment(+originalAmount)` (add back the deducted amount)
-
-### 3. Update Local State
-- Update `accountingTransactions` array
-- Update `vehicleCashBalances` state
-
-## Key Technical Notes
-
-- All operations use Firestore `increment()` for atomic updates
-- Period strings must match between creation and lookup for undo to work
-- Bulk payments create multiple transaction documents (one per month)
-- Local state synchronization is critical for UI consistency
-
-## Period String Logic
-
-For undo to work correctly, period strings must be consistent:
-
-- **Monthly**: `YYYY-MM` (e.g., "2025-01")
-- **Quarterly**: `YYYY-Q#` (e.g., "2025-Q1")
-- **Yearly**: `YYYY` (e.g., "2025")
-
-The undo function uses `periodStrings.includes(t.month)` for matching, so all transaction creation must follow the same format.
-
-## Bulk Payment Considerations
-
-For quarterly/yearly periods with month selection:
-- Multiple transactions created (one per selected month)
-- Each transaction gets its own period string
-- Undo must handle multiple transactions
-- Cash amounts are divided by months in period
-
-## Undo Implementation Code Template
-
-If you forget the process, here's the exact code structure needed for undo functionality:
-
-### Undo Function Signature
-```typescript
-const handleUndoPayment = async (vehicleInfo: any, paymentType: PaymentType) => {
-  // 1. Get period strings for matching
-  const periodData = getPeriodData(vehicleInfo.vehicle.id);
-  const periodStrings = periodData.periodStrings;
-
-  // 2. Find transaction(s) to reverse
-  const transactionsToReverse = accountingTransactions.filter(t => 
-    t.vehicleId === vehicleInfo.vehicle.id && 
-    t.type === paymentType && 
-    periodStrings.includes(t.month) &&
-    t.status === 'completed'
-  );
-
-  if (transactionsToReverse.length === 0) {
-    throw new Error('Transaction not found');
-  }
-
-  // 3. Reverse each transaction
-  for (const transaction of transactionsToReverse) {
-    // Update Firestore transaction status
-    const transactionRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`, transaction.id);
-    await updateDoc(transactionRef, {
-      status: 'reversed',
-      reversedAt: new Date().toISOString()
-    });
-
-    // Reverse cash balances
-    const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
-    await setDoc(cashRef, {
-      balance: increment(transaction.amount) // Add back the amount
-    }, { merge: true });
-
-    const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-    await setDoc(companyCashRef, {
-      balance: increment(transaction.amount), // Add back the amount
-      lastUpdated: new Date().toISOString()
-    }, { merge: true });
-  }
-
-  // 4. Update local state
-  setAccountingTransactions(prev => prev.map(t => {
-    if (transactionsToReverse.some(tr => tr.id === t.id)) {
-      return { ...t, status: 'reversed' as const, reversedAt: new Date().toISOString() };
-    }
-    return t;
-  }));
-
-  setVehicleCashBalances(prev => ({
-    ...prev,
-    [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) + totalReversedAmount
-  }));
-};
-```
-
-### Key Points to Remember:
-1. **Filter transactions** using `periodStrings.includes(t.month)` for proper matching
-2. **Loop through multiple transactions** for bulk payments
-3. **Use increment(+amount)** to reverse the cash deductions
-4. **Update status to 'reversed'** and add `reversedAt` timestamp
-5. **Calculate total reversed amount** for local state updates
-
-## Memory Recovery Checklist
-
-If you forget the process, ask yourself:
-
-1. **What collections are updated?** 
-   - accountingTransactions (create document)
-   - cashInHand (update balance) 
-   - companyCashInHand (update balance)
-
-2. **What needs to be reversed?**
-   - Transaction status: 'completed' → 'reversed'
-   - Cash balances: increment(+amount) to add money back
-   - Local state: update arrays and balances
-
-3. **How to find transactions to reverse?**
-   - Match vehicleId, type, periodStrings.includes(month), status === 'completed'
-
-4. **What fields are in accountingTransactions documents?**
-   - vehicleId, type, amount, month, description, status, createdAt, completedAt, reversedAt
-
-5. **What are the period string formats?**
-   - Monthly: "2025-01", Quarterly: "2025-Q1", Yearly: "2025"
-
-This documentation contains everything needed to implement undo functionality from scratch.
-
-## Button Enable/Disable Logic
-
-### Individual Vehicle Buttons (Per Vehicle Card) - MAIN FOCUS
-
-**This is the primary flow for Section 5 individual vehicle payment buttons.** Each vehicle card in the FinancialAccountsTab shows these buttons based on the calculations below.
-
-#### GST Payment Button
-- **Enabled when**: `gstActuallyPayable > 0` (calculated profit GST minus already paid GST > 0)
-- **Disabled when**: `gstActuallyPayable <= 0` (no GST due or already fully paid)
-- **Display**: "Pay GST ₹{gstActuallyPayable.toLocaleString()}"
-- **Status Badge**: Shows "Paid" when `gstPaid = true`
-
-#### Service Charge Button (Partner Vehicles Only)
-- **Enabled when**: `serviceCharge > 0` (calculated service charge amount > 0)
-- **Disabled when**: `serviceCharge <= 0` (no service charge due)
-- **Display**: "Withdraw ₹{serviceCharge.toLocaleString()}"
-- **Status Badge**: Shows "Collected" when `serviceChargeCollected = true`
-
-#### Partner Payment Button (Partner Vehicles Only)
-- **Enabled when**: `partnerShare > 0` (calculated partner share > 0)
-- **Disabled when**: `partnerShare <= 0` (no partner share due)
-- **Display**: "Pay Partner ₹{partnerShare.toLocaleString()}"
-- **Status Badge**: Shows "Paid" when `partnerPaid = true`
-
-#### Owner's Share Button (Partner Vehicles Only)
-- **Enabled when**: `ownerShare > 0` (calculated owner share > 0)
-- **Disabled when**: `ownerShare <= 0` (no owner share due)
-- **Display**: "Withdraw ₹{ownerShare.toLocaleString()}"
-- **Status Badge**: Shows "Collected" when `ownerShareCollected = true`
-
-#### Owner's Withdrawal Button (Company Vehicles Only)
-- **Enabled when**: `ownerFullShare > 0` (calculated owner full share > 0)
-- **Disabled when**: `ownerFullShare <= 0` (no owner withdrawal due)
-- **Display**: "Withdraw ₹{ownerFullShare.toLocaleString()}"
-- **Status Badge**: Shows "Withdrawn" when `ownerWithdrawn = true`
-
-### Bulk Payment Buttons (Section 5 - Top Level)
-
-**NOTE**: These are the bulk payment buttons at the top of Section 5 that operate across multiple vehicles. They use the same calculation logic as individual buttons but aggregate amounts across all vehicles. The main flow above focuses on individual vehicle buttons.
-
-#### GST Bulk Button
-- **Enabled when**: `actuallyPayable.gstActuallyPayable > 0` (sum of unpaid GST across all vehicles > 0)
-- **Disabled when**: `actuallyPayable.gstActuallyPayable <= 0` (all GST paid for period)
-- **Display**: "Pay GST (₹{actuallyPayable.gstActuallyPayable.toLocaleString()})"
-
-#### Service Charge Bulk Button
-- **Enabled when**: `actuallyPayable.serviceChargeActuallyPayable > 0`
-- **Disabled when**: `actuallyPayable.serviceChargeActuallyPayable <= 0`
-- **Display**: "Withdraw Service Charges (₹{actuallyPayable.serviceChargeActuallyPayable.toLocaleString()})"
-
-#### Partner Share Bulk Button
-- **Enabled when**: `actuallyPayable.partnerShareActuallyPayable > 0`
-- **Disabled when**: `actuallyPayable.partnerShareActuallyPayable <= 0`
-- **Display**: "Pay Partner Shares (₹{actuallyPayable.partnerShareActuallyPayable.toLocaleString()})"
-
-#### Owner Share Bulk Button
-- **Enabled when**: `actuallyPayable.ownerShareActuallyPayable > 0`
-- **Disabled when**: `actuallyPayable.ownerShareActuallyPayable <= 0`
-- **Display**: "Withdraw Owner Share (₹{actuallyPayable.ownerShareActuallyPayable.toLocaleString()})"
-
-### Payment Status Flags
-
-#### How Status is Determined
-```javascript
-// For each vehicle in periodData
-gstPaid = periodStrings.some(periodStr => 
-  accountingTransactions.some(t => 
-    t.vehicleId === vehicleInfo.vehicle.id && 
-    t.type === 'gst_payment' && 
-    t.month === periodStr && 
+    t.type === 'gst_payment' &&
+    t.month === periodStr &&
     t.status === 'completed'
   )
 );
 
-// Same logic for serviceChargeCollected, partnerPaid, ownerShareCollected, ownerWithdrawn
+// Same logic for serviceChargeCollected, partnerPaid, ownerPaid
+const serviceChargeCollected = periodStrings.some(periodStr => /* same check */);
+const partnerPaid = periodStrings.some(periodStr => /* same check */);
+const ownerPaid = periodStrings.some(periodStr => /* same check */);
 ```
 
-#### Actually Payable Calculation
+#### Step 10: Calculate Actually Payable Amounts
+**Complex filtering logic that handles all period types:**
+
 ```javascript
-gstActuallyPayable = Math.max(0, vehicleInfo.gstAmount - paidGstAmount);
-
-// Where paidGstAmount is sum of all matching transactions
-paidGstAmount = accountingTransactions
-  .filter(t => t.vehicleId === vehicleInfo.vehicle.id && 
-           t.type === 'gst_payment' && 
-           periodStrings.includes(t.month) && 
-           t.status === 'completed')
+// Sum ALL paid amounts for the period (handles monthly/quarterly/yearly)
+const paidGstAmount = accountingTransactions
+  .filter(t =>
+    t.vehicleId === vehicleId &&
+    t.type === 'gst_payment' &&
+    // Complex condition: periodStrings OR special quarterly/yearly logic
+    (periodStrings.includes(t.month) ||
+     (filterType === 'quarterly' && t.month === `${year}-${selectedQuarter}`) ||
+     (filterType === 'yearly' && t.month === `${year}`))
+  )
   .reduce((sum, t) => sum + t.amount, 0);
+
+// Calculate actually payable (prevent negative values)
+const gstActuallyPayable = Math.max(0, cumulativeGst - paidGstAmount);
+
+// Same logic for all payment types
+const paidServiceChargeAmount = /* similar complex filter */;
+const serviceChargeActuallyPayable = Math.max(0, cumulativeServiceCharge - paidServiceChargeAmount);
+
+const paidPartnerAmount = /* similar complex filter */;
+const partnerShareActuallyPayable = Math.max(0, cumulativePartnerShare - paidPartnerAmount);
+
+const paidOwnerAmount = /* similar complex filter */;
+const ownerActuallyPayable = Math.max(0, cumulativeOwnerPayment - paidOwnerAmount);
 ```
 
-### Period-Specific Behavior
+**Monthly Example (November 2025):**
+- `periodStrings = ["2025-11"]`
+- Looks for transactions with `month === "2025-11"`
+- `gstActuallyPayable = cumulativeGst - paidGstAmount`
 
-#### Monthly Selection
-- **Period Strings**: `["2025-11"]` (single month)
-- **Button Amounts**: Calculated for that specific month only
-- **Status Check**: Checks transactions for that month string
-- **Bulk Dialog**: Shows month selection (only 1 month, pre-selected)
+**Quarterly Example (Q4 2025):**
+- `periodStrings = ["2025-10", "2025-11", "2025-12"]`
+- Looks for transactions with `month` in `["2025-10", "2025-11", "2025-12"]` OR `month === "2025-Q4"`
+- `gstActuallyPayable = cumulativeGst - paidGstAmount`
 
-#### Quarterly Selection (e.g., Q4 2025)
-- **Period Strings**: `["2025-10", "2025-11", "2025-12"]`
-- **Button Amounts**: Sum of calculations for all 3 months
-- **Status Check**: Checks if ANY month has transactions (partial payment allowed)
-- **Bulk Dialog**: Shows month selection checkboxes (unpaid months pre-selected)
+### Payment Button Display Logic
 
-#### Yearly Selection (2025)
-- **Period Strings**: `["2025-01", "2025-02", ..., "2025-12"]`
-- **Button Amounts**: Sum of calculations for all 12 months
-- **Status Check**: Checks if ANY month has transactions
-- **Bulk Dialog**: Shows month selection checkboxes (unpaid months pre-selected)
+#### GST Payment Button
+- **Amount Displayed**: `â‚¹{gstActuallyPayable.toLocaleString()}`
+- **Enabled When**: `gstActuallyPayable > 0`
+- **Disabled When**: `gstActuallyPayable <= 0`
+- **Status Badge**: Shows "Paid" when `gstPaid = true`
 
-### Button Visibility Rules
+#### Service Charge Button (Partner Vehicles Only)
+- **Amount Displayed**: `â‚¹{serviceChargeActuallyPayable.toLocaleString()}`
+- **Enabled When**: `serviceChargeActuallyPayable > 0`
+- **Disabled When**: `serviceChargeActuallyPayable <= 0`
+- **Status Badge**: Shows "Collected" when `serviceChargeCollected = true`
 
-#### Role-Based Visibility
-- **Partner Role**: Cannot see any payment buttons (role !== Role.PARTNER condition)
-- **Admin/Owner Role**: Can see all buttons based on vehicle type
+#### Partner Payment Button (Partner Vehicles Only)
+- **Amount Displayed**: `â‚¹{partnerShareActuallyPayable.toLocaleString()}`
+- **Enabled When**: `partnerShareActuallyPayable > 0`
+- **Disabled When**: `partnerShareActuallyPayable <= 0`
+- **Status Badge**: Shows "Paid" when `partnerPaid = true`
 
-#### Vehicle Type Visibility
-- **GST Payment**: Always shown for non-partner users
-- **Service Charge**: Only for partner vehicles (`isPartnership === true`)
-- **Partner Payment**: Only for partner vehicles (`isPartnership === true`)
-- **Owner's Share**: Only for partner vehicles (`isPartnership === true`)
-- **Owner's Withdrawal**: Only for company vehicles (`isPartnership !== true`)
+#### Owner Payment Button (All Vehicles)
+- **Amount Displayed**: `â‚¹{ownerActuallyPayable.toLocaleString()}`
+- **Enabled When**: `ownerActuallyPayable > 0`
+- **Disabled When**: `ownerActuallyPayable <= 0`
+- **Status Badge**: Shows "Paid" when `ownerPaid = true`
 
-### Dialog Behavior
+### Payment Processing Flow (After Clicking Payment Button)
 
-#### Individual Vehicle Dialogs
-- **Confirmation Required**: Yes, shows amount and description
-- **Month Selection**: No (processes for entire period)
-- **Payment Processing**: Creates single transaction per period type
+#### Step 1: User Clicks Payment Button
+- Button shows the calculated "actually payable" amount
+- Triggers confirmation dialog with payment details
 
-#### Bulk Payment Dialogs
-- **Vehicle Selection**: Shows all eligible vehicles with checkboxes
-- **Month Selection**: For quarterly/yearly periods, shows month checkboxes
-- **Payment Processing**: Creates multiple transactions (one per selected month per vehicle)
+#### Step 2: Confirmation Dialog Display
+```javascript
+// Example for Owner Payment Dialog
+const dialogProps = {
+  title: `Confirm Owner Payment`,
+  description: `Pay â‚¹${ownerActuallyPayable.toLocaleString()} to owner for ${vehicle.registrationNumber} - ${periodLabel} ${selectedYear}`,
+  amount: ownerActuallyPayable,
+  vehicle: vehicle,
+  paymentType: 'owner_payment'
+};
+```
+
+#### Step 3: User Confirms Payment
+- Dialog validates no additional checks (button enable logic already handles validation)
+- Proceeds to payment processing
+
+#### Step 4: Create Accounting Transaction
+```javascript
+// Create transaction document in Firestore
+const transactionRef = collection(firestore, 
+  `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accountingTransactions`
+);
+
+const newTransaction = {
+  vehicleId: vehicleId,
+  type: 'owner_payment', // 'gst_payment', 'service_charge', 'partner_payment'
+  amount: paymentAmount,
+  month: periodStr, // e.g., "2025-11", "2025-Q4", "2025"
+  description: `Owner Payment for ${registrationNumber} - ${periodLabel} ${year}`,
+  status: 'completed',
+  createdAt: new Date().toISOString(),
+  completedAt: new Date().toISOString()
+};
+
+const docRef = await addDoc(transactionRef, newTransaction);
+```
+
+#### Step 5: Update Vehicle Cash Balance
+```javascript
+// Decrease vehicle cash in hand
+const cashRef = doc(firestore, 
+  `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/cashInHand`, 
+  vehicleId
+);
+
+await setDoc(cashRef, {
+  balance: increment(-paymentAmount) // Atomic decrement
+}, { merge: true });
+```
+
+#### Step 6: Update Company Cash Balance
+```javascript
+// Decrease company cash balance
+const companyCashRef = doc(firestore, 
+  `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/companyCashInHand`, 
+  'main'
+);
+
+await setDoc(companyCashRef, {
+  balance: increment(-paymentAmount), // Atomic decrement
+  lastUpdated: new Date().toISOString()
+}, { merge: true });
+```
+
+#### Step 7: Update Local State
+```javascript
+// Add transaction to local state
+setAccountingTransactions(prev => [...prev, { ...newTransaction, id: docRef.id }]);
+
+// Update vehicle cash balance in local state
+setVehicleCashBalances(prev => ({
+  ...prev,
+  [vehicleId]: (prev[vehicleId] || 0) - paymentAmount
+}));
+
+// Show success toast
+toast({
+  title: 'Owner Payment Completed',
+  description: `â‚¹${paymentAmount.toLocaleString()} paid to owner for ${registrationNumber}`,
+});
+```
+
+#### Step 8: UI Updates Automatically
+- Payment button becomes disabled (actually payable becomes 0)
+- Status badge shows "Paid" 
+- Cash balances update across the interface
+- Button text changes from "Pay â‚¹X" to disabled state
+
+### Key Technical Implementation Details
+
+#### Single Method, Multiple Period Types
+The `getPeriodData()` function uses **identical calculation logic** for all period types:
+- **Monthly**: `months = [singleMonthIndex]` â†’ 1 iteration of calculation loop
+- **Quarterly**: `months = [month1, month2, month3]` â†’ 3 iterations of calculation loop
+- **Yearly**: `months = [0,1,2,...,11]` â†’ 12 iterations of calculation loop
+
+#### Period String Generation
+- **Monthly**: `periodStrings = ["2025-MM"]` (1 string)
+- **Quarterly**: `periodStrings = ["2025-MM", "2025-MM", "2025-MM"]` (3 strings)
+- **Yearly**: `periodStrings = ["2025-01", "2025-02", ..., "2025-12"]` (12 strings)
+
+#### Transaction Lookup Logic
+Payment status checking uses `periodStrings.some()` to find if ANY month in the period has transactions, while actually payable calculations use complex filtering to sum amounts across all relevant transactions.
+
+#### Transaction Types Used
+| Button | Firestore Type | Description |
+|--------|----------------|-------------|
+| GST Payment | `'gst_payment'` | 4% government tax |
+| Service Charge | `'service_charge'` | Company fee on partners |
+| Partner Payment | `'partner_payment'` | Partner's profit share |
+| Owner Payment | `'owner_payment'` | Owner's payment (unified) |
+
+#### Period String Formats
+- **Monthly**: `"2025-11"` (single month)
+- **Quarterly**: `"2025-Q4"` (quarter identifier)
+- **Yearly**: `"2025"` (year only)
+
+#### Atomic Operations
+- All cash balance updates use `increment()` for thread safety
+- Transactions are created with `status: 'completed'` immediately
+- No pending states for individual vehicle payments
+
+#### Calculation Flow Summary
+```
+1. Determine months[] based on period type
+2. Loop through months[] to accumulate earnings/expenses
+3. Calculate profit, GST, service charge, net profit
+4. Calculate partner share and owner payment
+5. Generate periodStrings[] for transaction lookup
+6. Check payment status using periodStrings.some()
+7. Calculate actually payable using complex transaction filtering
+8. Display buttons based on actually payable amounts
+9. Payment process = Create transaction + Update balances + Update UI
+```
+
+This unified approach ensures consistent calculations across all period types while handling the different granularities appropriately.
+3. Service Charge = Gross Profit Ã— rate (partner vehicles only)
+4. Net Profit = Gross Profit - GST - Service Charge
+5. Partner Share = Net Profit Ã— percentage (partner vehicles)
+6. Owner Payment = Net Profit - Partner Share (or Net Profit for company vehicles)
+7. Actually Payable = Calculated Amount - Already Paid Amount
+8. Button State = Enabled if Actually Payable > 0
+9. Payment Process = Create transaction + Update balances + Update UI
+```
+
+This unified approach ensures consistent calculations across all period types while handling the different granularities appropriately.
 
 ## Summary: Section 5 Individual Vehicle Button Flow
 
-This documentation primarily describes the payment calculation and button logic for **individual vehicle payment buttons** that appear on each vehicle card in Section 5 of `FinancialAccountsTab.tsx`. 
+This documentation primarily describes the payment calculation and button logic for **individual vehicle payment buttons** that appear on each vehicle card in Section 5 of `FinancialAccountsTab.tsx`.
 
 **Key Points for AI Implementation:**
 1. Each vehicle card calculates its own payment amounts using `getPeriodData()`
