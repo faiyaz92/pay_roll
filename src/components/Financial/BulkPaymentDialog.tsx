@@ -25,7 +25,7 @@ interface BulkPaymentDialogProps {
   onClose: () => void;
   title: string;
   description: string;
-  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi' | 'rent';
+  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_payment' | 'emi' | 'rent';
   items: BulkPaymentItem[];
   onConfirm: (selectedItems: BulkPaymentItem[], emiPenalties?: Record<string, Record<number, string>>) => void;
   isLoading?: boolean;
@@ -751,7 +751,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       case 'gst': return 'GST';
       case 'service_charge': return 'Service Charge';
       case 'partner_share': return 'Partner Share';
-      case 'owner_share': return 'Owner Share';
+      case 'owner_payment': return 'Owner Payment';
       case 'emi': return 'EMI';
       default: return '';
     }
