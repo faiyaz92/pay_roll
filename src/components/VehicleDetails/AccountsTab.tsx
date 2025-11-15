@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
+import { Role } from '@/types/user';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, setDoc, getDoc, increment } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
@@ -891,7 +892,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       // Service charge (10% for partner taxis - only if profit is positive)
       const isPartnerTaxi = vehicle?.isPartnership === true;
-      const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
+      const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
       const serviceCharge = isPartnerTaxi && profit > 0 ? profit * serviceChargeRate : 0;
 
       // Partner share (configurable percentage after GST and service charge - only if remaining profit is positive)
@@ -1167,7 +1168,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
     // Service charge (10% for partner taxis - only if total profit is positive)
     const isPartnerTaxi = vehicle?.isPartnership === true;
-    const serviceChargeRate = vehicle?.serviceChargeRate || 0.10; // Default 10%
+    const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
     const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
 
     // Partner share and owner share calculations (on remaining profit after GST and service charge)
@@ -1236,24 +1237,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     const year = parseInt(selectedYear);
     let periodStrings: string[] = [];
 
-    // Generate period strings based on current view
+    // Generate period strings based on current view - use same format as monthlyData.monthStr
     if (selectedPeriod === 'month' && selectedMonth) {
-      const monthName = new Date(year, parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' });
-      periodStrings = [`${year}-${monthName}`];
+      periodStrings = [`${year}-${selectedMonth.padStart(2, '0')}`];
     } else if (selectedPeriod === 'quarter' && selectedQuarter) {
       const quarterMonths = {
-        'Q1': [0, 1, 2], 'Q2': [3, 4, 5], 'Q3': [6, 7, 8], 'Q4': [9, 10, 11]
+        '1': ['01', '02', '03'], '2': ['04', '05', '06'], '3': ['07', '08', '09'], '4': ['10', '11', '12']
       };
-      const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths];
-      if (months) {
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                           'July', 'August', 'September', 'October', 'November', 'December'];
-        periodStrings = months.map(monthIndex => `${year}-${monthNames[monthIndex]}`);
-      }
+      periodStrings = quarterMonths[selectedQuarter as keyof typeof quarterMonths].map(month => `${year}-${month}`);
     } else if (selectedPeriod === 'year') {
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                         'July', 'August', 'September', 'October', 'November', 'December'];
-      periodStrings = monthNames.map(monthName => `${year}-${monthName}`);
+      periodStrings = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
     }
 
     // Calculate paid amounts for current period
@@ -1812,20 +1805,20 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               onClick={() => {
                 setConfirmGstPaymentDialog(true);
               }}
-              disabled={cumulativeData.totalGst === 0}
+              disabled={actuallyPayable.gstActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <CreditCard className="h-4 w-4" />
-              Pay GST ({selectedPeriod === 'month' ? cumulativeData.totalGst.toLocaleString() : selectedGstMonthTotal.toLocaleString()})
+              Pay GST ({selectedPeriod === 'month' ? actuallyPayable.gstActuallyPayable.toLocaleString() : selectedGstMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
                   setSelectedMonthData({
-                    serviceCharge: cumulativeData.totalServiceCharge,
+                    serviceCharge: actuallyPayable.serviceChargeActuallyPayable,
                     monthStr: cumulativePeriodKey,
                     periodLabel: cumulativePeriodLabel,
                     isCumulative: true
@@ -1836,20 +1829,20 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmServiceChargeMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalServiceCharge === 0}
+              disabled={actuallyPayable.serviceChargeActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <TrendingUp className="h-4 w-4" />
-              Withdraw Service Charges ({selectedPeriod === 'month' ? cumulativeData.totalServiceCharge.toLocaleString() : selectedServiceChargeMonthTotal.toLocaleString()})
+              Withdraw Service Charges ({selectedPeriod === 'month' ? actuallyPayable.serviceChargeActuallyPayable.toLocaleString() : selectedServiceChargeMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
                   setSelectedMonthData({
-                    partnerShare: cumulativeData.totalPartnerShare,
+                    partnerShare: actuallyPayable.partnerShareActuallyPayable,
                     monthStr: cumulativePeriodKey,
                     periodLabel: cumulativePeriodLabel,
                     isCumulative: true
@@ -1860,13 +1853,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmPartnerMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalPartnerShare === 0}
+              disabled={actuallyPayable.partnerShareActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <Users className="h-4 w-4" />
-              Pay Partner ({selectedPeriod === 'month' ? cumulativeData.totalPartnerShare.toLocaleString() : selectedPartnerMonthTotal.toLocaleString()})
+              Pay Partner ({selectedPeriod === 'month' ? actuallyPayable.partnerShareActuallyPayable.toLocaleString() : selectedPartnerMonthTotal.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
@@ -1931,7 +1924,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               onClick={() => {
                 if (selectedPeriod === 'month') {
                   // For month, directly show confirmation dialog
-                  const totalOwnerAmount = cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal;
+                  const totalOwnerAmount = actuallyPayable.ownerShareActuallyPayable;
                   setSelectedMonthData({
                     ownerShare: totalOwnerAmount,
                     ownerFullShare: totalOwnerAmount,
@@ -1945,7 +1938,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmOwnerShareMonthSelectionDialog(true);
                 }
               }}
-              disabled={cumulativeData.totalOwnerShare === 0 && cumulativeData.totalOwnerWithdrawal === 0}
+              disabled={actuallyPayable.ownerShareActuallyPayable === 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
@@ -2084,59 +2077,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               </div>
 
               {/* Action Buttons - Always show at bottom for consistent alignment */}
-              <div className="flex-1 flex flex-col justify-end border-t pt-3">
-                <div className="space-y-2">
-                  {/* GST Payment - Always shown */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">GST Payment</span>
-                    {monthData.gstPaid ? (
-                      <Badge variant="default" className="bg-green-500">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Paid
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMonthData(monthData);
-                          setConfirmGstPaymentDialog(true);
-                        }}
-                      >
-                        <CreditCard className="h-3 w-3 mr-1" />
-                        Pay GST ₹{monthData.gstAmount.toLocaleString()}
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Service Charge Collection - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.serviceCharge > 0 && (
+              {userInfo?.role !== Role.PARTNER && (
+                <div className="flex-1 flex flex-col justify-end border-t pt-3">
+                  <div className="space-y-2">
+                    {/* GST Payment - Always shown */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Service Charge</span>
-                      {monthData.serviceChargeCollected ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmServiceChargeDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Service Charges ₹{monthData.serviceCharge.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Partner Payment - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.partnerShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Partner Share</span>
-                      {monthData.partnerPaid ? (
+                      <span className="text-sm">GST Payment</span>
+                      {monthData.gstPaid ? (
                         <Badge variant="default" className="bg-green-500">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Paid
@@ -2146,65 +2093,118 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           size="sm"
                           onClick={() => {
                             setSelectedMonthData(monthData);
-                            setConfirmPartnerPaymentDialog(true);
+                            setConfirmGstPaymentDialog(true);
                           }}
+                          disabled={monthData.gstAmount <= 0}
                         >
-                          <Banknote className="h-3 w-3 mr-1" />
-                          Pay Partner ₹{monthData.partnerShare.toLocaleString()}
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Pay GST ₹{monthData.gstAmount.toLocaleString()}
                         </Button>
                       )}
                     </div>
-                  )}
 
-                  {/* Owner's Share Collection - Only for partner taxis */}
-                  {vehicle?.isPartnership === true && monthData.ownerShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Owner's Share</span>
-                      {monthData.ownerShareCollected ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmOwnerShareDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Owner Share ₹{monthData.ownerShare.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    {/* Service Charge Collection - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.serviceCharge > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Service Charge</span>
+                        {monthData.serviceChargeCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmServiceChargeDialog(true);
+                            }}
+                            disabled={monthData.serviceCharge <= 0}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Service Charges ₹{monthData.serviceCharge.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Owner's Withdrawal - Only for company-owned taxis */}
-                  {!vehicle?.isPartnership && monthData.ownerFullShare > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Owner's Share</span>
-                      {monthData.ownerWithdrawn ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Withdrawn
-                        </Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMonthData(monthData);
-                            setConfirmOwnerWithdrawalDialog(true);
-                          }}
-                        >
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          Withdraw Owner Share ₹{monthData.ownerFullShare.toLocaleString()}
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    {/* Partner Payment - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.partnerShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Partner Share</span>
+                        {monthData.partnerPaid ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmPartnerPaymentDialog(true);
+                            }}
+                            disabled={monthData.partnerShare <= 0}
+                          >
+                            <Banknote className="h-3 w-3 mr-1" />
+                            Pay Partner ₹{monthData.partnerShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner's Share Collection - Only for partner taxis */}
+                    {vehicle?.isPartnership === true && monthData.ownerShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Owner's Share</span>
+                        {monthData.ownerShareCollected ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmOwnerShareDialog(true);
+                            }}
+                            disabled={monthData.ownerShare <= 0}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Owner Share ₹{monthData.ownerShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner's Withdrawal - Only for company-owned taxis */}
+                    {!vehicle?.isPartnership && monthData.ownerFullShare > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Owner's Share</span>
+                        {monthData.ownerWithdrawn ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Withdrawn
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMonthData(monthData);
+                              setConfirmOwnerWithdrawalDialog(true);
+                            }}
+                            disabled={monthData.ownerFullShare <= 0}
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Withdraw Owner Share ₹{monthData.ownerFullShare.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -2659,7 +2659,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         </p>
                         {(() => {
                           const gstMonths = monthlyData
-                            .filter(m => m.gstAmount > 0)
+                            .filter(m => m.gstAmount > 0 && !m.gstPaid)
                             .map(m => ({
                               month: m.month,
                               monthName: m.monthName,
@@ -2790,7 +2790,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       const serviceChargeMonths = months
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
-                          return monthData && monthData.serviceCharge > 0 ? {
+                          return monthData && monthData.serviceCharge > 0 && !monthData.serviceChargeCollected ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             serviceCharge: monthData.serviceCharge,
@@ -2992,7 +2992,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       const partnerMonths = months
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
-                          return monthData && monthData.partnerShare > 0 ? {
+                          return monthData && monthData.partnerShare > 0 && !monthData.partnerPaid ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             partnerShare: monthData.partnerShare,
@@ -3070,7 +3070,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     </p>
                     {(() => {
                       const partnerMonths = monthlyData
-                        .filter(m => m.partnerShare > 0)
+                        .filter(m => m.partnerShare > 0 && !m.partnerPaid)
                         .map(m => ({
                           month: m.month,
                           monthName: m.monthName,
@@ -3195,7 +3195,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                         .map(monthIndex => {
                           const monthData = monthlyData.find(m => m.month === monthIndex);
                           const totalOwnerAmount = (monthData?.ownerShare || 0) + (monthData?.ownerFullShare || 0);
-                          return monthData && totalOwnerAmount > 0 ? {
+                          return monthData && totalOwnerAmount > 0 && !(monthData.ownerShareCollected || monthData.ownerWithdrawn) ? {
                             month: monthIndex,
                             monthName: new Date(parseInt(selectedYear), monthIndex).toLocaleString('default', { month: 'long' }),
                             ownerShare: totalOwnerAmount,
@@ -3273,7 +3273,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                     </p>
                     {(() => {
                       const ownerShareMonths = monthlyData
-                        .filter(m => (m.ownerShare || 0) + (m.ownerFullShare || 0) > 0)
+                        .filter(m => (m.ownerShare || 0) + (m.ownerFullShare || 0) > 0 && !(m.ownerShareCollected || m.ownerWithdrawn))
                         .map(m => ({
                           month: m.month,
                           monthName: m.monthName,

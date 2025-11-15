@@ -8,6 +8,8 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calculator, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Role } from '@/types/user';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
@@ -46,6 +48,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
   prepaymentResults,
   processPrepayment
 }) => {
+  const { userInfo } = useAuth();
   // State for month/year selection
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -311,7 +314,7 @@ const FinancialTab: React.FC<FinancialTabProps> = ({
         )}
 
         {/* Prepayment Calculator */}
-        {vehicle.financingType === 'loan' && vehicle.loanDetails && financialData.outstandingLoan > 0 && (
+        {userInfo?.role !== Role.PARTNER && vehicle.financingType === 'loan' && vehicle.loanDetails && financialData.outstandingLoan > 0 && (
           <Card id="prepayment">
             <CardHeader>
               <SectionNumberBadge id="4" label="Prepayment Calculator" className="mb-2" />

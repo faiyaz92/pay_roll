@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { TrendingDown, TrendingUp, CreditCard, CircleDollarSign, History, AlertTriangle, Eye, FileText, ExternalLink } from 'lucide-react';
-import { Payment } from '@/types/user';
+import { Payment, Role } from '@/types/user';
+import { useAuth } from '@/contexts/AuthContext';
 import { SectionNumberBadge } from './SectionNumberBadge';
 
 interface PaymentsTabProps {
@@ -42,6 +43,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   setShowExpenseForm,
   setShowExpenseCorrectionForm
 }) => {
+  const { userInfo } = useAuth();
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [selectedDocumentUrl, setSelectedDocumentUrl] = useState<string | null>(null);
   return (
@@ -364,40 +366,44 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       </Card>
 
       {/* Quick Actions */}
-  <SectionNumberBadge id="5" label="Quick Actions" className="mb-2" />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={() => setShowEmiForm(true)}
-          className="flex items-center gap-2"
-        >
-          <CreditCard className="h-4 w-4" />
-          Record EMI Payment
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowRentForm(true)}
-          className="flex items-center gap-2"
-        >
-          <TrendingUp className="h-4 w-4" />
-          Record Rent Receipt
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowExpenseForm(true)}
-          className="flex items-center gap-2"
-        >
-          <TrendingDown className="h-4 w-4" />
-          Add Expense
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowExpenseCorrectionForm(true)}
-          className="border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2"
-        >
-          <AlertTriangle className="h-4 w-4" />
-          Correction
-        </Button>
-      </div>
+      {userInfo?.role !== Role.PARTNER && (
+        <>
+          <SectionNumberBadge id="5" label="Quick Actions" className="mb-2" />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setShowEmiForm(true)}
+              className="flex items-center gap-2"
+            >
+              <CreditCard className="h-4 w-4" />
+              Record EMI Payment
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowRentForm(true)}
+              className="flex items-center gap-2"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Record Rent Receipt
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowExpenseForm(true)}
+              className="flex items-center gap-2"
+            >
+              <TrendingDown className="h-4 w-4" />
+              Add Expense
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowExpenseCorrectionForm(true)}
+              className="border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Correction
+            </Button>
+          </div>
+        </>
+      )}
 
       {/* Document Viewing Dialog */}
       <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>

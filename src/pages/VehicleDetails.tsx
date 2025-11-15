@@ -20,7 +20,7 @@ import { firestore } from '@/config/firebase';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
 // Import types
-import { Vehicle, Assignment } from '@/types/user';
+import { Vehicle, Assignment, Role } from '@/types/user';
 import { Expense } from '@/hooks/useFirebaseData';
 
 // Import components
@@ -1888,20 +1888,24 @@ const VehicleDetails: React.FC = () => {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={exportToExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Excel
-            </Button>
-            <Button variant="outline" onClick={exportToPDF}>
-              <FileText className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
+            {userInfo?.role !== Role.PARTNER && (
+              <>
+                <Button variant="outline" onClick={exportToExcel}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button variant="outline" onClick={exportToPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
+                <Button>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Edit Vehicle
+                </Button>
+              </>
+            )}
             <Button variant="outline" onClick={() => navigate('/vehicles')}>
               Back to Fleet
-            </Button>
-            <Button>
-              <Settings className="h-4 w-4 mr-2" />
-              Edit Vehicle
             </Button>
           </div>
         </div>
@@ -2056,351 +2060,361 @@ const VehicleDetails: React.FC = () => {
       </div>
 
       {/* Penalty Payment Dialog */}
-      <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>EMI Payment - Penalty Required</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedEMI && (
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <p className="text-sm text-yellow-700">
-                  <strong>EMI Details:</strong><br />
-                  Month: {selectedEMI.monthIndex + 1}<br />
-                  Due Date: {new Date(selectedEMI.scheduleItem.dueDate).toLocaleDateString()}<br />
-                  Days Overdue: {Math.ceil((new Date().getTime() - new Date(selectedEMI.scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))}<br />
-                  EMI Amount: ₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>EMI Payment - Penalty Required</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedEMI && (
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-yellow-700">
+                    <strong>EMI Details:</strong><br />
+                    Month: {selectedEMI.monthIndex + 1}<br />
+                    Due Date: {new Date(selectedEMI.scheduleItem.dueDate).toLocaleDateString()}<br />
+                    Days Overdue: {Math.ceil((new Date().getTime() - new Date(selectedEMI.scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))}<br />
+                    EMI Amount: ₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()}
+                  </p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="penalty">Penalty Amount (₹)</Label>
+                <Input
+                  id="penalty"
+                  type="number"
+                  value={penaltyAmount}
+                  onChange={(e) => setPenaltyAmount(e.target.value)}
+                  placeholder="Enter penalty amount (0 if no penalty)"
+                  min="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter 0 if no penalty was charged for this late payment.
                 </p>
               </div>
-            )}
-            <div>
-              <Label htmlFor="penalty">Penalty Amount (₹)</Label>
-              <Input
-                id="penalty"
-                type="number"
-                value={penaltyAmount}
-                onChange={(e) => setPenaltyAmount(e.target.value)}
-                placeholder="Enter penalty amount (0 if no penalty)"
-                min="0"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Enter 0 if no penalty was charged for this late payment.
-              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setPenaltyDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => {
+                  const penalty = parseFloat(penaltyAmount || '0');
+                  if (selectedEMI) {
+                    processEMIPayment(selectedEMI.monthIndex, selectedEMI.scheduleItem, penalty);
+                  }
+                }}>
+                  Record Payment
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setPenaltyDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => {
-                const penalty = parseFloat(penaltyAmount || '0');
-                if (selectedEMI) {
-                  processEMIPayment(selectedEMI.monthIndex, selectedEMI.scheduleItem, penalty);
-                }
-              }}>
-                Record Payment
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Expense Dialog */}
-      <Dialog open={addExpenseDialogOpen} onOpenChange={(open) => {
-        setAddExpenseDialogOpen(open);
-        if (!open) {
-          // Reset any state if needed when closing
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Expense</DialogTitle>
-          </DialogHeader>
-          <AddExpenseForm
-            vehicleId={vehicleId!}
-            onSuccess={() => {
-              setAddExpenseDialogOpen(false);
-              // Refresh data if needed
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}      {/* Add Expense Dialog */}
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={addExpenseDialogOpen} onOpenChange={(open) => {
+          setAddExpenseDialogOpen(open);
+          if (!open) {
+            // Reset any state if needed when closing
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Expense</DialogTitle>
+            </DialogHeader>
+            <AddExpenseForm
+              vehicleId={vehicleId!}
+              onSuccess={() => {
+                setAddExpenseDialogOpen(false);
+                // Refresh data if needed
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* EMI Payment Modal */}
-      <Dialog open={showEmiForm} onOpenChange={setShowEmiForm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Record EMI Payment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="emi-date">Payment Date</Label>
-              <Input
-                id="emi-date"
-                type="date"
-                defaultValue={new Date().toISOString().split('T')[0]}
-              />
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={showEmiForm} onOpenChange={setShowEmiForm}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record EMI Payment</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="emi-date">Payment Date</Label>
+                <Input
+                  id="emi-date"
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emi-amount">EMI Amount</Label>
+                <Input
+                  id="emi-amount"
+                  type="number"
+                  placeholder="Enter EMI amount"
+                  defaultValue={vehicle.loanDetails?.emiPerMonth?.toString() || ''}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emi-method">Payment Method</Label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emi-reference">Transaction Reference</Label>
+                <Input
+                  id="emi-reference"
+                  placeholder="Enter transaction ID or reference"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowEmiForm(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => {
+                  toast({
+                    title: "EMI Payment Recorded",
+                    description: "EMI payment has been successfully recorded.",
+                  });
+                  setShowEmiForm(false);
+                }}>
+                  Record Payment
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="emi-amount">EMI Amount</Label>
-              <Input
-                id="emi-amount"
-                type="number"
-                placeholder="Enter EMI amount"
-                defaultValue={vehicle.loanDetails?.emiPerMonth?.toString() || ''}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emi-method">Payment Method</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emi-reference">Transaction Reference</Label>
-              <Input
-                id="emi-reference"
-                placeholder="Enter transaction ID or reference"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowEmiForm(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => {
-                toast({
-                  title: "EMI Payment Recorded",
-                  description: "EMI payment has been successfully recorded.",
-                });
-                setShowEmiForm(false);
-              }}>
-                Record Payment
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Rent Receipt Modal */}
-      <Dialog open={showRentForm} onOpenChange={setShowRentForm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Record Rent Receipt</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="rent-date">Receipt Date</Label>
-              <Input
-                id="rent-date"
-                type="date"
-                defaultValue={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rent-amount">Rent Amount</Label>
-              <Input
-                id="rent-amount"
-                type="number"
-                placeholder="Enter rent amount received"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rent-driver">Driver Name</Label>
-              <Input
-                id="rent-driver"
-                placeholder="Enter driver name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rent-period">Rent Period</Label>
-              <Input
-                id="rent-period"
-                placeholder="e.g., January 2024"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rent-method">Payment Method</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowRentForm(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => {
-                toast({
-                  title: "Rent Receipt Recorded",
-                  description: "Rent receipt has been successfully recorded.",
-                });
-                setShowRentForm(false);
-              }}>
-                Record Receipt
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Expense Modal */}
-      <Dialog open={showExpenseForm} onOpenChange={(open) => {
-        setShowExpenseForm(open);
-        if (open) {
-          // Reset form state when dialog opens
-          setSelectedExpenseType('fuel');
-          setNewExpense({
-            amount: '',
-            description: '',
-            type: 'fuel',
-            // Reset proration fields
-            isAdvance: false,
-            coverageStartDate: '',
-            coverageEndDate: '',
-            coverageMonths: 0
-          });
-          setInsuranceExpenseData({
-            driverId: '',
-            insuranceType: 'fix_insurance',
-            policyNumber: '',
-            vendor: '',
-            startDate: '',
-            endDate: '',
-            receiptNumber: '',
-            notes: '',
-            isAdvance: false
-          });
-        }
-        // Remove state reset when dialog closes - let handleAddExpense handle it after successful save
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Record Expense</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="expense-type">Expense Type</Label>
-              <select
-                id="expense-type"
-                value={selectedExpenseType}
-                onChange={(e) => setSelectedExpenseType(e.target.value as typeof selectedExpenseType)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="fuel">Fuel</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="penalties">Penalty/Fine</option>
-                <option value="general">General</option>
-              </select>
-            </div>
-            {selectedExpenseType === 'fuel' ? (
-              <AddFuelRecordForm onSuccess={handleFuelRecordAdded} />
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="expense-date">Expense Date</Label>
-                  <Input
-                    id="expense-date"
-                    type="date"
-                    defaultValue={new Date().toISOString().split('T')[0]}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expense-amount">Amount</Label>
-                  <Input
-                    id="expense-amount"
-                    type="number"
-                    placeholder="Enter expense amount"
-                    value={newExpense.amount}
-                    onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expense-description">Description</Label>
-                  <Input
-                    id="expense-description"
-                    placeholder="Enter expense description"
-                    value={newExpense.description}
-                    onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expense-method">Payment Method</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={showRentForm} onOpenChange={setShowRentForm}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record Rent Receipt</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="rent-date">Receipt Date</Label>
+                <Input
+                  id="rent-date"
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rent-amount">Rent Amount</Label>
+                <Input
+                  id="rent-amount"
+                  type="number"
+                  placeholder="Enter rent amount received"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rent-driver">Driver Name</Label>
+                <Input
+                  id="rent-driver"
+                  placeholder="Enter driver name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rent-period">Rent Period</Label>
+                <Input
+                  id="rent-period"
+                  placeholder="e.g., January 2024"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rent-method">Payment Method</Label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                       <SelectItem value="upi">UPI</SelectItem>
-                      <SelectItem value="credit_card">Credit Card</SelectItem>
                       <SelectItem value="cheque">Cheque</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
+                  <Button variant="outline" onClick={() => setShowRentForm(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddExpense}>
-                    Record Expense
+                  <Button onClick={() => {
+                    toast({
+                      title: "Rent Receipt Recorded",
+                      description: "Rent receipt has been successfully recorded.",
+                    });
+                    setShowRentForm(false);
+                  }}>
+                    Record Receipt
                   </Button>
                 </div>
               </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
+
+      {/* Expense Modal */}
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={showExpenseForm} onOpenChange={(open) => {
+          setShowExpenseForm(open);
+          if (open) {
+            // Reset form state when dialog opens
+            setSelectedExpenseType('fuel');
+            setNewExpense({
+              amount: '',
+              description: '',
+              type: 'fuel',
+              // Reset proration fields
+              isAdvance: false,
+              coverageStartDate: '',
+              coverageEndDate: '',
+              coverageMonths: 0
+            });
+            setInsuranceExpenseData({
+              driverId: '',
+              insuranceType: 'fix_insurance',
+              policyNumber: '',
+              vendor: '',
+              startDate: '',
+              endDate: '',
+              receiptNumber: '',
+              notes: '',
+              isAdvance: false
+            });
+          }
+          // Remove state reset when dialog closes - let handleAddExpense handle it after successful save
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Record Expense</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="expense-type">Expense Type</Label>
+                <select
+                  id="expense-type"
+                  value={selectedExpenseType}
+                  onChange={(e) => setSelectedExpenseType(e.target.value as typeof selectedExpenseType)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="fuel">Fuel</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="penalties">Penalty/Fine</option>
+                  <option value="general">General</option>
+                </select>
+              </div>
+              {selectedExpenseType === 'fuel' ? (
+                <AddFuelRecordForm onSuccess={handleFuelRecordAdded} />
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="expense-date">Expense Date</Label>
+                    <Input
+                      id="expense-date"
+                      type="date"
+                      defaultValue={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expense-amount">Amount</Label>
+                    <Input
+                      id="expense-amount"
+                      type="number"
+                      placeholder="Enter expense amount"
+                      value={newExpense.amount}
+                      onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expense-description">Description</Label>
+                    <Input
+                      id="expense-description"
+                      placeholder="Enter expense description"
+                      value={newExpense.description}
+                      onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expense-method">Payment Method</Label>
+                    <Select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="upi">UPI</SelectItem>
+                        <SelectItem value="credit_card">Credit Card</SelectItem>
+                        <SelectItem value="cheque">Cheque</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setShowExpenseForm(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddExpense}>
+                      Record Expense
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Expense Correction Modal */}
-      <Dialog open={showExpenseCorrectionForm} onOpenChange={(open) => {
-        setShowExpenseCorrectionForm(open);
-        if (!open) {
-          // Reset form state when dialog closes
-          setSelectedExpenseType('fuel');
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-orange-600">
-              <AlertTriangle className="h-5 w-5" />
-              Expense Correction
-            </DialogTitle>
-            <DialogDescription className="text-left">
-              <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
-                <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Important Notes:</p>
-                <ul className="text-sm text-orange-700 space-y-1">
-                  <li>• Corrections create new entries, not modify existing ones</li>
-                  <li>• Use positive amounts to add to previous transactions</li>
-                  <li>• Use negative amounts to subtract from previous transactions</li>
-                  <li>• Always reference the original transaction ID</li>
-                </ul>
-              </div>
-              <p className="text-sm text-gray-600">
-                Enter the transaction ID you want to correct and the adjustment amount.
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <AddFuelRecordForm 
-            onSuccess={() => setShowExpenseCorrectionForm(false)} 
-            isCorrection={true} 
-          />
-        </DialogContent>
-      </Dialog>
+      {userInfo?.role !== Role.PARTNER && (
+        <Dialog open={showExpenseCorrectionForm} onOpenChange={(open) => {
+          setShowExpenseCorrectionForm(open);
+          if (!open) {
+            // Reset form state when dialog closes
+            setSelectedExpenseType('fuel');
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-orange-600">
+                <AlertTriangle className="h-5 w-5" />
+                Expense Correction
+              </DialogTitle>
+              <DialogDescription className="text-left">
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                  <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Important Notes:</p>
+                  <ul className="text-sm text-orange-700 space-y-1">
+                    <li>• Corrections create new entries, not modify existing ones</li>
+                    <li>• Use positive amounts to add to previous transactions</li>
+                    <li>• Use negative amounts to subtract from previous transactions</li>
+                    <li>• Always reference the original transaction ID</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Enter the transaction ID you want to correct and the adjustment amount.
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <AddFuelRecordForm 
+              onSuccess={() => setShowExpenseCorrectionForm(false)} 
+              isCorrection={true} 
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

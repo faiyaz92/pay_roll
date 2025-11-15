@@ -69,12 +69,20 @@ const FinancialPage: React.FC = () => {
     return () => unsubscribe();
   }, [userInfo?.companyId]);
 
-  // Calculate company-wide cash in hand
+  // Calculate cash in hand (filtered for partners)
   useEffect(() => {
     if (!userInfo?.companyId) return;
 
+    // Filter vehicles based on user role
+    const userVehicles = vehicles.filter(vehicle => {
+      if (userInfo?.role === 'partner') {
+        return vehicle.partnerId && vehicle.partnerId === userInfo.userId;
+      }
+      return true; // Company admin sees all vehicles
+    });
+
     let totalCash = 0;
-    const cashPromises = vehicles.map(vehicle => {
+    const cashPromises = userVehicles.map(vehicle => {
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicle.id);
       return new Promise<number>((resolve) => {
         const unsubscribe = onSnapshot(cashRef, (doc) => {
@@ -89,7 +97,20 @@ const FinancialPage: React.FC = () => {
     Promise.all(cashPromises).then(balances => {
       setCompanyCashInHand(balances.reduce((sum, balance) => sum + balance, 0));
     });
-  }, [userInfo?.companyId, vehicles]);
+  }, [userInfo?.companyId, vehicles, userInfo]);
+
+  // Filter accounting transactions for partner's vehicles only
+  const filteredAccountingTransactions = useMemo(() => {
+    if (userInfo?.role === 'partner') {
+      const partnerVehicles = vehicles.filter(vehicle => 
+        vehicle.partnerId && vehicle.partnerId === userInfo.userId
+      );
+      return accountingTransactions.filter(transaction => 
+        partnerVehicles.some(vehicle => vehicle.id === transaction.vehicleId)
+      );
+    }
+    return accountingTransactions;
+  }, [userInfo?.role, userInfo?.userId, vehicles, accountingTransactions]);
 
   // Fetch partners for partner selection dropdown
   useEffect(() => {
@@ -149,13 +170,21 @@ const FinancialPage: React.FC = () => {
       periodLabel = `${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year} (Monthly)`;
     }
 
-    // Aggregate data across all vehicles
+    // Filter vehicles based on user role for partners
+    const filteredVehicles = vehicles.filter(vehicle => {
+      if (userInfo?.role === 'partner') {
+        return vehicle.partnerId && vehicle.partnerId === userInfo.userId;
+      }
+      return true; // Company admin sees all vehicles
+    });
+
+    // Aggregate data across filtered vehicles
     let totalEarnings = 0;
     let totalExpenses = 0;
-    let totalVehicles = vehicles.length;
+    let totalVehicles = filteredVehicles.length;
     let activeVehicles = 0;
 
-    const vehicleData = vehicles.map(vehicle => {
+    const vehicleData = filteredVehicles.map(vehicle => {
       const financialData = getVehicleFinancialData(vehicle.id);
 
       // Filter payments and expenses for this month
@@ -180,9 +209,9 @@ const FinancialPage: React.FC = () => {
       // GST calculation (4% - only if profit is positive)
       const gstAmount = vehicleProfit > 0 ? vehicleProfit * 0.04 : 0;
 
-      // Service charge (10% for partner taxis - only if profit is positive)
+      // Service charge (configurable percentage for partner taxis - only if profit is positive)
       const isPartnerTaxi = vehicle.ownershipType === 'partner';
-      const serviceChargeRate = vehicle.serviceChargeRate || 0.10; // Default 10%
+      const serviceChargeRate = (vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
       const serviceCharge = isPartnerTaxi && vehicleProfit > 0 ? vehicleProfit * serviceChargeRate : 0;
 
       // Partner share (configurable percentage after GST and service charge - only if remaining profit is positive)
@@ -223,6 +252,19 @@ const FinancialPage: React.FC = () => {
 
     const totalProfit = totalEarnings - totalExpenses;
 
+    // Filter payments and expenses for partner's vehicles only
+    const filteredPayments = userInfo?.role === 'partner' 
+      ? payments.filter(payment => 
+          filteredVehicles.some(vehicle => vehicle.id === payment.vehicleId)
+        )
+      : payments;
+
+    const filteredExpenses = userInfo?.role === 'partner'
+      ? expenses.filter(expense => 
+          filteredVehicles.some(vehicle => vehicle.id === expense.vehicleId)
+        )
+      : expenses;
+
     return {
       selectedYear,
       selectedMonth,
@@ -238,10 +280,10 @@ const FinancialPage: React.FC = () => {
       totalVehicles,
       activeVehicles,
       vehicleData,
-      payments, // Add payments data
-      expenses  // Add expenses data
+      payments: filteredPayments, // Filtered payments data for partners
+      expenses: filteredExpenses  // Filtered expenses data for partners
     };
-  }, [selectedYear, selectedMonth, selectedQuarter, filterType, partnerFilter, selectedPartner, vehicles, payments, expenses, accountingTransactions, getVehicleFinancialData]);
+  }, [selectedYear, selectedMonth, selectedQuarter, filterType, partnerFilter, selectedPartner, vehicles, payments, expenses, accountingTransactions, getVehicleFinancialData, userInfo]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -475,7 +517,7 @@ const FinancialPage: React.FC = () => {
         <TabsContent value="accounts">
           <FinancialAccountsTab
             companyFinancialData={companyFinancialData}
-            accountingTransactions={accountingTransactions}
+            accountingTransactions={filteredAccountingTransactions}
             setAccountingTransactions={setAccountingTransactions}
           />
         </TabsContent>

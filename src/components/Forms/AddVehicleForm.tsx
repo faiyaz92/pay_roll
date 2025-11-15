@@ -5,7 +5,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -65,6 +65,7 @@ const vehicleSchema = z.object({
   partnerId: z.string().optional(),
   partnerPaymentAmount: z.number().min(0, 'Partner payment must be positive').optional(),
   partnershipPercentage: z.number().min(0).max(100, 'Partnership percentage must be between 0 and 100').optional(),
+  serviceChargeRate: z.number().min(0).max(100, 'Service charge rate must be between 0 and 100').optional(),
 });
 
 type VehicleFormData = z.infer<typeof vehicleSchema>;
@@ -151,6 +152,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
       partnerId: vehicle?.partnerId || '',
       partnerPaymentAmount: vehicle?.partnerPaymentAmount || 0,
       partnershipPercentage: vehicle?.partnershipPercentage || 0,
+      serviceChargeRate: vehicle?.serviceChargeRate || 0,
     },
   });
 
@@ -189,30 +191,20 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
     }
   }, [watchLoanAmount, watchInterestRate, watchTenureMonths, watchFinancingType, form]);
 
-  // Auto-calculate partnership percentage when partner payment amount changes
+  // Set default partnership percentage and service charge when partnership is enabled
   useEffect(() => {
-    if (watchIsPartnership && watchPartnerPaymentAmount && watchPartnerPaymentAmount > 0) {
-      let percentage = 0;
-      
-      if (watchFinancingType === 'cash') {
-        // For cash vehicles: partnership % = (partner payment / vehicle cost) * 100
-        if (watchPurchasePrice > 0) {
-          percentage = (watchPartnerPaymentAmount / watchPurchasePrice) * 100;
-        }
-      } else if (watchFinancingType === 'loan') {
-        // For loan vehicles: partnership % = (partner payment / down payment) * 100
-        if (watchDownPayment > 0) {
-          percentage = (watchPartnerPaymentAmount / watchDownPayment) * 100;
-        }
+    if (watchIsPartnership) {
+      // Set default 10% partnership when enabled (if not already set)
+      const currentPercentage = form.watch('partnershipPercentage');
+      if (currentPercentage === 0 || currentPercentage === undefined) {
+        form.setValue('partnershipPercentage', 10);
       }
-      
-      // Round to 2 decimal places and ensure it's not more than 100%
-      percentage = Math.min(Math.round(percentage * 100) / 100, 100);
-      form.setValue('partnershipPercentage', percentage);
     } else {
+      // Reset to 0 when partnership is disabled
       form.setValue('partnershipPercentage', 0);
+      form.setValue('serviceChargeRate', 0);
     }
-  }, [watchIsPartnership, watchPartnerPaymentAmount, watchPurchasePrice, watchDownPayment, watchFinancingType, form]);
+  }, [watchIsPartnership, form]);
 
   // Fetch partners for partnership dropdown
   useEffect(() => {
@@ -448,6 +440,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           partnerId: data.partnerId || '',
           partnerPaymentAmount: data.partnerPaymentAmount || 0,
           partnershipPercentage: data.partnershipPercentage || 0,
+          serviceChargeRate: data.serviceChargeRate || 0,
           
           insuranceProvider: data.insuranceProvider,
           insurancePolicyNumber: data.insurancePolicyNumber,
@@ -550,6 +543,7 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
           partnerId: data.partnerId || '',
           partnerPaymentAmount: data.partnerPaymentAmount || 0,
           partnershipPercentage: data.partnershipPercentage || 0,
+          serviceChargeRate: data.serviceChargeRate || 0,
 
           // Insurance Details
           insuranceProvider: data.insuranceProvider,
@@ -1370,6 +1364,58 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
+                        name="partnershipPercentage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Partnership Percentage (%)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="e.g., 10, 15, 20"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                {...field}
+                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Enter partnership percentage (e.g., 10 for 10%, 15 for 15%)
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="serviceChargeRate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Service Charge Rate (%)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="e.g., 5, 10"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                {...field}
+                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Service charge deducted from profits before partner share
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
                         name="partnerId"
                         render={({ field }) => (
                           <FormItem>
@@ -1444,9 +1490,10 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Profit/Loss Sharing</h4>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Profit/Loss Sharing & Service Charges</h4>
                       <div className="text-xs text-gray-700 space-y-1">
-                        <p>• Partner will receive {form.watch('partnershipPercentage') || 0}% of monthly profits</p>
+                        <p>• Partner will receive {form.watch('partnershipPercentage') || 0}% of monthly profits after service charges</p>
+                        <p>• Service charge of {form.watch('serviceChargeRate') || 0}% will be deducted from profits before partner share</p>
                         <p>• Partner will bear {form.watch('partnershipPercentage') || 0}% of monthly losses (including EMI when idle)</p>
                         <p>• Monthly settlements will be calculated automatically</p>
                       </div>
