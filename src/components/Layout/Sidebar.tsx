@@ -23,6 +23,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
   { name: 'Vehicles', href: '/vehicles', icon: Car, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
   { name: 'Financial', href: '/financial', icon: Calculator, roles: [Role.COMPANY_ADMIN, Role.PARTNER] },
+  { name: 'My Details', href: 'partner-details', icon: Users, roles: [Role.PARTNER], dynamic: true },
   { name: 'Drivers', href: '/drivers', icon: Users, roles: [Role.COMPANY_ADMIN] },
   { name: 'Partners', href: '/partners', icon: UserPlus, roles: [Role.COMPANY_ADMIN] },
   { name: 'Assignments', href: '/assignments', icon: FileText, roles: [Role.COMPANY_ADMIN] },
@@ -77,11 +78,14 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1">
         {filteredNavigation.map((item) => {
-          const isActive = location.pathname === item.href;
+          const isActive = location.pathname === item.href || 
+            (item.dynamic && location.pathname === `/partners/${userInfo?.userId}`);
+          const href = item.dynamic ? `/partners/${userInfo?.userId}` : item.href;
+          
           return (
             <NavLink
               key={item.name}
-              to={item.href}
+              to={href}
               className={cn(
                 "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                 isActive

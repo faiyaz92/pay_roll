@@ -23,10 +23,13 @@ import {
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddVehicleForm from '@/components/Forms/AddVehicleForm';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { Role } from '@/types/user';
 
 const Vehicles: React.FC = () => {
   const navigate = useNavigate();
+  const { userInfo } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -126,15 +129,25 @@ const Vehicles: React.FC = () => {
 
     const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    // For partners, only show vehicles where they are the partner
+    const matchesPartner = userInfo?.role === Role.PARTNER 
+      ? (vehicle.partnerId && vehicle.partnerId === userInfo.userId)
+      : true;
+
+    return matchesSearch && matchesStatus && matchesPartner;
   });
 
   const getVehicleStats = () => {
-    const total = vehicles.length;
-    const available = vehicles.filter(v => v.status === 'available').length;
-    const rented = vehicles.filter(v => v.status === 'rented').length;
-    const maintenance = vehicles.filter(v => v.status === 'maintenance').length;
-    const loanActive = vehicles.filter(v => v.financialStatus === 'loan_active').length;
+    // For partners, only count their vehicles
+    const relevantVehicles = userInfo?.role === Role.PARTNER 
+      ? vehicles.filter(v => v.partnerId && v.partnerId === userInfo.userId)
+      : vehicles;
+
+    const total = relevantVehicles.length;
+    const available = relevantVehicles.filter(v => v.status === 'available').length;
+    const rented = relevantVehicles.filter(v => v.status === 'rented').length;
+    const maintenance = relevantVehicles.filter(v => v.status === 'maintenance').length;
+    const loanActive = relevantVehicles.filter(v => v.financialStatus === 'loan_active').length;
 
     return { total, available, rented, maintenance, loanActive };
   };
@@ -165,15 +178,17 @@ const Vehicles: React.FC = () => {
           </p>
         </div>
 
-        {/* Add Vehicle Modal */}
-        <AddItemModal
-          isOpen={showAddModal}
-          onOpenChange={setShowAddModal}
-          title="Add New Vehicle to Fleet"
-          buttonText="Add Vehicle"
-        >
-          <AddVehicleForm onSuccess={() => setShowAddModal(false)} />
-        </AddItemModal>
+        {/* Add Vehicle Modal - Only show for admins */}
+        {userInfo?.role === Role.COMPANY_ADMIN && (
+          <AddItemModal
+            isOpen={showAddModal}
+            onOpenChange={setShowAddModal}
+            title="Add New Vehicle to Fleet"
+            buttonText="Add Vehicle"
+          >
+            <AddVehicleForm onSuccess={() => setShowAddModal(false)} />
+          </AddItemModal>
+        )}
       </div>
 
       {/* Fleet Statistics */}
@@ -239,9 +254,13 @@ const Vehicles: React.FC = () => {
             <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
             <p className="text-gray-600 mb-4">
-              {vehicles.length === 0
-                ? "Get started by adding your first vehicle to the fleet."
-                : "Try adjusting your search or filter criteria."
+              {userInfo?.role === Role.PARTNER
+                ? vehicles.length === 0
+                  ? "No vehicles are currently assigned to your partnership."
+                  : "No vehicles match your search criteria."
+                : vehicles.length === 0
+                  ? "Get started by adding your first vehicle to the fleet."
+                  : "Try adjusting your search or filter criteria."
               }
             </p>
           </CardContent>
@@ -408,23 +427,28 @@ const Vehicles: React.FC = () => {
                     <Eye className="w-4 h-4 mr-1" />
                     View Details
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setEditVehicle(vehicle);
-                      setEditModalOpen(true);
-                    }}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteVehicle(vehicle.id)}
-                  >
-                    Delete
-                  </Button>
+                  {/* Edit and Delete buttons only for admins */}
+                  {userInfo?.role === Role.COMPANY_ADMIN && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setEditVehicle(vehicle);
+                          setEditModalOpen(true);
+                        }}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteVehicle(vehicle.id)}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -432,8 +456,8 @@ const Vehicles: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Vehicle Modal */}
-      {editVehicle && (
+      {/* Edit Vehicle Modal - Only for admins */}
+      {userInfo?.role === Role.COMPANY_ADMIN && editVehicle && (
         <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>

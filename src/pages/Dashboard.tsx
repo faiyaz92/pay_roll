@@ -22,10 +22,12 @@ import {
   Eye
 } from 'lucide-react';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { userInfo } = useAuth();
   const {
     vehicles,
     drivers,
@@ -45,21 +47,31 @@ const Dashboard: React.FC = () => {
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const currentYear = new Date(now.getFullYear(), 0, 1);
 
+    // Filter data for partners - only show their vehicles and related data
+    const isPartner = userInfo?.role === 'partner';
+    const partnerVehicles = isPartner ? vehicles.filter(v => v.partnerId === userInfo.userId) : vehicles;
+    const partnerVehicleIds = new Set(partnerVehicles.map(v => v.id));
+    
+    const partnerPayments = isPartner ? payments.filter(p => partnerVehicleIds.has(p.vehicleId)) : payments;
+    const partnerExpenses = isPartner ? expenses.filter(e => partnerVehicleIds.has(e.vehicleId)) : expenses;
+    const partnerAssignments = isPartner ? assignments.filter(a => partnerVehicleIds.has(a.vehicleId)) : assignments;
+    const partnerVehiclesWithFinancials = isPartner ? vehiclesWithFinancials.filter(v => partnerVehicleIds.has(v.id)) : vehiclesWithFinancials;
+
     // Fleet Statistics
-    const totalVehicles = vehicles.length;
-    const rentedVehicles = vehicles.filter(v => v.status === 'rented').length;
-    const availableVehicles = vehicles.filter(v => v.status === 'available').length;
-    const maintenanceVehicles = vehicles.filter(v => v.status === 'maintenance').length;
+    const totalVehicles = partnerVehicles.length;
+    const rentedVehicles = partnerVehicles.filter(v => v.status === 'rented').length;
+    const availableVehicles = partnerVehicles.filter(v => v.status === 'available').length;
+    const maintenanceVehicles = partnerVehicles.filter(v => v.status === 'maintenance').length;
     const fleetUtilization = totalVehicles > 0 ? (rentedVehicles / totalVehicles) * 100 : 0;
 
     // Financial Calculations
-    const monthlyPayments = payments.filter(p =>
+    const monthlyPayments = partnerPayments.filter(p =>
       p.status === 'paid' &&
       new Date(p.paidAt || p.collectionDate || p.createdAt) >= currentMonth
     );
     const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
-    const lastMonthPayments = payments.filter(p =>
+    const lastMonthPayments = partnerPayments.filter(p =>
       p.status === 'paid' &&
       new Date(p.paidAt || p.collectionDate || p.createdAt) >= lastMonth &&
       new Date(p.paidAt || p.collectionDate || p.createdAt) < currentMonth
@@ -68,7 +80,7 @@ const Dashboard: React.FC = () => {
     const revenueGrowth = lastMonthRevenue > 0 ? ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
 
     // Expenses calculation
-    const monthlyExpenses = expenses.filter(e =>
+    const monthlyExpenses = partnerExpenses.filter(e =>
       e.status === 'approved' &&
       new Date(e.createdAt) >= currentMonth
     );
@@ -92,27 +104,27 @@ const Dashboard: React.FC = () => {
     const profitMargin = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
 
     // Insurance Alerts
-    const expiringInsurance = vehicles.filter(v => {
+    const expiringInsurance = partnerVehicles.filter(v => {
       if (!v.insuranceExpiryDate) return false;
       const expiryDate = new Date(v.insuranceExpiryDate);
       const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       return daysLeft <= 30 && daysLeft >= 0;
     });
 
-    const expiredInsurance = vehicles.filter(v => {
+    const expiredInsurance = partnerVehicles.filter(v => {
       if (!v.insuranceExpiryDate) return false;
       const expiryDate = new Date(v.insuranceExpiryDate);
       return expiryDate < now;
     });
 
     // Recent Activities (last 10 transactions)
-    const recentPayments = payments
+    const recentPayments = partnerPayments
       .filter(p => p.status === 'paid')
       .sort((a, b) => new Date(b.paidAt || b.collectionDate || b.createdAt).getTime() -
                      new Date(a.paidAt || a.collectionDate || a.createdAt).getTime())
       .slice(0, 5);
 
-    const recentExpenses = expenses
+    const recentExpenses = partnerExpenses
       .filter(e => e.status === 'approved')
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 5);
@@ -132,15 +144,15 @@ const Dashboard: React.FC = () => {
     }))].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
 
     // Active Assignments
-    const activeAssignments = assignments.filter(a => a.status === 'active');
+    const activeAssignments = partnerAssignments.filter(a => a.status === 'active');
 
     // Pending Collections (due payments)
-    const pendingCollections = payments.filter(p =>
+    const pendingCollections = partnerPayments.filter(p =>
       p.status === 'due' || p.status === 'overdue'
     );
 
     // Due EMI and Rent Alerts (oldest one per vehicle type)
-    const dueEMIAlert = vehicles
+    const dueEMIAlert = partnerVehicles
       .filter(v => v.loanDetails?.amortizationSchedule)
       .map(vehicle => {
         const schedule = vehicle.loanDetails.amortizationSchedule;
@@ -169,10 +181,10 @@ const Dashboard: React.FC = () => {
       .filter(alert => alert !== null)
       .sort((a, b) => a!.dueDate.getTime() - b!.dueDate.getTime())[0] || null; // Get the oldest due EMI across all vehicles
 
-    const dueRentAlert = vehiclesWithFinancials
+    const dueRentAlert = partnerVehiclesWithFinancials
       .filter(v => v.assignedDriverId && v.financialData?.currentAssignment)
       .map(vehicle => {
-        const vehiclePayments = payments.filter((payment: any) => payment.vehicleId === vehicle.id);
+        const vehiclePayments = partnerPayments.filter((payment: any) => payment.vehicleId === vehicle.id);
         const startDateRaw = vehicle.financialData.currentAssignment.startDate;
         const assignmentStartDate = new Date(
           typeof startDateRaw === 'string'
@@ -254,7 +266,7 @@ const Dashboard: React.FC = () => {
         activeAssignments
       }
     };
-  }, [vehicles, vehiclesWithFinancials, drivers, assignments, payments, expenses, loading]);
+  }, [vehicles, vehiclesWithFinancials, drivers, assignments, payments, expenses, loading, userInfo]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {

@@ -33,6 +33,7 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
 const Reports: React.FC = () => {
@@ -51,6 +52,50 @@ const Reports: React.FC = () => {
     loading
   } = useFirebaseData();
 
+  const { userInfo } = useAuth();
+
+  // Filter data based on user role (partners see only their vehicles' data)
+  const filteredDataSources = useMemo(() => {
+    // Filter vehicles based on user role
+    const userVehicles = vehicles.filter(vehicle => {
+      if (userInfo?.role === 'partner') {
+        return vehicle.partnerId && vehicle.partnerId === userInfo.userId;
+      }
+      return true; // Company admin sees all vehicles
+    });
+
+    // Filter other data sources to only include data for user's vehicles
+    const userPayments = userInfo?.role === 'partner'
+      ? payments.filter(payment => userVehicles.some(vehicle => vehicle.id === payment.vehicleId))
+      : payments;
+
+    const userExpenses = userInfo?.role === 'partner'
+      ? expenses.filter(expense => userVehicles.some(vehicle => vehicle.id === expense.vehicleId))
+      : expenses;
+
+    const userAssignments = userInfo?.role === 'partner'
+      ? assignments.filter(assignment => userVehicles.some(vehicle => vehicle.id === assignment.vehicleId))
+      : assignments;
+
+    return {
+      vehicles: userVehicles,
+      payments: userPayments,
+      expenses: userExpenses,
+      assignments: userAssignments,
+      drivers // Drivers are not filtered by vehicle ownership
+    };
+  }, [vehicles, payments, expenses, assignments, userInfo]);
+
+  // Filter drivers for dropdown based on assignments with user's vehicles
+  const availableDrivers = useMemo(() => {
+    if (userInfo?.role === 'partner') {
+      return drivers.filter(driver => 
+        filteredDataSources.assignments.some(assignment => assignment.driverId === driver.id)
+      );
+    }
+    return drivers;
+  }, [drivers, filteredDataSources.assignments, userInfo?.role]);
+
   // Calculate date range
   const getDateRange = () => {
     const now = new Date();
@@ -63,19 +108,19 @@ const Reports: React.FC = () => {
   const filteredData = useMemo(() => {
     const { startDate, endDate } = getDateRange();
 
-    const filteredPayments = payments.filter(p => {
+    const filteredPayments = filteredDataSources.payments.filter(p => {
       const paymentDate = new Date(p.paidAt || p.collectionDate || p.createdAt);
       const vehicleMatch = selectedVehicle === 'all' || p.vehicleId === selectedVehicle;
       return paymentDate >= startDate && paymentDate <= endDate && vehicleMatch;
     });
 
-    const filteredExpenses = expenses.filter(e => {
+    const filteredExpenses = filteredDataSources.expenses.filter(e => {
       const expenseDate = new Date(e.createdAt);
       const vehicleMatch = selectedVehicle === 'all' || e.vehicleId === selectedVehicle;
       return expenseDate >= startDate && expenseDate <= endDate && vehicleMatch;
     });
 
-    const filteredAssignments = assignments.filter(a => {
+    const filteredAssignments = filteredDataSources.assignments.filter(a => {
       const assignmentDate = new Date(a.startDate);
       const vehicleMatch = selectedVehicle === 'all' || a.vehicleId === selectedVehicle;
       const driverMatch = selectedDriver === 'all' || a.driverId === selectedDriver;
@@ -83,7 +128,7 @@ const Reports: React.FC = () => {
     });
 
     return { filteredPayments, filteredExpenses, filteredAssignments };
-  }, [payments, expenses, assignments, dateRange, selectedVehicle, selectedDriver]);
+  }, [filteredDataSources, dateRange, selectedVehicle, selectedDriver]);
 
   // Calculate comprehensive analytics
   const analytics = useMemo(() => {
@@ -126,7 +171,7 @@ const Reports: React.FC = () => {
     const completionRate = totalAssignments > 0 ? (completedAssignments / totalAssignments) * 100 : 0;
 
     // Vehicle Performance
-    const vehiclePerformance = vehicles.map(vehicle => {
+    const vehiclePerformance = filteredDataSources.vehicles.map(vehicle => {
       const vehiclePayments = filteredPayments.filter(p => p.vehicleId === vehicle.id);
       const vehicleExpenses = filteredExpenses.filter(e => e.vehicleId === vehicle.id);
       const vehicleAssignments = filteredAssignments.filter(a => a.vehicleId === vehicle.id);
@@ -150,8 +195,8 @@ const Reports: React.FC = () => {
       };
     }).sort((a, b) => b.revenue - a.revenue);
 
-    // Driver Performance
-    const driverPerformance = drivers.map(driver => {
+    // Driver Performance - filter drivers based on assignments with user's vehicles
+    const driverPerformance = availableDrivers.map(driver => {
       const driverAssignments = filteredAssignments.filter(a => a.driverId === driver.id);
       const driverPayments = filteredPayments.filter(p => p.driverId === driver.id);
 
@@ -177,12 +222,12 @@ const Reports: React.FC = () => {
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
       const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-      const monthPayments = payments.filter(p => {
+      const monthPayments = filteredDataSources.payments.filter(p => {
         const paymentDate = new Date(p.paidAt || p.collectionDate || p.createdAt);
         return paymentDate >= monthStart && paymentDate <= monthEnd && p.status === 'paid';
       });
 
-      const monthExpenses = expenses.filter(e => {
+      const monthExpenses = filteredDataSources.expenses.filter(e => {
         const expenseDate = new Date(e.createdAt);
         return expenseDate >= monthStart && expenseDate <= monthEnd && e.status === 'approved';
       });
@@ -220,7 +265,7 @@ const Reports: React.FC = () => {
       },
       trends: monthlyTrends
     };
-  }, [filteredData, vehicles, drivers]);
+  }, [filteredData, filteredDataSources, userInfo]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -368,7 +413,7 @@ const Reports: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Vehicles</SelectItem>
-                  {vehicles.map(vehicle => (
+                  {filteredDataSources.vehicles.map(vehicle => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
                       {vehicle.make} {vehicle.model} ({vehicle.registrationNumber})
                     </SelectItem>
@@ -384,7 +429,7 @@ const Reports: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Drivers</SelectItem>
-                  {drivers.map(driver => (
+                  {availableDrivers.map(driver => (
                     <SelectItem key={driver.id} value={driver.id}>
                       {driver.name}
                     </SelectItem>
