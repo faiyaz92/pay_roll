@@ -2896,16 +2896,6 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   </div>
                 )}
 
-                {/* Debug info for service charge calculation */}
-                {vehicleInfo.vehicle.isPartnership === true && (
-                  <div className="text-xs text-gray-500 bg-yellow-50 p-1 rounded">
-                    Debug: isPartnership={String(vehicleInfo.vehicle.isPartnership)}, 
-                    serviceChargeRate={vehicleInfo.vehicle.serviceChargeRate || 10}%, 
-                    profit={vehicleInfo.profit}, 
-                    serviceCharge={vehicleInfo.serviceCharge}
-                  </div>
-                )}
-
                 {/* Partner Share (only for partner taxis) */}
                 {vehicleInfo.partnerShare > 0 && (
                   <div className="flex justify-between text-sm border-t pt-1">
@@ -2923,16 +2913,6 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                     <span className="font-bold text-green-600">
                       ₹{vehicleInfo.ownerPayment.toLocaleString()}
                     </span>
-                  </div>
-                )}
-
-                {/* Debug info for partner share calculation */}
-                {vehicleInfo.vehicle.isPartnership === true && (
-                  <div className="text-xs text-gray-500 bg-blue-50 p-1 rounded">
-                    Debug: partnershipPercentage={vehicleInfo.vehicle.partnershipPercentage || 50}%, 
-                    remainingProfit={vehicleInfo.profit - vehicleInfo.gstAmount - vehicleInfo.serviceCharge}, 
-                    partnerShare={vehicleInfo.partnerShare}, 
-                    ownerPayment={vehicleInfo.ownerPayment}
                   </div>
                 )}
 
