@@ -500,8 +500,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       }
 
       const positiveMonthIndices = breakdown
-        .map((_, index) => index)
-        .filter(index => breakdown[index].amount > 0);
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item.amount > 0)
+        .map(({ index }) => {
+          const quarterMonths = { 'Q1': [0,1,2], 'Q2': [3,4,5], 'Q3': [6,7,8], 'Q4': [9,10,11] };
+          const months = companyFinancialData.filterType === 'quarterly' 
+            ? quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths]
+            : Array.from({length: 12}, (_, i) => i);
+          return months[index];
+        });
 
       setSelectedPaymentMonths(positiveMonthIndices);
     } else if (!individualPaymentDialogOpen) {
