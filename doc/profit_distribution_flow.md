@@ -129,49 +129,74 @@ interface AccountingTransaction {
 - `completedAt`: ISO 8601 timestamp representing the last time transaction status was updated (serves as "last updated" timestamp)
 - `reversedAt`: Only present when status is 'reversed'
 
-## Section 5.1: GST Payment Button Display Logic with All Months Check
+## Section 5.1: Payment Button Display Logic with All Months Check (All Payment Types)
 
 ### Overview
-The GST payment button display follows a "thumb rule": the "Paid" status badge only shows if ALL months in the selected period have GST > 0. If any month has GST = 0 (no profit), the badge is not shown to avoid misleading users about the payment status.
+All payment button displays (GST, Service Charge, Partner Payment, Owner Payment) follow the same "thumb rule": the "Paid" status badge only shows if ALL months in the selected period have positive amounts for that payment type. If any month has amount = 0 (no profit or no applicable amount), the badge is not shown to avoid misleading users about the payment status.
 
-### allMonthsHaveGst Calculation
-Before displaying buttons, the system calculates whether all months in the period have positive GST:
+### allMonthsHaveAmount Calculation
+Before displaying buttons, the system calculates whether all months in the period have positive amounts for each payment type:
 
 ```javascript
-let allMonthsHaveGst = true;
+// Generic calculation for all payment types
+let allMonthsHaveGst = true;           // For GST payments
+let allMonthsHaveServiceCharge = true; // For Service Charge payments  
+let allMonthsHavePartnerShare = true;  // For Partner Payment
+let allMonthsHaveOwnerPayment = true;  // For Owner Payment
+
 months.forEach(monthIndex => {
   const monthProfit = calculateMonthProfit(monthIndex);
+  
+  // GST calculation (4% of profit if profit > 0)
   if (monthProfit <= 0) {
     allMonthsHaveGst = false; // GST = 0 for this month
+  }
+  
+  // Service Charge calculation (only for partner vehicles with profit)
+  if (!isPartnerVehicle || monthProfit <= 0) {
+    allMonthsHaveServiceCharge = false; // Service Charge = 0 for this month
+  }
+  
+  // Partner Share calculation (only for partner vehicles with profit)
+  if (!isPartnerVehicle || monthProfit <= 0) {
+    allMonthsHavePartnerShare = false; // Partner Share = 0 for this month
+  }
+  
+  // Owner Payment calculation (always applicable but depends on profit)
+  if (monthProfit <= 0) {
+    allMonthsHaveOwnerPayment = false; // Owner Payment = 0 for this month
   }
 });
 ```
 
-### Updated GST Button Display Logic
+### Updated Payment Button Display Logic (All Types)
 
 #### For Monthly Selection
 - **Standard logic applies** (unchanged)
-- Badge shows if GST paid for that month
+- Badge shows if payment completed for that month
 
 #### For Quarterly/Yearly Selection  
-- **If gstActuallyPayable > 0**: Show "Pay GST ₹{amount}" (enabled)
-- **If gstActuallyPayable = 0 AND allMonthsHaveGst = true**: Show "GST Paid" badge
-- **If gstActuallyPayable = 0 AND allMonthsHaveGst = false**: Show "Pay GST ₹0" (disabled)
+- **If actuallyPayable > 0**: Show "Pay [Type] ₹{amount}" (enabled)
+- **If actuallyPayable = 0 AND allMonthsHaveAmount = true**: Show "[Type] Paid" badge
+- **If actuallyPayable = 0 AND allMonthsHaveAmount = false**: Show "Pay [Type] ₹0" (disabled)
 
 ### Examples
 
 **Quarterly Example (Q4 2025 - All Months Have Profit):**
-- All 3 months have profit > 0 → `allMonthsHaveGst = true`
+- All 3 months have profit > 0 → `allMonthsHaveGst = true`, `allMonthsHaveServiceCharge = true`, etc.
 - GST paid → Shows "GST Paid" badge
+- Service Charge paid → Shows "Service Charge Collected" badge
+- Partner Payment paid → Shows "Partner Paid" badge
+- Owner Payment paid → Shows "Owner Paid" badge
 
 **Quarterly Example (Q4 2025 - Mixed Months):**
-- October: profit > 0 (GST > 0)
-- November: profit = 0 (GST = 0)  
-- December: profit > 0 (GST > 0)
-- `allMonthsHaveGst = false` (because November has GST = 0)
-- Even if GST paid for Oct/Dec → Shows "Pay GST ₹0" (disabled) instead of "Paid"
+- October: profit > 0 (all payments > 0)
+- November: profit = 0 (all payments = 0)  
+- December: profit > 0 (all payments > 0)
+- `allMonthsHaveGst = false`, `allMonthsHaveServiceCharge = false`, etc. (because November has no profit)
+- Even if payments completed for Oct/Dec → Shows "Pay [Type] ₹0" (disabled) instead of "Paid"
 
-This ensures users only see "Paid" when the entire period is actually payable and paid.
+This ensures users only see "Paid" when the entire period is actually payable and paid for all payment types.
 
 ### Query Patterns Used in Section 5
 
@@ -230,10 +255,10 @@ const transactionsToReverse = accountingTransactions.filter(t =>
 
 ## Payment Algorithm for Section 5 - All Payments Follow the Same Pattern
 
-**CRITICAL NOTE FOR AI IMPLEMENTATION**: All payment types (GST, Service Charge, Partner Payment, Owner's Share, Owner's Withdrawal) follow **EXACTLY THE SAME ALGORITHM**. The only difference is:
-- The `type` field in the transaction ('gst_payment', 'service_charge', etc.)
+**CRITICAL NOTE FOR AI IMPLEMENTATION**: All payment types (GST, Service Charge, Partner Payment, Owner Payment) follow **EXACTLY THE SAME ALGORITHM**. The only difference is:
+- The `type` field in the transaction ('gst_payment', 'service_charge', 'partner_payment', 'owner_payment')
 - The calculation formula for the base amount
-- The source field in `vehicleInfo` (gstAmount, serviceCharge, etc.)
+- The source field in `vehicleInfo` (gstAmount, serviceCharge, partnerShare, ownerPayment)
 
 The algorithm steps are identical for all payment types. Use GST as the example below, but apply the same steps to all payment types by changing only the type and amount source.
 
@@ -418,8 +443,7 @@ const PAYMENT_TYPES = {
   gst: 'gst_payment',
   serviceCharge: 'service_charge', 
   partnerPayment: 'partner_payment',
-  ownerShare: 'owner_share',
-  ownerWithdrawal: 'owner_withdrawal'
+  ownerPayment: 'owner_payment'
 };
 ```
 
@@ -429,8 +453,7 @@ const AMOUNT_SOURCES = {
   gst: 'gstAmount',
   serviceCharge: 'serviceCharge',
   partnerPayment: 'partnerShare', 
-  ownerShare: 'ownerShare',
-  ownerWithdrawal: 'ownerFullShare'
+  ownerPayment: 'ownerPayment'
 };
 ```
 
@@ -440,8 +463,7 @@ const BUTTON_TEXTS = {
   gst: 'Pay GST',
   serviceCharge: 'Withdraw Service Charge',
   partnerPayment: 'Pay Partner',
-  ownerShare: 'Withdraw Owner Share',
-  ownerWithdrawal: 'Withdraw Owner Amount'
+  ownerPayment: 'Pay Owner'
 };
 ```
 
@@ -451,8 +473,7 @@ const STATUS_TEXTS = {
   gst: 'GST Paid',
   serviceCharge: 'Service Charge Collected',
   partnerPayment: 'Partner Paid',
-  ownerShare: 'Owner Share Collected', 
-  ownerWithdrawal: 'Owner Withdrawn'
+  ownerPayment: 'Owner Paid'
 };
 ```
 
@@ -512,7 +533,7 @@ const handleGenericPayment = async (
 
 ### Payment Tracking
 All payments tracked in `accountingTransactions` collection with:
-- `type`: 'gst_payment', 'service_charge', 'partner_payment', 'owner_share', 'owner_withdrawal'
+- `type`: 'gst_payment', 'service_charge', 'partner_payment', 'owner_payment'
 - `month`: Period string from periodStrings[]
 - `status`: 'completed' (paid), 'pending', 'reversed'
 - `amount`: Payment amount
@@ -562,8 +583,7 @@ GST Button Amount = Total GST - 0 = Total GST
 Same for all payment types:
 - Service Charge Button = Total Service Charge
 - Partner Payment Button = Total Partner Share  
-- Owner's Share Button = Total Owner Share + Total Owner Full Share
-- Owner's Withdrawal Button = Total Owner's Withdrawal
+- Owner Payment Button = Total Owner Payment
 ```
 
 #### Quarterly Selection (e.g., Q4 2025: Oct, Nov, Dec)
