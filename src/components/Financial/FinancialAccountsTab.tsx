@@ -768,37 +768,61 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     try {
       const year = parseInt(companyFinancialData.selectedYear);
       const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
-      const paymentAmount = (vehicleInfo.serviceCharge / monthsInPeriod) * (selectedMonths ? selectedMonths.length : 1);
+
+      // Generate period strings based on filter type or selected months
+      let periodStrings: string[] = [];
+      let paymentAmount: number;
+
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Bulk payment - use selected months
+        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+        paymentAmount = (vehicleInfo.serviceCharge / monthsInPeriod) * selectedMonths.length;
+      } else {
+        // Individual payment - use entire period
+        if (companyFinancialData.filterType === 'monthly') {
+          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
+        } else if (companyFinancialData.filterType === 'quarterly') {
+          const quarterMonths = {
+            'Q1': ['01', '02', '03'],
+            'Q2': ['04', '05', '06'],
+            'Q3': ['07', '08', '09'],
+            'Q4': ['10', '11', '12']
+          };
+          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
+        } else {
+          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+        }
+        paymentAmount = vehicleInfo.serviceCharge;
+      }
+
       const paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       const newTransactions: AccountingTransaction[] = [];
-      
-      if (selectedMonths && selectedMonths.length > 0) {
-        for (const monthIndex of selectedMonths) {
-          const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          const docRef = await addDoc(transactionRef, {
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'service_charge',
-            amount: vehicleInfo.serviceCharge / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-          newTransactions.push({
-            id: docRef.id,
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'service_charge',
-            amount: vehicleInfo.serviceCharge / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-        }
+
+      // Create transactions for all months in the period
+      for (const monthStr of periodStrings) {
+        const docRef = await addDoc(transactionRef, {
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'service_charge',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+        newTransactions.push({
+          id: docRef.id,
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'service_charge',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
       }
 
       // Update local accounting transactions state
@@ -844,37 +868,61 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     try {
       const year = parseInt(companyFinancialData.selectedYear);
       const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
-      const paymentAmount = (vehicleInfo.partnerShare / monthsInPeriod) * (selectedMonths ? selectedMonths.length : 1);
+
+      // Generate period strings based on filter type or selected months
+      let periodStrings: string[] = [];
+      let paymentAmount: number;
+
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Bulk payment - use selected months
+        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+        paymentAmount = (vehicleInfo.partnerShare / monthsInPeriod) * selectedMonths.length;
+      } else {
+        // Individual payment - use entire period
+        if (companyFinancialData.filterType === 'monthly') {
+          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
+        } else if (companyFinancialData.filterType === 'quarterly') {
+          const quarterMonths = {
+            'Q1': ['01', '02', '03'],
+            'Q2': ['04', '05', '06'],
+            'Q3': ['07', '08', '09'],
+            'Q4': ['10', '11', '12']
+          };
+          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
+        } else {
+          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+        }
+        paymentAmount = vehicleInfo.partnerShare;
+      }
+
       const paymentDescription = `Partner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
       const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
       const newTransactions: AccountingTransaction[] = [];
-      
-      if (selectedMonths && selectedMonths.length > 0) {
-        for (const monthIndex of selectedMonths) {
-          const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-          const docRef = await addDoc(transactionRef, {
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'partner_payment',
-            amount: vehicleInfo.partnerShare / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-          newTransactions.push({
-            id: docRef.id,
-            vehicleId: vehicleInfo.vehicle.id,
-            type: 'partner_payment',
-            amount: vehicleInfo.partnerShare / monthsInPeriod,
-            month: monthStr,
-            description: paymentDescription,
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          });
-        }
+
+      // Create transactions for all months in the period
+      for (const monthStr of periodStrings) {
+        const docRef = await addDoc(transactionRef, {
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'partner_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+        newTransactions.push({
+          id: docRef.id,
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'partner_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
       }
 
       // Update local accounting transactions state
@@ -918,38 +966,69 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   // Handle owner payment (consolidated for both partner and company vehicles)
   const handleOwnerPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
     try {
-      // Calculate amount based on selected months for quarterly/yearly periods
-      let paymentAmount = vehicleInfo.ownerActuallyPayable;
-      let paymentDescription = `Owner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
+      const year = parseInt(companyFinancialData.selectedYear);
+      const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
 
-      if (selectedMonths && selectedMonths.length > 0 && companyFinancialData.filterType !== 'monthly') {
-        // For quarterly/yearly with month selection, calculate owner payment for selected months only
-        const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : 12;
-        const monthlyRate = vehicleInfo.ownerActuallyPayable / monthsInPeriod;
-        paymentAmount = selectedMonths.length * monthlyRate;
-        const monthNames = selectedMonths.map(monthIdx =>
-          new Date(parseInt(companyFinancialData.selectedYear), monthIdx).toLocaleString('default', { month: 'short' })
-        ).join(', ');
-        paymentDescription = `Owner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${monthNames} ${companyFinancialData.selectedYear}`;
+      // Generate period strings based on filter type or selected months
+      let periodStrings: string[] = [];
+      let paymentAmount: number;
+
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Bulk payment - use selected months
+        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+        paymentAmount = (vehicleInfo.ownerActuallyPayable / monthsInPeriod) * selectedMonths.length;
+      } else {
+        // Individual payment - use entire period
+        if (companyFinancialData.filterType === 'monthly') {
+          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
+        } else if (companyFinancialData.filterType === 'quarterly') {
+          const quarterMonths = {
+            'Q1': ['01', '02', '03'],
+            'Q2': ['04', '05', '06'],
+            'Q3': ['07', '08', '09'],
+            'Q4': ['10', '11', '12']
+          };
+          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
+        } else {
+          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+        }
+        paymentAmount = vehicleInfo.ownerActuallyPayable;
       }
 
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      const newTransaction: AccountingTransaction = {
-        id: '', // Will be set after adding to Firestore
-        vehicleId: vehicleInfo.vehicle.id,
-        type: 'owner_payment',
-        amount: paymentAmount,
-        month: vehicleInfo.periodStr,
-        description: paymentDescription,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      };
+      const paymentDescription = `Owner Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
 
-      const docRef = await addDoc(transactionRef, newTransaction);
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      const newTransactions: AccountingTransaction[] = [];
+
+      // Create transactions for all months in the period
+      for (const monthStr of periodStrings) {
+        const docRef = await addDoc(transactionRef, {
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'owner_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+        newTransactions.push({
+          id: docRef.id,
+          vehicleId: vehicleInfo.vehicle.id,
+          type: 'owner_payment',
+          amount: paymentAmount / periodStrings.length,
+          month: monthStr,
+          description: paymentDescription,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+      }
 
       // Update local accounting transactions state
-      setAccountingTransactions([...accountingTransactions, { ...newTransaction, id: docRef.id }]);
+      if (newTransactions.length > 0) {
+        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
+      }
 
       // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
@@ -2322,6 +2401,141 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           allMonthsHaveGst = false;
         }
       });
+
+      // Calculate allMonthsHavePartnerShare - check if ALL months have positive partner share
+      let allMonthsHavePartnerShare = true;
+      if (vehicleInfo.vehicle.isPartnership === true) {
+        months.forEach(monthIndex => {
+          const monthStart = new Date(year, monthIndex, 1);
+          const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+          // Get payments and expenses for this month
+          const monthPayments = payments.filter((p: any) =>
+            p.vehicleId === vehicleInfo.vehicle.id &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+          ) || [];
+
+          const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+            e.vehicleId === vehicleInfo.vehicle.id &&
+            e.status === 'approved' &&
+            new Date(e.createdAt) >= monthStart &&
+            new Date(e.createdAt) <= monthEnd
+          ) || [];
+
+          const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+          const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+          const monthProfit = monthEarnings - monthExpensesAmount;
+
+          // Calculate monthly GST and service charge
+          const monthlyGst = monthProfit > 0 ? monthProfit * 0.04 : 0;
+          const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100;
+          const monthlyServiceCharge = monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+          // Net profit
+          const netProfit = monthProfit > 0 ? monthProfit - monthlyGst - monthlyServiceCharge : 0;
+
+          // Partner share
+          const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
+          const monthlyPartnerShare = netProfit * partnerSharePercentage;
+
+          // If any month has partner share <= 0, set flag to false
+          if (monthlyPartnerShare <= 0) {
+            allMonthsHavePartnerShare = false;
+          }
+        });
+      } else {
+        allMonthsHavePartnerShare = false; // Not a partner vehicle
+      }
+
+      // Calculate allMonthsHaveServiceCharge - check if ALL months have positive service charge
+      let allMonthsHaveServiceCharge = true;
+      if (vehicleInfo.vehicle.isPartnership === true) {
+        months.forEach(monthIndex => {
+          const monthStart = new Date(year, monthIndex, 1);
+          const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+          // Get payments and expenses for this month
+          const monthPayments = payments.filter((p: any) =>
+            p.vehicleId === vehicleInfo.vehicle.id &&
+            p.status === 'paid' &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+            new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+          ) || [];
+
+          const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+            e.vehicleId === vehicleInfo.vehicle.id &&
+            e.status === 'approved' &&
+            new Date(e.createdAt) >= monthStart &&
+            new Date(e.createdAt) <= monthEnd
+          ) || [];
+
+          const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+          const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+          const monthProfit = monthEarnings - monthExpensesAmount;
+
+          // Service charge
+          const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100;
+          const monthlyServiceCharge = monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+          // If any month has service charge <= 0, set flag to false
+          if (monthlyServiceCharge <= 0) {
+            allMonthsHaveServiceCharge = false;
+          }
+        });
+      } else {
+        allMonthsHaveServiceCharge = false; // Not a partner vehicle
+      }
+
+      // Calculate allMonthsHaveOwnerPayment - check if ALL months have positive owner payment
+      let allMonthsHaveOwnerPayment = true;
+      months.forEach(monthIndex => {
+        const monthStart = new Date(year, monthIndex, 1);
+        const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+
+        // Get payments and expenses for this month
+        const monthPayments = payments.filter((p: any) =>
+          p.vehicleId === vehicleInfo.vehicle.id &&
+          p.status === 'paid' &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
+          new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+        ) || [];
+
+        const monthExpenses = (companyFinancialData.expenses || []).filter((e: any) =>
+          e.vehicleId === vehicleInfo.vehicle.id &&
+          e.status === 'approved' &&
+          new Date(e.createdAt) >= monthStart &&
+          new Date(e.createdAt) <= monthEnd
+        ) || [];
+
+        const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
+        const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+        const monthProfit = monthEarnings - monthExpensesAmount;
+
+        // Calculate monthly GST and service charge
+        const monthlyGst = monthProfit > 0 ? monthProfit * 0.04 : 0;
+        const serviceChargeRate = (vehicleInfo.vehicle.serviceChargeRate || 10) / 100;
+        const monthlyServiceCharge = monthProfit > 0 ? monthProfit * serviceChargeRate : 0;
+
+        // Net profit
+        const netProfit = monthProfit > 0 ? monthProfit - monthlyGst - monthlyServiceCharge : 0;
+
+        // Owner payment
+        let monthlyOwnerPayment = 0;
+        if (vehicleInfo.vehicle.isPartnership === true) {
+          const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
+          const monthlyPartnerShare = netProfit * partnerSharePercentage;
+          monthlyOwnerPayment = netProfit - monthlyPartnerShare;
+        } else {
+          monthlyOwnerPayment = netProfit;
+        }
+
+        // If any month has owner payment <= 0, set flag to false
+        if (monthlyOwnerPayment <= 0) {
+          allMonthsHaveOwnerPayment = false;
+        }
+      });
       // Find current active assignment for this vehicle
       const currentAssignment = assignments.find((a: any) =>
         a.vehicleId === vehicleInfo.vehicle.id && a.status === 'active'
@@ -2532,7 +2746,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         serviceChargeActuallyPayable,
         partnerShareActuallyPayable,
         ownerActuallyPayable,
-        allMonthsHaveGst
+        allMonthsHaveGst,
+        allMonthsHavePartnerShare,
+        allMonthsHaveServiceCharge,
+        allMonthsHaveOwnerPayment
       };
     });
 
@@ -3196,8 +3413,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               );
                             }
                           } else {
-                            // For non-monthly views, use existing logic
-                            return vehicleInfo.serviceChargeCollected ? (
+                            // For non-monthly views, use thumb rule: only show Collected if all months have service charge > 0 AND serviceChargeCollected
+                            return vehicleInfo.allMonthsHaveServiceCharge && vehicleInfo.serviceChargeCollected ? (
                               <Badge variant="default" className="bg-green-500">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Collected
@@ -3209,10 +3426,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                   setSelectedVehicleForPayment(vehicleInfo);
                                   setConfirmServiceChargeDialog(true);
                                 }}
-                                disabled={vehicleInfo.serviceCharge <= 0}
+                                disabled={vehicleInfo.serviceChargeActuallyPayable <= 0}
                               >
                                 <DollarSign className="h-3 w-3 mr-1" />
-                                Withdraw ₹{vehicleInfo.serviceCharge.toLocaleString()}
+                                Collect ₹{vehicleInfo.serviceChargeActuallyPayable.toLocaleString()}
                               </Button>
                             );
                           }
@@ -3227,7 +3444,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         {(() => {
                           // For monthly view, use latest transaction status logic
                           if (companyFinancialData.filterType === 'monthly') {
-                            const monthStr = `${companyFinancialData.selectedYear}-${String(companyFinancialData.selectedMonthIndex + 1).padStart(2, '0')}`;
+                            const monthStr = `${companyFinancialData.selectedYear}-${companyFinancialData.selectedMonth.padStart(2, '0')}`;
                             const latestPartnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleInfo.vehicle.id, 'partner_payment', monthStr);
 
                             if (vehicleInfo.partnerShare <= 0) {
@@ -3273,8 +3490,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               );
                             }
                           } else {
-                            // For non-monthly views, use existing logic
-                            return vehicleInfo.partnerPaid ? (
+                            // For non-monthly views, use thumb rule: only show Paid if all months have partner share > 0 AND partnerPaid
+                            return vehicleInfo.allMonthsHavePartnerShare && vehicleInfo.partnerPaid ? (
                               <Badge variant="default" className="bg-green-500">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Paid
@@ -3286,10 +3503,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                   setSelectedVehicleForPayment(vehicleInfo);
                                   setConfirmPartnerPaymentDialog(true);
                                 }}
-                                disabled={vehicleInfo.partnerShare <= 0}
+                                disabled={vehicleInfo.partnerShareActuallyPayable <= 0}
                               >
                                 <Banknote className="h-3 w-3 mr-1" />
-                                Pay Partner ₹{vehicleInfo.partnerShare.toLocaleString()}
+                                Pay Partner ₹{vehicleInfo.partnerShareActuallyPayable.toLocaleString()}
                               </Button>
                             );
                           }
@@ -3396,8 +3613,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               );
                             }
                           } else {
-                            // For non-monthly views, use existing logic
-                            return vehicleInfo.ownerPaid ? (
+                            // For non-monthly views, use thumb rule: only show Paid if all months have owner payment > 0 AND ownerPaid
+                            return vehicleInfo.allMonthsHaveOwnerPayment && vehicleInfo.ownerPaid ? (
                               <Badge variant="default" className="bg-green-500">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Paid
