@@ -476,6 +476,65 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [confirmOwnerPaymentDialog, setConfirmOwnerPaymentDialog] = useState(false);
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState<any>(null);
 
+  // Individual payment dialog state for quarterly/yearly views
+  const [individualPaymentDialogOpen, setIndividualPaymentDialogOpen] = useState(false);
+  const [selectedPaymentType, setSelectedPaymentType] = useState<'gst' | 'service_charge' | 'partner_share' | 'owner_payment' | null>(null);
+  const [selectedVehicleForIndividualPayment, setSelectedVehicleForIndividualPayment] = useState<any>(null);
+  const [selectedPaymentMonths, setSelectedPaymentMonths] = useState<number[]>([]);
+
+  // Handler for individual payment confirmation
+  const handleIndividualPaymentConfirm = async () => {
+    if (!selectedVehicleForIndividualPayment || !selectedPaymentType || selectedPaymentMonths.length === 0) return;
+
+    setIsBulkProcessing(true);
+    try {
+      let newTransactions: AccountingTransaction[] = [];
+
+      if (selectedPaymentType === 'gst') {
+        newTransactions = await collectGstPaymentTransactions(selectedVehicleForIndividualPayment, selectedPaymentMonths);
+      } else if (selectedPaymentType === 'service_charge') {
+        newTransactions = await collectServiceChargeTransactions(selectedVehicleForIndividualPayment, selectedPaymentMonths);
+      } else if (selectedPaymentType === 'partner_share') {
+        await handlePartnerPayment(selectedVehicleForIndividualPayment, selectedPaymentMonths);
+        setIndividualPaymentDialogOpen(false);
+        setSelectedPaymentType(null);
+        setSelectedVehicleForIndividualPayment(null);
+        setSelectedPaymentMonths([]);
+        return;
+      } else if (selectedPaymentType === 'owner_payment') {
+        await handleOwnerPayment(selectedVehicleForIndividualPayment, selectedPaymentMonths);
+        setIndividualPaymentDialogOpen(false);
+        setSelectedPaymentType(null);
+        setSelectedVehicleForIndividualPayment(null);
+        setSelectedPaymentMonths([]);
+        return;
+      }
+
+      // Update state
+      if (newTransactions.length > 0) {
+        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
+      }
+
+      setIndividualPaymentDialogOpen(false);
+      setSelectedPaymentType(null);
+      setSelectedVehicleForIndividualPayment(null);
+      setSelectedPaymentMonths([]);
+
+      toast({
+        title: 'Payment Successful',
+        description: `${selectedPaymentType.replace('_', ' ').toUpperCase()} payment completed for selected months.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Payment Failed',
+        description: 'Failed to process payment. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
   // Utility function for currency formatting
   const formatCurrency = (value?: number | null) => (value ?? 0).toLocaleString();
 
@@ -665,94 +724,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   // Handle GST payment
   const handleGstPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
+    // For quarterly/yearly views without selected months, open month selection dialog
+    if ((companyFinancialData.filterType === 'quarterly' || companyFinancialData.filterType === 'yearly') && !selectedMonths) {
+      setSelectedPaymentType('gst');
+      setSelectedVehicleForIndividualPayment(vehicleInfo);
+      setSelectedPaymentMonths([]);
+      setIndividualPaymentDialogOpen(true);
+      return;
+    }
+
     try {
-      const year = parseInt(companyFinancialData.selectedYear);
-      const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
+      const newTransactions = await collectGstPaymentTransactions(vehicleInfo, selectedMonths);
+      setAccountingTransactions([...accountingTransactions, ...newTransactions]);
 
-      // Generate period strings based on filter type or selected months
-      let periodStrings: string[] = [];
-      let paymentAmount: number;
-
-      if (selectedMonths && selectedMonths.length > 0) {
-        // Bulk payment - use selected months
-        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-        paymentAmount = (vehicleInfo.gstAmount / monthsInPeriod) * selectedMonths.length;
-      } else {
-        // Individual payment - use entire period
-        if (companyFinancialData.filterType === 'monthly') {
-          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
-        } else if (companyFinancialData.filterType === 'quarterly') {
-          const quarterMonths = {
-            'Q1': ['01', '02', '03'],
-            'Q2': ['04', '05', '06'],
-            'Q3': ['07', '08', '09'],
-            'Q4': ['10', '11', '12']
-          };
-          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
-        } else {
-          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-        }
-        paymentAmount = vehicleInfo.gstAmount;
-      }
-
-      const paymentDescription = `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
-
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      const newTransactions: AccountingTransaction[] = [];
-
-      // Create transactions for all months in the period
-      for (const monthStr of periodStrings) {
-        const docRef = await addDoc(transactionRef, {
-          vehicleId: vehicleInfo.vehicle.id,
-          type: 'gst_payment',
-          amount: paymentAmount / periodStrings.length,
-          month: monthStr,
-          description: paymentDescription,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-        newTransactions.push({
-          id: docRef.id,
-          vehicleId: vehicleInfo.vehicle.id,
-          type: 'gst_payment',
-          amount: paymentAmount / periodStrings.length,
-          month: monthStr,
-          description: paymentDescription,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-      }
-
-      // Update local accounting transactions state
-      if (newTransactions.length > 0) {
-        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
-      }
-
-      // Update cash in hand for this vehicle
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
-      const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await setDoc(cashRef, {
-        balance: increment(-paymentAmount)
-      }, { merge: true });
-
-      // Update company-level cash balance
-      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-      await setDoc(companyCashRef, {
-        balance: increment(-paymentAmount),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
-
-      // Update local state
-      setVehicleCashBalances(prev => ({
-        ...prev,
-        [vehicleInfo.vehicle.id]: (prev[vehicleInfo.vehicle.id] || 0) - paymentAmount
-      }));
-
+      const paymentAmount = newTransactions.reduce((sum, t) => sum + t.amount, 0);
       toast({
-        title: 'GST Paid Successfully',
-        description: `₹${paymentAmount.toLocaleString()} GST payment recorded for ${vehicleInfo.vehicle.registrationNumber}`,
+        title: 'GST Payment Successful',
+        description: `₹${paymentAmount.toLocaleString()} GST paid for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -764,95 +752,24 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   };
 
   // Handle service charge collection
-  const handleServiceChargeCollection = async (vehicleInfo: any, selectedMonths?: number[]) => {
+  const handleServiceChargePayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
+    // For quarterly/yearly views without selected months, open month selection dialog
+    if ((companyFinancialData.filterType === 'quarterly' || companyFinancialData.filterType === 'yearly') && !selectedMonths) {
+      setSelectedPaymentType('service_charge');
+      setSelectedVehicleForIndividualPayment(vehicleInfo);
+      setSelectedPaymentMonths([]);
+      setIndividualPaymentDialogOpen(true);
+      return;
+    }
+
     try {
-      const year = parseInt(companyFinancialData.selectedYear);
-      const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
+      const newTransactions = await collectServiceChargeTransactions(vehicleInfo, selectedMonths);
+      setAccountingTransactions([...accountingTransactions, ...newTransactions]);
 
-      // Generate period strings based on filter type or selected months
-      let periodStrings: string[] = [];
-      let paymentAmount: number;
-
-      if (selectedMonths && selectedMonths.length > 0) {
-        // Bulk payment - use selected months
-        periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-        paymentAmount = (vehicleInfo.serviceCharge / monthsInPeriod) * selectedMonths.length;
-      } else {
-        // Individual payment - use entire period
-        if (companyFinancialData.filterType === 'monthly') {
-          periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
-        } else if (companyFinancialData.filterType === 'quarterly') {
-          const quarterMonths = {
-            'Q1': ['01', '02', '03'],
-            'Q2': ['04', '05', '06'],
-            'Q3': ['07', '08', '09'],
-            'Q4': ['10', '11', '12']
-          };
-          periodStrings = quarterMonths[companyFinancialData.selectedQuarter].map(m => `${year}-${m}`);
-        } else {
-          periodStrings = Array.from({length: 12}, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-        }
-        paymentAmount = vehicleInfo.serviceCharge;
-      }
-
-      const paymentDescription = `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`;
-
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      const newTransactions: AccountingTransaction[] = [];
-
-      // Create transactions for all months in the period
-      for (const monthStr of periodStrings) {
-        const docRef = await addDoc(transactionRef, {
-          vehicleId: vehicleInfo.vehicle.id,
-          type: 'service_charge',
-          amount: paymentAmount / periodStrings.length,
-          month: monthStr,
-          description: paymentDescription,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-        newTransactions.push({
-          id: docRef.id,
-          vehicleId: vehicleInfo.vehicle.id,
-          type: 'service_charge',
-          amount: paymentAmount / periodStrings.length,
-          month: monthStr,
-          description: paymentDescription,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-      }
-
-      // Update local accounting transactions state
-      if (newTransactions.length > 0) {
-        setAccountingTransactions([...accountingTransactions, ...newTransactions]);
-      }
-
-      // Update cash in hand - DECREASE when owner withdraws service charge
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleInfo.vehicle.id);
-      const currentBalance = vehicleCashBalances[vehicleInfo.vehicle.id] || 0;
-      await setDoc(cashRef, {
-        balance: increment(-paymentAmount)
-      }, { merge: true });
-
-      // Update company-level cash balance
-      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/companyCashInHand`, 'main');
-      await setDoc(companyCashRef, {
-        balance: increment(-paymentAmount),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
-
-      // Update local state
-      setVehicleCashBalances(prev => ({
-        ...prev,
-        [vehicleInfo.vehicle.id]: currentBalance - paymentAmount
-      }));
-
+      const paymentAmount = newTransactions.reduce((sum, t) => sum + t.amount, 0);
       toast({
-        title: 'Service Charge Withdrawn',
-        description: `₹${paymentAmount.toLocaleString()} service charge withdrawn for ${vehicleInfo.vehicle.registrationNumber}`,
+        title: 'Service Charge Collected',
+        description: `₹${paymentAmount.toLocaleString()} service charge collected for ${vehicleInfo.vehicle.registrationNumber}`,
       });
     } catch (error) {
       toast({
@@ -865,6 +782,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   // Handle partner payment
   const handlePartnerPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
+    // For quarterly/yearly views without selected months, open month selection dialog
+    if ((companyFinancialData.filterType === 'quarterly' || companyFinancialData.filterType === 'yearly') && !selectedMonths) {
+      setSelectedPaymentType('partner_share');
+      setSelectedVehicleForIndividualPayment(vehicleInfo);
+      setSelectedPaymentMonths([]);
+      setIndividualPaymentDialogOpen(true);
+      return;
+    }
+
     try {
       const year = parseInt(companyFinancialData.selectedYear);
       const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
@@ -874,9 +800,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       let paymentAmount: number;
 
       if (selectedMonths && selectedMonths.length > 0) {
-        // Bulk payment - use selected months
+        // Bulk payment - use actual amounts for selected months
+        const breakdown = getPartnerShareBreakdown(vehicleInfo);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-        paymentAmount = (vehicleInfo.partnerShare / monthsInPeriod) * selectedMonths.length;
+        paymentAmount = selectedMonths.reduce((sum, monthIndex) => {
+          const monthName = monthNames[monthIndex];
+          const breakdownItem = breakdown.find(b => b.month === monthName);
+          return sum + (breakdownItem?.amount || 0);
+        }, 0);
       } else {
         // Individual payment - use entire period
         if (companyFinancialData.filterType === 'monthly') {
@@ -901,11 +833,27 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const newTransactions: AccountingTransaction[] = [];
 
       // Create transactions for all months in the period
-      for (const monthStr of periodStrings) {
+      for (let i = 0; i < periodStrings.length; i++) {
+        const monthStr = periodStrings[i];
+        let amount: number;
+        
+        if (selectedMonths && selectedMonths.length > 0) {
+          // Use actual amount for this month
+          const monthIndex = selectedMonths[i];
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthName = monthNames[monthIndex];
+          const breakdown = getPartnerShareBreakdown(vehicleInfo);
+          const breakdownItem = breakdown.find(b => b.month === monthName);
+          amount = breakdownItem?.amount || 0;
+        } else {
+          // Divide equally for full period payments
+          amount = paymentAmount / periodStrings.length;
+        }
+        
         const docRef = await addDoc(transactionRef, {
           vehicleId: vehicleInfo.vehicle.id,
           type: 'partner_payment',
-          amount: paymentAmount / periodStrings.length,
+          amount: amount,
           month: monthStr,
           description: paymentDescription,
           status: 'completed',
@@ -916,7 +864,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           id: docRef.id,
           vehicleId: vehicleInfo.vehicle.id,
           type: 'partner_payment',
-          amount: paymentAmount / periodStrings.length,
+          amount: amount,
           month: monthStr,
           description: paymentDescription,
           status: 'completed',
@@ -965,6 +913,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
   // Handle owner payment (consolidated for both partner and company vehicles)
   const handleOwnerPayment = async (vehicleInfo: any, selectedMonths?: number[]) => {
+    // For quarterly/yearly views without selected months, open month selection dialog
+    if ((companyFinancialData.filterType === 'quarterly' || companyFinancialData.filterType === 'yearly') && !selectedMonths) {
+      setSelectedPaymentType('owner_payment');
+      setSelectedVehicleForIndividualPayment(vehicleInfo);
+      setSelectedPaymentMonths([]);
+      setIndividualPaymentDialogOpen(true);
+      return;
+    }
+
     try {
       const year = parseInt(companyFinancialData.selectedYear);
       const monthsInPeriod = companyFinancialData.filterType === 'quarterly' ? 3 : companyFinancialData.filterType === 'yearly' ? 12 : 1;
@@ -974,9 +931,15 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       let paymentAmount: number;
 
       if (selectedMonths && selectedMonths.length > 0) {
-        // Bulk payment - use selected months
+        // Bulk payment - use actual amounts for selected months
+        const breakdown = getOwnerShareBreakdown(vehicleInfo);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-        paymentAmount = (vehicleInfo.ownerActuallyPayable / monthsInPeriod) * selectedMonths.length;
+        paymentAmount = selectedMonths.reduce((sum, monthIndex) => {
+          const monthName = monthNames[monthIndex];
+          const breakdownItem = breakdown.find(b => b.month === monthName);
+          return sum + (breakdownItem?.amount || 0);
+        }, 0);
       } else {
         // Individual payment - use entire period
         if (companyFinancialData.filterType === 'monthly') {
@@ -1001,11 +964,27 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
       const newTransactions: AccountingTransaction[] = [];
 
       // Create transactions for all months in the period
-      for (const monthStr of periodStrings) {
+      for (let i = 0; i < periodStrings.length; i++) {
+        const monthStr = periodStrings[i];
+        let amount: number;
+        
+        if (selectedMonths && selectedMonths.length > 0) {
+          // Use actual amount for this month
+          const monthIndex = selectedMonths[i];
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthName = monthNames[monthIndex];
+          const breakdown = getOwnerShareBreakdown(vehicleInfo);
+          const breakdownItem = breakdown.find(b => b.month === monthName);
+          amount = breakdownItem?.amount || 0;
+        } else {
+          // Divide equally for full period payments
+          amount = paymentAmount / periodStrings.length;
+        }
+        
         const docRef = await addDoc(transactionRef, {
           vehicleId: vehicleInfo.vehicle.id,
           type: 'owner_payment',
-          amount: paymentAmount / periodStrings.length,
+          amount: amount,
           month: monthStr,
           description: paymentDescription,
           status: 'completed',
@@ -1016,7 +995,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
           id: docRef.id,
           vehicleId: vehicleInfo.vehicle.id,
           type: 'owner_payment',
-          amount: paymentAmount / periodStrings.length,
+          amount: amount,
           month: monthStr,
           description: paymentDescription,
           status: 'completed',
@@ -1181,7 +1160,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
             amount: vehicle.gstAmount,
-            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyGSTBreakdown(vehicle) : undefined,
+            monthBreakdown: getGSTBreakdown(vehicle),
             checked: true
           }));
         break;
@@ -1195,7 +1174,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
             amount: vehicle.serviceCharge,
-            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyServiceChargeBreakdown(vehicle) : undefined,
+            monthBreakdown: getServiceChargeBreakdown(vehicle),
             checked: true
           }));
         break;
@@ -1209,7 +1188,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
             amount: vehicle.partnerShare,
-            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyPartnerShareBreakdown(vehicle) : undefined,
+            monthBreakdown: getPartnerShareBreakdown(vehicle),
             checked: true
           }));
         break;
@@ -1223,7 +1202,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             vehicleId: vehicle.vehicle.id,
             vehicleName: vehicle.vehicle.registrationNumber,
             amount: vehicle.ownerPayment,
-            monthBreakdown: companyFinancialData.filterType === 'quarterly' ? getQuarterlyOwnerShareBreakdown(vehicle) : undefined,
+            monthBreakdown: getOwnerShareBreakdown(vehicle),
             checked: true
           }));
         break;
@@ -1273,16 +1252,23 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     setBulkDialogOpen(true);
   };
 
-  // Helper functions for quarterly breakdowns
-  const getQuarterlyGSTBreakdown = (vehicleInfo: any) => {
+  // Helper functions for period breakdowns (quarterly/yearly)
+  const getGSTBreakdown = (vehicleInfo: any) => {
     const year = parseInt(companyFinancialData.selectedYear);
-    const quarterMonths = {
-      'Q1': [0, 1, 2], // Jan, Feb, Mar
-      'Q2': [3, 4, 5], // Apr, May, Jun
-      'Q3': [6, 7, 8], // Jul, Aug, Sep
-      'Q4': [9, 10, 11] // Oct, Nov, Dec
-    };
-    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    let months: number[];
+
+    if (companyFinancialData.filterType === 'quarterly') {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    } else {
+      // yearly - all 12 months
+      months = Array.from({length: 12}, (_, i) => i);
+    }
 
     return months.map(monthIndex => {
       const monthStart = new Date(year, monthIndex, 1);
@@ -1316,15 +1302,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     });
   };
 
-  const getQuarterlyServiceChargeBreakdown = (vehicleInfo: any) => {
+  const getServiceChargeBreakdown = (vehicleInfo: any) => {
     const year = parseInt(companyFinancialData.selectedYear);
-    const quarterMonths = {
-      'Q1': [0, 1, 2], // Jan, Feb, Mar
-      'Q2': [3, 4, 5], // Apr, May, Jun
-      'Q3': [6, 7, 8], // Jul, Aug, Sep
-      'Q4': [9, 10, 11] // Oct, Nov, Dec
-    };
-    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    let months: number[];
+
+    if (companyFinancialData.filterType === 'quarterly') {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    } else {
+      // yearly - all 12 months
+      months = Array.from({length: 12}, (_, i) => i);
+    }
 
     return months.map(monthIndex => {
       const monthStart = new Date(year, monthIndex, 1);
@@ -1361,15 +1354,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     });
   };
 
-  const getQuarterlyPartnerShareBreakdown = (vehicleInfo: any) => {
+  const getPartnerShareBreakdown = (vehicleInfo: any) => {
     const year = parseInt(companyFinancialData.selectedYear);
-    const quarterMonths = {
-      'Q1': [0, 1, 2], // Jan, Feb, Mar
-      'Q2': [3, 4, 5], // Apr, May, Jun
-      'Q3': [6, 7, 8], // Jul, Aug, Sep
-      'Q4': [9, 10, 11] // Oct, Nov, Dec
-    };
-    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    let months: number[];
+
+    if (companyFinancialData.filterType === 'quarterly') {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    } else {
+      // yearly - all 12 months
+      months = Array.from({length: 12}, (_, i) => i);
+    }
 
     return months.map(monthIndex => {
       const monthStart = new Date(year, monthIndex, 1);
@@ -1412,15 +1412,22 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     });
   };
 
-  const getQuarterlyOwnerShareBreakdown = (vehicleInfo: any) => {
+  const getOwnerShareBreakdown = (vehicleInfo: any) => {
     const year = parseInt(companyFinancialData.selectedYear);
-    const quarterMonths = {
-      'Q1': [0, 1, 2], // Jan, Feb, Mar
-      'Q2': [3, 4, 5], // Apr, May, Jun
-      'Q3': [6, 7, 8], // Jul, Aug, Sep
-      'Q4': [9, 10, 11] // Oct, Nov, Dec
-    };
-    const months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    let months: number[];
+
+    if (companyFinancialData.filterType === 'quarterly') {
+      const quarterMonths = {
+        'Q1': [0, 1, 2], // Jan, Feb, Mar
+        'Q2': [3, 4, 5], // Apr, May, Jun
+        'Q3': [6, 7, 8], // Jul, Aug, Sep
+        'Q4': [9, 10, 11] // Oct, Nov, Dec
+      };
+      months = quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths];
+    } else {
+      // yearly - all 12 months
+      months = Array.from({length: 12}, (_, i) => i);
+    }
 
     return months.map(monthIndex => {
       const monthStart = new Date(year, monthIndex, 1);
@@ -1452,8 +1459,8 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       const remainingProfitAfterDeductions = monthProfit - gstAmount - serviceCharge;
       const partnerSharePercentage = vehicleInfo.vehicle.partnershipPercentage ? vehicleInfo.vehicle.partnershipPercentage / 100 : 0.50;
-      const monthOwnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
-        remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0;
+      const monthOwnerShare = remainingProfitAfterDeductions > 0 ?
+        (isPartnerTaxi ? remainingProfitAfterDeductions * (1 - partnerSharePercentage) : remainingProfitAfterDeductions) : 0;
 
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       return {
@@ -2969,7 +2976,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
     if (selectedMonths && selectedMonths.length > 0) {
       periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-      paymentAmount = (vehicleInfo.gstAmount / monthsInPeriod) * selectedMonths.length;
+      const breakdown = getGSTBreakdown(vehicleInfo);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      paymentAmount = selectedMonths.reduce((sum, monthIndex) => {
+        const monthName = monthNames[monthIndex];
+        const breakdownItem = breakdown.find(b => b.month === monthName);
+        return sum + (breakdownItem?.amount || 0);
+      }, 0);
     } else {
       if (companyFinancialData.filterType === 'monthly') {
         periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
@@ -2990,11 +3003,27 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
     const newTransactions: AccountingTransaction[] = [];
 
-    for (const monthStr of periodStrings) {
+    for (let i = 0; i < periodStrings.length; i++) {
+      const monthStr = periodStrings[i];
+      let amount: number;
+      
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Use actual amount for this month
+        const monthIndex = selectedMonths[i];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = monthNames[monthIndex];
+        const breakdown = getGSTBreakdown(vehicleInfo);
+        const breakdownItem = breakdown.find(b => b.month === monthName);
+        amount = breakdownItem?.amount || 0;
+      } else {
+        // Divide equally for full period payments
+        amount = paymentAmount / periodStrings.length;
+      }
+      
       const docRef = await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'gst_payment',
-        amount: paymentAmount / periodStrings.length,
+        amount: amount,
         month: monthStr,
         description: `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
         status: 'completed',
@@ -3005,7 +3034,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         id: docRef.id,
         vehicleId: vehicleInfo.vehicle.id,
         type: 'gst_payment',
-        amount: paymentAmount / periodStrings.length,
+        amount: amount,
         month: monthStr,
         description: `GST Payment for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
         status: 'completed',
@@ -3046,7 +3075,13 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
     if (selectedMonths && selectedMonths.length > 0) {
       periodStrings = selectedMonths.map(monthIndex => `${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-      paymentAmount = (vehicleInfo.serviceCharge / monthsInPeriod) * selectedMonths.length;
+      const breakdown = getServiceChargeBreakdown(vehicleInfo);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      paymentAmount = selectedMonths.reduce((sum, monthIndex) => {
+        const monthName = monthNames[monthIndex];
+        const breakdownItem = breakdown.find(b => b.month === monthName);
+        return sum + (breakdownItem?.amount || 0);
+      }, 0);
     } else {
       if (companyFinancialData.filterType === 'monthly') {
         periodStrings = [`${year}-${companyFinancialData.selectedMonth}`];
@@ -3067,11 +3102,27 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
     const newTransactions: AccountingTransaction[] = [];
 
-    for (const monthStr of periodStrings) {
+    for (let i = 0; i < periodStrings.length; i++) {
+      const monthStr = periodStrings[i];
+      let amount: number;
+      
+      if (selectedMonths && selectedMonths.length > 0) {
+        // Use actual amount for this month
+        const monthIndex = selectedMonths[i];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = monthNames[monthIndex];
+        const breakdown = getServiceChargeBreakdown(vehicleInfo);
+        const breakdownItem = breakdown.find(b => b.month === monthName);
+        amount = breakdownItem?.amount || 0;
+      } else {
+        // Divide equally for full period payments
+        amount = paymentAmount / periodStrings.length;
+      }
+      
       const docRef = await addDoc(transactionRef, {
         vehicleId: vehicleInfo.vehicle.id,
         type: 'service_charge',
-        amount: paymentAmount / periodStrings.length,
+        amount: amount,
         month: monthStr,
         description: `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
         status: 'completed',
@@ -3082,7 +3133,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         id: docRef.id,
         vehicleId: vehicleInfo.vehicle.id,
         type: 'service_charge',
-        amount: paymentAmount / periodStrings.length,
+        amount: amount,
         month: monthStr,
         description: `Service Charge Collection for ${vehicleInfo.vehicle.registrationNumber} - ${companyFinancialData.periodLabel} ${companyFinancialData.selectedYear}`,
         status: 'completed',
@@ -3623,8 +3674,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmGstPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmGstPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('gst');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.gstActuallyPayable <= 0}
                                 >
@@ -3646,8 +3703,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmGstPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmGstPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('gst');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.gstActuallyPayable <= 0}
                                 >
@@ -3667,8 +3730,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedVehicleForPayment(vehicleInfo);
-                                  setConfirmGstPaymentDialog(true);
+                                  setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                  setSelectedPaymentType('gst');
+                                  setIndividualPaymentDialogOpen(true);
                                 }}
                                 disabled={vehicleInfo.gstActuallyPayable <= 0}
                               >
@@ -3698,8 +3762,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmServiceChargeDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmServiceChargeDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('service_charge');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.serviceChargeActuallyPayable <= 0}
                                 >
@@ -3721,8 +3791,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmServiceChargeDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmServiceChargeDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('service_charge');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.serviceChargeActuallyPayable <= 0}
                                 >
@@ -3742,8 +3818,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedVehicleForPayment(vehicleInfo);
-                                  setConfirmServiceChargeDialog(true);
+                                  setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                  setSelectedPaymentType('service_charge');
+                                  setIndividualPaymentDialogOpen(true);
                                 }}
                                 disabled={vehicleInfo.serviceChargeActuallyPayable <= 0}
                               >
@@ -3775,8 +3852,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmPartnerPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmPartnerPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('partner_share');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.partnerShareActuallyPayable <= 0}
                                 >
@@ -3798,8 +3881,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmPartnerPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmPartnerPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('partner_share');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.partnerShareActuallyPayable <= 0}
                                 >
@@ -3819,8 +3908,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedVehicleForPayment(vehicleInfo);
-                                  setConfirmPartnerPaymentDialog(true);
+                                  setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                  setSelectedPaymentType('partner_share');
+                                  setIndividualPaymentDialogOpen(true);
                                 }}
                                 disabled={vehicleInfo.partnerShareActuallyPayable <= 0}
                               >
@@ -3898,8 +3988,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmOwnerPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmOwnerPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('owner_payment');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.ownerActuallyPayable <= 0}
                                 >
@@ -3921,8 +4017,14 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedVehicleForPayment(vehicleInfo);
-                                    setConfirmOwnerPaymentDialog(true);
+                                    if (companyFinancialData.filterType === 'monthly') {
+                                      setSelectedVehicleForPayment(vehicleInfo);
+                                      setConfirmOwnerPaymentDialog(true);
+                                    } else {
+                                      setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                      setSelectedPaymentType('owner_payment');
+                                      setIndividualPaymentDialogOpen(true);
+                                    }
                                   }}
                                   disabled={vehicleInfo.ownerActuallyPayable <= 0}
                                 >
@@ -3942,8 +4044,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedVehicleForPayment(vehicleInfo);
-                                  setConfirmOwnerPaymentDialog(true);
+                                  setSelectedVehicleForIndividualPayment(vehicleInfo);
+                                  setSelectedPaymentType('owner_payment');
+                                  setIndividualPaymentDialogOpen(true);
                                 }}
                                 disabled={vehicleInfo.ownerActuallyPayable <= 0}
                               >
@@ -4764,7 +4867,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             <AlertDialogAction
               onClick={() => {
                 if (selectedVehicleForPayment) {
-                  handleServiceChargeCollection(selectedVehicleForPayment);
+                  handleServiceChargePayment(selectedVehicleForPayment);
                 }
                 setConfirmServiceChargeDialog(false);
                 setSelectedVehicleForPayment(null);
@@ -4927,6 +5030,123 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               className="bg-red-600 hover:bg-red-700"
             >
               {isProcessingBackdoor ? 'Adding...' : 'Add Cash'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Individual Payment Month Selection Dialog */}
+      <Dialog open={individualPaymentDialogOpen} onOpenChange={setIndividualPaymentDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <SectionNumberBadge id="5.5" label="Individual Payment Dialog" className="mb-2" />
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-500" />
+              Select Months for {selectedPaymentType?.replace('_', ' ').toUpperCase()} Payment
+            </DialogTitle>
+            <DialogDescription>
+              Select the months you want to pay for {selectedVehicleForIndividualPayment?.vehicle?.registrationNumber}.
+              The amount will be calculated based on actual monthly calculations, not divided equally.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+              {(() => {
+                const quarterMonths = { 'Q1': [0,1,2], 'Q2': [3,4,5], 'Q3': [6,7,8], 'Q4': [9,10,11] };
+                const months = companyFinancialData.filterType === 'quarterly' 
+                  ? quarterMonths[companyFinancialData.selectedQuarter as keyof typeof quarterMonths]
+                  : Array.from({length: 12}, (_, i) => i);
+                
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                let breakdown: any[] = [];
+                if (selectedPaymentType === 'gst') {
+                  breakdown = getGSTBreakdown(selectedVehicleForIndividualPayment);
+                } else if (selectedPaymentType === 'service_charge') {
+                  breakdown = getServiceChargeBreakdown(selectedVehicleForIndividualPayment);
+                } else if (selectedPaymentType === 'partner_share') {
+                  breakdown = getPartnerShareBreakdown(selectedVehicleForIndividualPayment);
+                } else if (selectedPaymentType === 'owner_payment') {
+                  breakdown = getOwnerShareBreakdown(selectedVehicleForIndividualPayment);
+                }
+
+                return months.map(monthIndex => {
+                  const monthName = monthNames[monthIndex];
+                  const breakdownItem = breakdown.find(b => b.month === monthName);
+                  const amount = breakdownItem?.amount || 0;
+                  const isSelected = selectedPaymentMonths.includes(monthIndex);
+
+                  return (
+                    <div
+                      key={monthIndex}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      } ${amount === 0 ? 'opacity-50' : ''}`}
+                      onClick={() => {
+                        if (amount === 0) return;
+                        setSelectedPaymentMonths(prev => 
+                          prev.includes(monthIndex) 
+                            ? prev.filter(m => m !== monthIndex)
+                            : [...prev, monthIndex]
+                        );
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={isSelected} disabled={amount === 0} />
+                          <span className="font-medium">{monthName}</span>
+                        </div>
+                        <span className={`font-semibold ${amount === 0 ? 'text-gray-400' : 'text-green-600'}`}>
+                          ₹{formatCurrency(amount)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-blue-800">Total Selected Amount:</span>
+                <span className="font-bold text-blue-700 text-lg">
+                  ₹{(() => {
+                    if (!selectedVehicleForIndividualPayment || !selectedPaymentType) return '0';
+                    
+                    let breakdown: any[] = [];
+                    if (selectedPaymentType === 'gst') {
+                      breakdown = getGSTBreakdown(selectedVehicleForIndividualPayment);
+                    } else if (selectedPaymentType === 'service_charge') {
+                      breakdown = getServiceChargeBreakdown(selectedVehicleForIndividualPayment);
+                    } else if (selectedPaymentType === 'partner_share') {
+                      breakdown = getPartnerShareBreakdown(selectedVehicleForIndividualPayment);
+                    } else if (selectedPaymentType === 'owner_payment') {
+                      breakdown = getOwnerShareBreakdown(selectedVehicleForIndividualPayment);
+                    }
+
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return formatCurrency(selectedPaymentMonths.reduce((sum, monthIndex) => {
+                      const monthName = monthNames[monthIndex];
+                      const breakdownItem = breakdown.find(b => b.month === monthName);
+                      return sum + (breakdownItem?.amount || 0);
+                    }, 0));
+                  })()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIndividualPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleIndividualPaymentConfirm}
+              disabled={selectedPaymentMonths.length === 0 || isBulkProcessing}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isBulkProcessing ? 'Processing...' : `Pay Selected Months`}
             </Button>
           </DialogFooter>
         </DialogContent>
