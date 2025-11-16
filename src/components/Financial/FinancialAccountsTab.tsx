@@ -5080,17 +5080,18 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   return (
                     <div
                       key={monthIndex}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      } ${amount === 0 ? 'opacity-50' : ''}`}
-                      onClick={() => {
-                        if (amount === 0) return;
-                        setSelectedPaymentMonths(prev => 
-                          prev.includes(monthIndex) 
-                            ? prev.filter(m => m !== monthIndex)
-                            : [...prev, monthIndex]
-                        );
-                      }}
+                      className={`p-3 border rounded-lg transition-colors ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                      } ${amount === 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer hover:border-gray-300'}`}
+                      {...(amount === 0 ? {} : {
+                        onClick: () => {
+                          setSelectedPaymentMonths(prev => 
+                            prev.includes(monthIndex) 
+                              ? prev.filter(m => m !== monthIndex)
+                              : [...prev, monthIndex]
+                          );
+                        }
+                      })}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
