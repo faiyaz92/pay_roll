@@ -429,6 +429,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [bulkDialogDescription, setBulkDialogDescription] = useState('');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
+  // Bulk payment selected months state
+  const [selectedMonths, setSelectedMonths] = useState<Record<string, number[]>>({});
+
   // EMI payment dialog state
   const [emiDialogOpen, setEmiDialogOpen] = useState(false);
   const [selectedVehicleForEMI, setSelectedVehicleForEMI] = useState<any>(null);
@@ -481,6 +484,48 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
   const [selectedPaymentType, setSelectedPaymentType] = useState<'gst' | 'service_charge' | 'partner_share' | 'owner_payment' | null>(null);
   const [selectedVehicleForIndividualPayment, setSelectedVehicleForIndividualPayment] = useState<any>(null);
   const [selectedPaymentMonths, setSelectedPaymentMonths] = useState<number[]>([]);
+
+  // Auto-select months with positive amounts when dialog opens
+  useEffect(() => {
+    if (individualPaymentDialogOpen && selectedVehicleForIndividualPayment && selectedPaymentType) {
+      let breakdown;
+      if (selectedPaymentType === 'gst') {
+        breakdown = getGSTBreakdown(selectedVehicleForIndividualPayment);
+      } else if (selectedPaymentType === 'service_charge') {
+        breakdown = getServiceChargeBreakdown(selectedVehicleForIndividualPayment);
+      } else if (selectedPaymentType === 'partner_share') {
+        breakdown = getPartnerShareBreakdown(selectedVehicleForIndividualPayment);
+      } else if (selectedPaymentType === 'owner_payment') {
+        breakdown = getOwnerShareBreakdown(selectedVehicleForIndividualPayment);
+      }
+
+      const positiveMonthIndices = breakdown
+        .map((_, index) => index)
+        .filter(index => breakdown[index].amount > 0);
+
+      setSelectedPaymentMonths(positiveMonthIndices);
+    } else if (!individualPaymentDialogOpen) {
+      setSelectedPaymentMonths([]);
+    }
+  }, [individualPaymentDialogOpen, selectedVehicleForIndividualPayment, selectedPaymentType]);
+
+  // Auto-select months with positive amounts when bulk dialog opens
+  useEffect(() => {
+    if (bulkDialogOpen && bulkDialogItems.length > 0) {
+      const newSelectedMonths: Record<string, number[]> = {};
+      bulkDialogItems.forEach(item => {
+        if (item.monthBreakdown) {
+          const positiveIndices = item.monthBreakdown
+            .map((_, index) => index)
+            .filter(index => item.monthBreakdown[index].amount > 0);
+          newSelectedMonths[item.vehicleId] = positiveIndices;
+        }
+      });
+      setSelectedMonths(newSelectedMonths);
+    } else if (!bulkDialogOpen) {
+      setSelectedMonths({});
+    }
+  }, [bulkDialogOpen, bulkDialogItems]);
 
   // Handler for individual payment confirmation
   const handleIndividualPaymentConfirm = async () => {
@@ -1257,7 +1302,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const year = parseInt(companyFinancialData.selectedYear);
     let months: number[];
 
-    if (companyFinancialData.filterType === 'quarterly') {
+    if (companyFinancialData.filterType === 'monthly') {
+      const monthIndex = new Date(`${companyFinancialData.selectedMonth} 1, ${year}`).getMonth();
+      months = [monthIndex];
+    } else if (companyFinancialData.filterType === 'quarterly') {
       const quarterMonths = {
         'Q1': [0, 1, 2], // Jan, Feb, Mar
         'Q2': [3, 4, 5], // Apr, May, Jun
@@ -1306,7 +1354,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const year = parseInt(companyFinancialData.selectedYear);
     let months: number[];
 
-    if (companyFinancialData.filterType === 'quarterly') {
+    if (companyFinancialData.filterType === 'monthly') {
+      const monthIndex = new Date(`${companyFinancialData.selectedMonth} 1, ${year}`).getMonth();
+      months = [monthIndex];
+    } else if (companyFinancialData.filterType === 'quarterly') {
       const quarterMonths = {
         'Q1': [0, 1, 2], // Jan, Feb, Mar
         'Q2': [3, 4, 5], // Apr, May, Jun
@@ -1358,7 +1409,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const year = parseInt(companyFinancialData.selectedYear);
     let months: number[];
 
-    if (companyFinancialData.filterType === 'quarterly') {
+    if (companyFinancialData.filterType === 'monthly') {
+      const monthIndex = new Date(`${companyFinancialData.selectedMonth} 1, ${year}`).getMonth();
+      months = [monthIndex];
+    } else if (companyFinancialData.filterType === 'quarterly') {
       const quarterMonths = {
         'Q1': [0, 1, 2], // Jan, Feb, Mar
         'Q2': [3, 4, 5], // Apr, May, Jun
@@ -1416,7 +1470,10 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
     const year = parseInt(companyFinancialData.selectedYear);
     let months: number[];
 
-    if (companyFinancialData.filterType === 'quarterly') {
+    if (companyFinancialData.filterType === 'monthly') {
+      const monthIndex = new Date(`${companyFinancialData.selectedMonth} 1, ${year}`).getMonth();
+      months = [monthIndex];
+    } else if (companyFinancialData.filterType === 'quarterly') {
       const quarterMonths = {
         'Q1': [0, 1, 2], // Jan, Feb, Mar
         'Q2': [3, 4, 5], // Apr, May, Jun
