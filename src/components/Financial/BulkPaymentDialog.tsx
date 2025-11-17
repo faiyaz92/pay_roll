@@ -25,7 +25,7 @@ interface BulkPaymentDialogProps {
   onClose: () => void;
   title: string;
   description: string;
-  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_share' | 'emi' | 'rent';
+  paymentType: 'gst' | 'service_charge' | 'partner_share' | 'owner_payment' | 'emi' | 'rent';
   items: BulkPaymentItem[];
   onConfirm: (selectedItems: BulkPaymentItem[], emiPenalties?: Record<string, Record<number, string>>) => void;
   isLoading?: boolean;
@@ -176,6 +176,38 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       }
     }
   }, [isOpen, items, paymentType]);
+
+  // Filter out disabled months (amount === 0) from month selections
+  useEffect(() => {
+    if (items.length > 0) {
+      setMonthSelections(prev => {
+        const updated = { ...prev };
+        let hasChanges = false;
+
+        items.forEach(item => {
+          if (item.monthBreakdown && item.monthBreakdown.length > 0) {
+            const periodMonths = getPeriodMonths();
+            const currentSelection = updated[item.vehicleId] || [];
+            const filteredSelection = currentSelection.filter(monthIndex => {
+              const monthData = item.monthBreakdown.find((month, index) => periodMonths[index] === monthIndex);
+              return monthData && monthData.amount > 0;
+            });
+
+            if (filteredSelection.length !== currentSelection.length) {
+              hasChanges = true;
+              if (filteredSelection.length === 0) {
+                delete updated[item.vehicleId];
+              } else {
+                updated[item.vehicleId] = filteredSelection;
+              }
+            }
+          }
+        });
+
+        return hasChanges ? updated : prev;
+      });
+    }
+  }, [items]);
 
   const handleItemToggle = (vehicleId: string) => {
     const currentItem = selectedItems.find(item => item.vehicleId === vehicleId);
@@ -751,7 +783,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
       case 'gst': return 'GST';
       case 'service_charge': return 'Service Charge';
       case 'partner_share': return 'Partner Share';
-      case 'owner_share': return 'Owner Share';
+      case 'owner_payment': return 'Owner Payment';
       case 'emi': return 'EMI';
       default: return '';
     }
@@ -878,7 +910,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                     const vehicleSelectedCount = selectedMonthIndices.size;
                     const vehicleSelectedTotal = item.monthBreakdown.reduce((monthTotal, month, monthIndex) => {
                       const actualMonthIndex = periodMonths[monthIndex];
-                      return selectedMonthIndices.has(actualMonthIndex) ? monthTotal + month.amount : monthTotal;
+                      return (month.amount > 0 && selectedMonthIndices.has(actualMonthIndex)) ? monthTotal + month.amount : monthTotal;
                     }, 0);
 
                     return (
@@ -913,21 +945,26 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                         <div className="grid grid-cols-3 gap-2">
                           {item.monthBreakdown.map((month, monthIndex) => {
                             const actualMonthIndex = periodMonths[monthIndex];
-                            const isSelected = selectedMonthIndices.has(actualMonthIndex);
+                            const isDisabled = month.amount === 0;
+                            const isSelected = !isDisabled && selectedMonthIndices.has(actualMonthIndex);
                             const monthName = new Date(parseInt(selectedYear), actualMonthIndex).toLocaleString('default', { month: 'short' });
 
                             return (
                               <label
                                 key={monthIndex}
                                 htmlFor={`month-${item.vehicleId}-${actualMonthIndex}`}
-                                className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                                  isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
+                                className={`flex items-center gap-2 p-2 rounded transition-colors ${
+                                  isSelected && !isDisabled ? 'bg-blue-50 border border-blue-200' : 
+                                  isDisabled ? 'bg-gray-100 border border-gray-200 opacity-50 cursor-not-allowed pointer-events-none' : 
+                                  'bg-gray-50 border border-gray-200 hover:bg-gray-100 cursor-pointer'
                                 }`}
                               >
                                 <Checkbox
                                   id={`month-${item.vehicleId}-${actualMonthIndex}`}
                                   checked={isSelected}
+                                  disabled={isDisabled}
                                   onCheckedChange={(checked) => {
+                                    if (isDisabled) return;
                                     setMonthSelections(prev => {
                                       const currentSelection = prev[item.vehicleId] || [];
                                       let newSelection;
@@ -956,8 +993,8 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                                   }}
                                 />
                                 <div className="flex-1 text-center">
-                                  <div className="text-xs text-gray-600">{monthName} {selectedYear}</div>
-                                  <div className="text-sm font-medium">₹{month.amount.toLocaleString()}</div>
+                                  <div className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>{monthName} {selectedYear}</div>
+                                  <div className={`text-sm font-medium ${isDisabled ? 'text-gray-400' : ''}`}>₹{month.amount.toLocaleString()}</div>
                                 </div>
                               </label>
                             );
