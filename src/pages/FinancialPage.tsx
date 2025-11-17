@@ -14,7 +14,8 @@ import {
   Calendar,
   Receipt,
   BarChart3,
-  History} from 'lucide-react';
+  History,
+  RotateCcw} from 'lucide-react';
 
 // Import tab components (we'll create these)
 import FinancialOverviewTab from '@/components/Financial/FinancialOverviewTab';
@@ -22,17 +23,19 @@ import FinancialAnalyticsTab from '@/components/Financial/FinancialAnalyticsTab'
 import FinancialExpensesTab from '@/components/Financial/FinancialExpensesTab';
 import FinancialPaymentsTab from '@/components/Financial/FinancialPaymentsTab';
 import FinancialAccountsTab from '@/components/Financial/FinancialAccountsTab';
+import AccountingTransactionsTab from '@/components/Financial/AccountingTransactionsTab';
 
 interface AccountingTransaction {
   id: string;
   vehicleId: string;
-  type: 'gst_payment' | 'service_charge' | 'partner_payment' | 'owner_share' | 'owner_withdrawal';
+  type: 'gst_payment' | 'service_charge' | 'partner_payment' | 'owner_payment';
   amount: number;
   month: string;
   description: string;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'reversed';
   createdAt: string;
   completedAt?: string;
+  reversedAt?: string;
 }
 
 const FinancialPage: React.FC = () => {
@@ -55,15 +58,21 @@ const FinancialPage: React.FC = () => {
   useEffect(() => {
     if (!userInfo?.companyId) return;
 
+    console.log('FinancialPage - Loading accounting transactions for companyId:', userInfo.companyId);
+
     const transactionsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
     const q = query(transactionsRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('FinancialPage - Accounting transactions snapshot received, docs count:', snapshot.docs.length);
       const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       })) as AccountingTransaction[];
+      console.log('FinancialPage - Setting accounting transactions:', transactions);
       setAccountingTransactions(transactions);
+    }, (error) => {
+      console.error('FinancialPage - Error loading accounting transactions:', error);
     });
 
     return () => unsubscribe();
@@ -101,14 +110,25 @@ const FinancialPage: React.FC = () => {
 
   // Filter accounting transactions for partner's vehicles only
   const filteredAccountingTransactions = useMemo(() => {
+    console.log('FinancialPage - Raw accountingTransactions:', accountingTransactions);
+    console.log('FinancialPage - User role:', userInfo?.role);
+    console.log('FinancialPage - User ID:', userInfo?.userId);
+    console.log('FinancialPage - Vehicles:', vehicles);
+
     if (userInfo?.role === 'partner') {
-      const partnerVehicles = vehicles.filter(vehicle => 
+      const partnerVehicles = vehicles.filter(vehicle =>
         vehicle.partnerId && vehicle.partnerId === userInfo.userId
       );
-      return accountingTransactions.filter(transaction => 
+      console.log('FinancialPage - Partner vehicles:', partnerVehicles);
+
+      const filtered = accountingTransactions.filter(transaction =>
         partnerVehicles.some(vehicle => vehicle.id === transaction.vehicleId)
       );
+      console.log('FinancialPage - Filtered transactions for partner:', filtered);
+      return filtered;
     }
+
+    console.log('FinancialPage - Returning all transactions (not partner):', accountingTransactions);
     return accountingTransactions;
   }, [userInfo?.role, userInfo?.userId, vehicles, accountingTransactions]);
 
@@ -210,19 +230,16 @@ const FinancialPage: React.FC = () => {
       const gstAmount = vehicleProfit > 0 ? vehicleProfit * 0.04 : 0;
 
       // Service charge (configurable percentage for partner taxis - only if profit is positive)
-      const isPartnerTaxi = vehicle.ownershipType === 'partner';
+      const isPartnerTaxi = vehicle.isPartnership === true;
       const serviceChargeRate = (vehicle.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
       const serviceCharge = isPartnerTaxi && vehicleProfit > 0 ? vehicleProfit * serviceChargeRate : 0;
 
-      // Partner share (configurable percentage after GST and service charge - only if remaining profit is positive)
-      const partnerSharePercentage = vehicle.partnerShare || 0.50; // Default 50%
-      const remainingProfitAfterDeductions = vehicleProfit - gstAmount - serviceCharge;
-      const partnerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
-        remainingProfitAfterDeductions * partnerSharePercentage : 0;
+      // Partner share (configurable percentage of profit minus service charge)
+      const partnerSharePercentage = vehicle.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50; // Default 50%
+      const partnerShare = isPartnerTaxi ? vehicleProfit * partnerSharePercentage - serviceCharge : 0;
 
-      // Owner's share (remaining after partner share - only if remaining profit is positive)
-      const ownerShare = isPartnerTaxi && remainingProfitAfterDeductions > 0 ?
-        remainingProfitAfterDeductions * (1 - partnerSharePercentage) : 0;
+      // Owner's share (profit after GST and partner share)
+      const ownerShare = isPartnerTaxi ? vehicleProfit - gstAmount - vehicleProfit * partnerSharePercentage : 0;
 
       // Owner's full share for company-owned taxis (profit after GST - no service charge or partner share)
       const ownerFullShare = !isPartnerTaxi && (vehicleProfit - gstAmount) > 0 ? vehicleProfit - gstAmount : 0;
@@ -246,7 +263,8 @@ const FinancialPage: React.FC = () => {
         serviceCharge,
         partnerShare,
         ownerShare,
-        ownerFullShare
+        ownerFullShare,
+        ownerPayment: isPartnerTaxi ? ownerShare : ownerFullShare
       };
     });
 
@@ -467,7 +485,7 @@ const FinancialPage: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Overview
@@ -487,6 +505,10 @@ const FinancialPage: React.FC = () => {
           <TabsTrigger value="accounts" className="flex items-center gap-2">
             <Calculator className="h-4 w-4" />
             Accounts
+          </TabsTrigger>
+          <TabsTrigger value="transactions" className="flex items-center gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Accounting Transactions
           </TabsTrigger>
         </TabsList>
 
@@ -519,6 +541,15 @@ const FinancialPage: React.FC = () => {
             companyFinancialData={companyFinancialData}
             accountingTransactions={filteredAccountingTransactions}
             setAccountingTransactions={setAccountingTransactions}
+          />
+        </TabsContent>
+
+        <TabsContent value="transactions">
+          <AccountingTransactionsTab
+            accountingTransactions={filteredAccountingTransactions}
+            setAccountingTransactions={setAccountingTransactions}
+            vehicles={vehicles}
+            companyFinancialData={companyFinancialData}
           />
         </TabsContent>
       </Tabs>
