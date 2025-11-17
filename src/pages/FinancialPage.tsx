@@ -66,8 +66,8 @@ const FinancialPage: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log('FinancialPage - Accounting transactions snapshot received, docs count:', snapshot.docs.length);
       const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       })) as AccountingTransaction[];
       console.log('FinancialPage - Setting accounting transactions:', transactions);
       setAccountingTransactions(transactions);

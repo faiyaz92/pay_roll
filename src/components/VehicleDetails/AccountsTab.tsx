@@ -69,10 +69,10 @@ const getLatestTransactionStatus = (transactions: AccountingTransaction[], vehic
     return null; // No transaction found
   }
 
-  // Sort by completedAt descending to get the latest transaction
+  // Sort by createdAt descending to get the latest transaction
   const sortedTransactions = relevantTransactions.sort((a: any, b: any) => {
-    const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-    const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+    const aTime = new Date(a.createdAt).getTime();
+    const bTime = new Date(b.createdAt).getTime();
     return bTime - aTime;
   });
 
@@ -832,8 +832,8 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const transactions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       })) as AccountingTransaction[];
       setAccountingTransactions(transactions);
     });
@@ -972,6 +972,43 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
       };
     });
   }, [selectedPeriod, selectedYear, selectedMonth, selectedQuarter, payments, expenses, accountingTransactions, vehicle, vehicleId]);
+
+  // Auto-select months with positive amounts when month selection dialogs open
+  useEffect(() => {
+    if (confirmServiceChargeMonthSelectionDialog) {
+      const monthsWithAmount = monthlyData.filter(month => month.serviceCharge > 0).map(month => month.month);
+      setSelectedServiceChargeMonthIndices(monthsWithAmount);
+    } else {
+      setSelectedServiceChargeMonthIndices([]);
+    }
+  }, [confirmServiceChargeMonthSelectionDialog, monthlyData]);
+
+  useEffect(() => {
+    if (confirmPartnerMonthSelectionDialog) {
+      const monthsWithAmount = monthlyData.filter(month => month.partnerShare > 0).map(month => month.month);
+      setSelectedPartnerMonthIndices(monthsWithAmount);
+    } else {
+      setSelectedPartnerMonthIndices([]);
+    }
+  }, [confirmPartnerMonthSelectionDialog, monthlyData]);
+
+  useEffect(() => {
+    if (confirmOwnerShareMonthSelectionDialog) {
+      const monthsWithAmount = monthlyData.filter(month => month.ownerShare > 0 || month.ownerFullShare > 0).map(month => month.month);
+      setSelectedOwnerShareMonthIndices(monthsWithAmount);
+    } else {
+      setSelectedOwnerShareMonthIndices([]);
+    }
+  }, [confirmOwnerShareMonthSelectionDialog, monthlyData]);
+
+  useEffect(() => {
+    if (confirmGstPaymentDialog && selectedPeriod !== 'month') {
+      const monthsWithAmount = monthlyData.filter(month => month.gstAmount > 0).map(month => month.month);
+      setSelectedGstMonthIndices(monthsWithAmount);
+    } else if (!confirmGstPaymentDialog) {
+      setSelectedGstMonthIndices([]);
+    }
+  }, [confirmGstPaymentDialog, selectedPeriod, monthlyData]);
 
   // Handle GST payment
   const handleGstPayment = async (monthData: any) => {
@@ -1112,24 +1149,57 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
   // Calculate actually payable amounts (Total - Already Paid for current period)
   const actuallyPayable = useMemo(() => {
-    const gstPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'gst_payment', periodStr);
-    const serviceChargePaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'service_charge', periodStr);
-    const partnerPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'partner_payment', periodStr);
-    const ownerPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', periodStr);
+    // Calculate periodStrings similar to FinancialAccountsTab
+    let periodStrings: string[] = [];
+    if (selectedPeriod === 'month') {
+      periodStrings = [`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`];
+    } else if (selectedPeriod === 'quarter') {
+      const quarter = parseInt(selectedQuarter);
+      const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      const quarterMonths = months.slice((quarter - 1) * 3, quarter * 3);
+      periodStrings = quarterMonths.map(m => `${selectedYear}-${String(m).padStart(2, '0')}`);
+    } else {
+      periodStrings = Array.from({ length: 12 }, (_, i) => `${selectedYear}-${String(i + 1).padStart(2, '0')}`);
+    }
+
+    // Calculate totals minus paid amounts for the period
+    const gstTotal = cumulativeData?.totalGst || 0;
+    const gstPaid = accountingTransactions
+      .filter(t => t.vehicleId === vehicleId && t.type === 'gst_payment' && periodStrings.includes(t.month) && t.status === 'completed')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const gstActuallyPayable = gstTotal - gstPaid;
+
+    const serviceChargeTotal = cumulativeData?.totalServiceCharge || 0;
+    const serviceChargePaid = accountingTransactions
+      .filter(t => t.vehicleId === vehicleId && t.type === 'service_charge' && periodStrings.includes(t.month) && t.status === 'completed')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const serviceChargeActuallyPayable = serviceChargeTotal - serviceChargePaid;
+
+    const partnerShareTotal = cumulativeData?.totalPartnerShare || 0;
+    const partnerSharePaid = accountingTransactions
+      .filter(t => t.vehicleId === vehicleId && t.type === 'partner_payment' && periodStrings.includes(t.month) && t.status === 'completed')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const partnerShareActuallyPayable = partnerShareTotal - partnerSharePaid;
+
+    const ownerShareTotal = (cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0);
+    const ownerSharePaid = accountingTransactions
+      .filter(t => t.vehicleId === vehicleId && t.type === 'owner_payment' && periodStrings.includes(t.month) && t.status === 'completed')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const ownerShareActuallyPayable = ownerShareTotal - ownerSharePaid;
 
     return {
-      gstActuallyPayable: gstPaid === 'completed' ? 0 : (cumulativeData?.totalGst || 0),
-      serviceChargeActuallyPayable: serviceChargePaid === 'completed' ? 0 : (cumulativeData?.totalServiceCharge || 0),
-      partnerShareActuallyPayable: partnerPaid === 'completed' ? 0 : (cumulativeData?.totalPartnerShare || 0),
-      ownerShareActuallyPayable: ownerPaid === 'completed' ? 0 : ((cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0)),
+      gstActuallyPayable,
+      serviceChargeActuallyPayable,
+      partnerShareActuallyPayable,
+      ownerShareActuallyPayable,
       paidAmounts: {
-        gst: gstPaid === 'completed' ? (cumulativeData?.totalGst || 0) : 0,
-        serviceCharge: serviceChargePaid === 'completed' ? (cumulativeData?.totalServiceCharge || 0) : 0,
-        partnerShare: partnerPaid === 'completed' ? (cumulativeData?.totalPartnerShare || 0) : 0,
-        ownerPayment: ownerPaid === 'completed' ? ((cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0)) : 0
+        gst: gstPaid,
+        serviceCharge: serviceChargePaid,
+        partnerShare: partnerSharePaid,
+        ownerPayment: ownerSharePaid
       }
     };
-  }, [accountingTransactions, vehicleId, periodStr, cumulativeData]);
+  }, [accountingTransactions, vehicleId, selectedPeriod, selectedYear, selectedMonth, selectedQuarter, cumulativeData]);
 
   const selectedGstMonths = useMemo(() => {
     return monthlyData.filter(month => selectedGstMonthIndices.includes(month.month));
@@ -1367,166 +1437,403 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
   // Cumulative payment handlers
   const handleCumulativeGstPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    const amountToPay = actuallyPayable.gstActuallyPayable;
-    if (amountToPay <= 0) return;
+    if (selectedMonthsData && selectedMonthsData.length > 0) {
+      // Quarterly/Yearly: Create individual monthly transactions for selected months
+      const transactions: AccountingTransaction[] = [];
+      let totalAmount = 0;
 
-    setIsProcessingGstPayment(true);
-    try {
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'gst_payment',
-        amount: amountToPay,
-        month: periodStr,
-        description: `GST Payment for ${cumulativePeriodLabel}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      for (const monthData of selectedMonthsData) {
+        const monthAmount = monthData.gstAmount || 0;
+        if (monthAmount > 0) {
+          const transaction: AccountingTransaction = {
+            id: '',
+            vehicleId,
+            type: 'gst_payment',
+            amount: monthAmount,
+            month: monthData.monthStr,
+            description: `GST Payment for ${monthData.monthName} ${selectedYear}`,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          };
+          transactions.push(transaction);
+          totalAmount += monthAmount;
+        }
+      }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await setDoc(cashRef, {
-        balance: increment(-amountToPay),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      if (transactions.length === 0) return;
 
-      toast({
-        title: 'GST Payment Successful',
-        description: `GST payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
-      });
-    } catch (error) {
-      console.error('GST payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: 'Failed to process GST payment. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessingGstPayment(false);
+      setIsProcessingGstPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+
+        // Add all transactions
+        for (const transaction of transactions) {
+          await addDoc(transactionRef, transaction);
+        }
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-totalAmount),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'GST Payment Successful',
+          description: `GST payment of ₹${totalAmount.toLocaleString()} completed for selected months.`
+        });
+      } catch (error) {
+        console.error('GST payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process GST payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingGstPayment(false);
+      }
+    } else {
+      // Monthly: Single transaction (existing logic)
+      const amountToPay = actuallyPayable.gstActuallyPayable;
+      if (amountToPay <= 0) return;
+
+      setIsProcessingGstPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'gst_payment',
+          amount: amountToPay,
+          month: periodStr,
+          description: `GST Payment for ${cumulativePeriodLabel}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-amountToPay),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'GST Payment Successful',
+          description: `GST payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
+        });
+      } catch (error) {
+        console.error('GST payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process GST payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingGstPayment(false);
+      }
     }
   };
 
   const handleCumulativeServiceChargeCollection = async (selectedMonthsData?: typeof monthlyData) => {
-    const amountToPay = actuallyPayable.serviceChargeActuallyPayable;
-    if (amountToPay <= 0) return;
+    if (selectedMonthsData && selectedMonthsData.length > 0) {
+      // Quarterly/Yearly: Create individual monthly transactions for selected months
+      const transactions: AccountingTransaction[] = [];
+      let totalAmount = 0;
 
-    setIsProcessingServiceCharge(true);
-    try {
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'service_charge',
-        amount: amountToPay,
-        month: periodStr,
-        description: `Service Charge Collection for ${cumulativePeriodLabel}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      for (const monthData of selectedMonthsData) {
+        const monthAmount = monthData.serviceCharge || 0;
+        if (monthAmount > 0) {
+          const transaction: AccountingTransaction = {
+            id: '',
+            vehicleId,
+            type: 'service_charge',
+            amount: monthAmount,
+            month: monthData.monthStr,
+            description: `Service Charge Collection for ${monthData.monthName} ${selectedYear}`,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          };
+          transactions.push(transaction);
+          totalAmount += monthAmount;
+        }
+      }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await setDoc(cashRef, {
-        balance: increment(-amountToPay),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      if (transactions.length === 0) return;
 
-      toast({
-        title: 'Service Charge Collection Successful',
-        description: `Service charge collection of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
-      });
-    } catch (error) {
-      console.error('Service charge collection error:', error);
-      toast({
-        title: 'Collection Failed',
-        description: 'Failed to collect service charge. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessingServiceCharge(false);
+      setIsProcessingServiceCharge(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+
+        // Add all transactions
+        for (const transaction of transactions) {
+          await addDoc(transactionRef, transaction);
+        }
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-totalAmount),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Service Charge Collection Successful',
+          description: `Service charge collection of ₹${totalAmount.toLocaleString()} completed for selected months.`
+        });
+      } catch (error) {
+        console.error('Service charge collection error:', error);
+        toast({
+          title: 'Collection Failed',
+          description: 'Failed to collect service charge. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingServiceCharge(false);
+      }
+    } else {
+      // Monthly: Single transaction (existing logic)
+      const amountToPay = actuallyPayable.serviceChargeActuallyPayable;
+      if (amountToPay <= 0) return;
+
+      setIsProcessingServiceCharge(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'service_charge',
+          amount: amountToPay,
+          month: periodStr,
+          description: `Service Charge Collection for ${cumulativePeriodLabel}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-amountToPay),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Service Charge Collection Successful',
+          description: `Service charge collection of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
+        });
+      } catch (error) {
+        console.error('Service charge collection error:', error);
+        toast({
+          title: 'Collection Failed',
+          description: 'Failed to collect service charge. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingServiceCharge(false);
+      }
     }
   };
 
   const handleCumulativePartnerPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    const amountToPay = actuallyPayable.partnerShareActuallyPayable;
-    if (amountToPay <= 0) return;
+    if (selectedMonthsData && selectedMonthsData.length > 0) {
+      // Quarterly/Yearly: Create individual monthly transactions for selected months
+      const transactions: AccountingTransaction[] = [];
+      let totalAmount = 0;
 
-    setIsProcessingPartnerPayment(true);
-    try {
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'partner_payment',
-        amount: amountToPay,
-        month: periodStr,
-        description: `Partner Payment for ${cumulativePeriodLabel}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      for (const monthData of selectedMonthsData) {
+        const monthAmount = monthData.partnerShare || 0;
+        if (monthAmount > 0) {
+          const transaction: AccountingTransaction = {
+            id: '',
+            vehicleId,
+            type: 'partner_payment',
+            amount: monthAmount,
+            month: monthData.monthStr,
+            description: `Partner Payment for ${monthData.monthName} ${selectedYear}`,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          };
+          transactions.push(transaction);
+          totalAmount += monthAmount;
+        }
+      }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await setDoc(cashRef, {
-        balance: increment(-amountToPay),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      if (transactions.length === 0) return;
 
-      toast({
-        title: 'Partner Payment Successful',
-        description: `Partner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
-      });
-    } catch (error) {
-      console.error('Partner payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: 'Failed to process partner payment. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessingPartnerPayment(false);
+      setIsProcessingPartnerPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+
+        // Add all transactions
+        for (const transaction of transactions) {
+          await addDoc(transactionRef, transaction);
+        }
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-totalAmount),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Partner Payment Successful',
+          description: `Partner payment of ₹${totalAmount.toLocaleString()} completed for selected months.`
+        });
+      } catch (error) {
+        console.error('Partner payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process partner payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingPartnerPayment(false);
+      }
+    } else {
+      // Monthly: Single transaction (existing logic)
+      const amountToPay = actuallyPayable.partnerShareActuallyPayable;
+      if (amountToPay <= 0) return;
+
+      setIsProcessingPartnerPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'partner_payment',
+          amount: amountToPay,
+          month: periodStr,
+          description: `Partner Payment for ${cumulativePeriodLabel}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-amountToPay),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Partner Payment Successful',
+          description: `Partner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
+        });
+      } catch (error) {
+        console.error('Partner payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process partner payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingPartnerPayment(false);
+      }
     }
   };
 
   const handleCumulativeOwnerPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    const amountToPay = actuallyPayable.ownerShareActuallyPayable;
-    if (amountToPay <= 0) return;
+    if (selectedMonthsData && selectedMonthsData.length > 0) {
+      // Quarterly/Yearly: Create individual monthly transactions for selected months
+      const transactions: AccountingTransaction[] = [];
+      let totalAmount = 0;
 
-    setIsProcessingOwnerPayment(true);
-    try {
-      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-      await addDoc(transactionRef, {
-        vehicleId,
-        type: 'owner_payment',
-        amount: amountToPay,
-        month: periodStr,
-        description: `Owner Payment for ${cumulativePeriodLabel}`,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      });
+      for (const monthData of selectedMonthsData) {
+        const isPartnerTaxi = vehicle?.isPartnership === true;
+        const monthAmount = isPartnerTaxi ? (monthData.ownerShare || 0) : (monthData.ownerFullShare || 0);
+        if (monthAmount > 0) {
+          const transaction: AccountingTransaction = {
+            id: '',
+            vehicleId,
+            type: 'owner_payment',
+            amount: monthAmount,
+            month: monthData.monthStr,
+            description: `Owner Payment for ${monthData.monthName} ${selectedYear}`,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString()
+          };
+          transactions.push(transaction);
+          totalAmount += monthAmount;
+        }
+      }
 
-      // Update cash in hand
-      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
-      await setDoc(cashRef, {
-        balance: increment(-amountToPay),
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      if (transactions.length === 0) return;
 
-      toast({
-        title: 'Owner Payment Successful',
-        description: `Owner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
-      });
-    } catch (error) {
-      console.error('Owner payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: 'Failed to process owner payment. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessingOwnerPayment(false);
+      setIsProcessingOwnerPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+
+        // Add all transactions
+        for (const transaction of transactions) {
+          await addDoc(transactionRef, transaction);
+        }
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-totalAmount),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Owner Payment Successful',
+          description: `Owner payment of ₹${totalAmount.toLocaleString()} completed for selected months.`
+        });
+      } catch (error) {
+        console.error('Owner payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process owner payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingOwnerPayment(false);
+      }
+    } else {
+      // Monthly: Single transaction (existing logic)
+      const amountToPay = actuallyPayable.ownerShareActuallyPayable;
+      if (amountToPay <= 0) return;
+
+      setIsProcessingOwnerPayment(true);
+      try {
+        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+        await addDoc(transactionRef, {
+          vehicleId,
+          type: 'owner_payment',
+          amount: amountToPay,
+          month: periodStr,
+          description: `Owner Payment for ${cumulativePeriodLabel}`,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString()
+        });
+
+        // Update cash in hand
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        await setDoc(cashRef, {
+          balance: increment(-amountToPay),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        toast({
+          title: 'Owner Payment Successful',
+          description: `Owner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
+        });
+      } catch (error) {
+        console.error('Owner payment error:', error);
+        toast({
+          title: 'Payment Failed',
+          description: 'Failed to process owner payment. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsProcessingOwnerPayment(false);
+      }
     }
   };
 
