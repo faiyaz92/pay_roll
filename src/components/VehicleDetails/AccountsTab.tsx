@@ -1025,37 +1025,143 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     }
   };
 
+  const periodStr = useMemo(() => {
+    if (selectedPeriod === 'year') {
+      return selectedYear;
+    } else if (selectedPeriod === 'quarter') {
+      return `${selectedYear}-Q${selectedQuarter}`;
+    } else {
+      return `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+    }
+  }, [selectedPeriod, selectedYear, selectedMonth, selectedQuarter]);
+
+  // Calculate cumulative data
+  const cumulativeData = useMemo(() => {
+    const totalEarnings = monthlyData.reduce((sum, m) => sum + m.earnings, 0);
+    const totalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0);
+    const totalProfit = totalEarnings - totalExpenses;
+
+    // GST calculation (4% on total profit - only if total profit is positive)
+    const totalGst = totalProfit > 0 ? totalProfit * 0.04 : 0;
+
+    // Service charge (10% for partner taxis - only if total profit is positive)
+    const isPartnerTaxi = vehicle?.isPartnership === true;
+    const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
+    const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
+
+    // Partner share and owner share calculations (on remaining profit after GST and service charge)
+    const remainingProfitAfterDeductions = totalProfit - totalGst - totalServiceCharge;
+    const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50; // Convert percentage to decimal
+
+    let totalPartnerShare = 0;
+    let totalOwnerShare = 0;
+    let totalOwnerWithdrawal = 0;
+
+    if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
+      totalPartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
+      totalOwnerShare = remainingProfitAfterDeductions * (1 - partnerSharePercentage);
+    } else if (!isPartnerTaxi && (totalProfit - totalGst) > 0) {
+      totalOwnerWithdrawal = totalProfit - totalGst;
+    }
+
+    // Debug logging
+    // console.log('=== Partnership Calculation Debug ===');
+    // console.log('Selected Period:', selectedPeriod, 'Year:', selectedYear, 'Month:', selectedMonth, 'Quarter:', selectedQuarter);
+    // console.log('Vehicle object:', vehicle);
+    // console.log('Vehicle ID:', vehicle?.id, 'Is Partnership:', vehicle?.isPartnership);
+    // console.log('Is Partner Taxi:', isPartnerTaxi);
+    // console.log('Service Charge Rate:', serviceChargeRate);
+    // console.log('Partner Share %:', partnerSharePercentage);
+    // console.log('Total Earnings:', totalEarnings);
+    // console.log('Total Expenses:', totalExpenses);
+    // console.log('Total Profit:', totalProfit);
+    // console.log('Total GST:', totalGst);
+    // console.log('Total Service Charge:', totalServiceCharge);
+    // console.log('Remaining Profit After Deductions:', remainingProfitAfterDeductions);
+    // console.log('Total Partner Share:', totalPartnerShare);
+    // console.log('Total Owner Share:', totalOwnerShare);
+
+    // Show what the values would be if this was a partner taxi
+    // if (!isPartnerTaxi && totalProfit > 0) {
+    //   const hypotheticalServiceCharge = totalProfit * serviceChargeRate;
+    //   const hypotheticalRemainingProfit = totalProfit - totalGst - hypotheticalServiceCharge;
+    //   const hypotheticalPartnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * partnerSharePercentage : 0;
+    //   const hypotheticalOwnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * (1 - partnerSharePercentage) : 0;
+
+    //   console.log('=== HYPOTHETICAL PARTNER TAXI CALCULATIONS ===');
+    //   console.log('If this was a partner taxi:');
+    //   console.log('Service Charge would be:', hypotheticalServiceCharge);
+    //   console.log('Partner Share would be:', hypotheticalPartnerShare);
+    //   console.log('Owner Share would be:', hypotheticalOwnerShare);
+    //   console.log('===============================================');
+    // }
+
+    // console.log('=====================================');
+
+    return {
+      totalEarnings,
+      totalExpenses,
+      totalProfit,
+      totalGst,
+      totalServiceCharge,
+      totalPartnerShare,
+      totalOwnerShare,
+      totalOwnerWithdrawal
+    };
+  }, [monthlyData, vehicle]);
+
+  // Calculate actually payable amounts (Total - Already Paid for current period)
+  const actuallyPayable = useMemo(() => {
+    const gstPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'gst_payment', periodStr);
+    const serviceChargePaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'service_charge', periodStr);
+    const partnerPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'partner_payment', periodStr);
+    const ownerPaid = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', periodStr);
+
+    return {
+      gstActuallyPayable: gstPaid === 'completed' ? 0 : (cumulativeData?.totalGst || 0),
+      serviceChargeActuallyPayable: serviceChargePaid === 'completed' ? 0 : (cumulativeData?.totalServiceCharge || 0),
+      partnerShareActuallyPayable: partnerPaid === 'completed' ? 0 : (cumulativeData?.totalPartnerShare || 0),
+      ownerShareActuallyPayable: ownerPaid === 'completed' ? 0 : ((cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0)),
+      paidAmounts: {
+        gst: gstPaid === 'completed' ? (cumulativeData?.totalGst || 0) : 0,
+        serviceCharge: serviceChargePaid === 'completed' ? (cumulativeData?.totalServiceCharge || 0) : 0,
+        partnerShare: partnerPaid === 'completed' ? (cumulativeData?.totalPartnerShare || 0) : 0,
+        ownerPayment: ownerPaid === 'completed' ? ((cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0)) : 0
+      }
+    };
+  }, [accountingTransactions, vehicleId, periodStr, cumulativeData]);
+
   const selectedGstMonths = useMemo(() => {
     return monthlyData.filter(month => selectedGstMonthIndices.includes(month.month));
   }, [monthlyData, selectedGstMonthIndices]);
 
   const selectedGstMonthTotal = useMemo(() => {
-    return selectedGstMonths.reduce((sum, month) => sum + month.gstAmount, 0);
-  }, [selectedGstMonths]);
+    return actuallyPayable.gstActuallyPayable;
+  }, [actuallyPayable.gstActuallyPayable]);
 
   const selectedServiceChargeMonths = useMemo(() => {
     return monthlyData.filter(month => selectedServiceChargeMonthIndices.includes(month.month));
   }, [monthlyData, selectedServiceChargeMonthIndices]);
 
   const selectedServiceChargeMonthTotal = useMemo(() => {
-    return selectedServiceChargeMonths.reduce((sum, month) => sum + month.serviceCharge, 0);
-  }, [selectedServiceChargeMonths]);
+    return actuallyPayable.serviceChargeActuallyPayable;
+  }, [actuallyPayable.serviceChargeActuallyPayable]);
 
   const selectedPartnerMonths = useMemo(() => {
     return monthlyData.filter(month => selectedPartnerMonthIndices.includes(month.month));
   }, [monthlyData, selectedPartnerMonthIndices]);
 
   const selectedPartnerMonthTotal = useMemo(() => {
-    return selectedPartnerMonths.reduce((sum, month) => sum + month.partnerShare, 0);
-  }, [selectedPartnerMonths]);
+    return actuallyPayable.partnerShareActuallyPayable;
+  }, [actuallyPayable.partnerShareActuallyPayable]);
 
   const selectedOwnerShareMonths = useMemo(() => {
     return monthlyData.filter(month => selectedOwnerShareMonthIndices.includes(month.month));
   }, [monthlyData, selectedOwnerShareMonthIndices]);
 
   const selectedOwnerShareMonthTotal = useMemo(() => {
-    return selectedOwnerShareMonths.reduce((sum, month) => sum + month.ownerShare, 0);
-  }, [selectedOwnerShareMonths]);
+    return actuallyPayable.ownerShareActuallyPayable;
+  }, [actuallyPayable.ownerShareActuallyPayable]);
 
   // Handle service charge collection
   const handleServiceChargeCollection = async (monthData: any) => {
@@ -1213,136 +1319,6 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     }
   };
 
-  // Calculate cumulative data
-  const cumulativeData = useMemo(() => {
-    const totalEarnings = monthlyData.reduce((sum, m) => sum + m.earnings, 0);
-    const totalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0);
-    const totalProfit = totalEarnings - totalExpenses;
-
-    // GST calculation (4% on total profit - only if total profit is positive)
-    const totalGst = totalProfit > 0 ? totalProfit * 0.04 : 0;
-
-    // Service charge (10% for partner taxis - only if total profit is positive)
-    const isPartnerTaxi = vehicle?.isPartnership === true;
-    const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100; // Convert percentage to decimal, default 10%
-    const totalServiceCharge = isPartnerTaxi && totalProfit > 0 ? totalProfit * serviceChargeRate : 0;
-
-    // Partner share and owner share calculations (on remaining profit after GST and service charge)
-    const remainingProfitAfterDeductions = totalProfit - totalGst - totalServiceCharge;
-    const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50; // Convert percentage to decimal
-
-    let totalPartnerShare = 0;
-    let totalOwnerShare = 0;
-    let totalOwnerWithdrawal = 0;
-
-    if (isPartnerTaxi && remainingProfitAfterDeductions > 0) {
-      totalPartnerShare = remainingProfitAfterDeductions * partnerSharePercentage;
-      totalOwnerShare = remainingProfitAfterDeductions * (1 - partnerSharePercentage);
-    } else if (!isPartnerTaxi && (totalProfit - totalGst) > 0) {
-      totalOwnerWithdrawal = totalProfit - totalGst;
-    }
-
-    // Debug logging
-    // console.log('=== Partnership Calculation Debug ===');
-    // console.log('Selected Period:', selectedPeriod, 'Year:', selectedYear, 'Month:', selectedMonth, 'Quarter:', selectedQuarter);
-    // console.log('Vehicle object:', vehicle);
-    // console.log('Vehicle ID:', vehicle?.id, 'Is Partnership:', vehicle?.isPartnership);
-    // console.log('Is Partner Taxi:', isPartnerTaxi);
-    // console.log('Service Charge Rate:', serviceChargeRate);
-    // console.log('Partner Share %:', partnerSharePercentage);
-    // console.log('Total Earnings:', totalEarnings);
-    // console.log('Total Expenses:', totalExpenses);
-    // console.log('Total Profit:', totalProfit);
-    // console.log('Total GST:', totalGst);
-    // console.log('Total Service Charge:', totalServiceCharge);
-    // console.log('Remaining Profit After Deductions:', remainingProfitAfterDeductions);
-    // console.log('Total Partner Share:', totalPartnerShare);
-    // console.log('Total Owner Share:', totalOwnerShare);
-
-    // Show what the values would be if this was a partner taxi
-    // if (!isPartnerTaxi && totalProfit > 0) {
-    //   const hypotheticalServiceCharge = totalProfit * serviceChargeRate;
-    //   const hypotheticalRemainingProfit = totalProfit - totalGst - hypotheticalServiceCharge;
-    //   const hypotheticalPartnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * partnerSharePercentage : 0;
-    //   const hypotheticalOwnerShare = hypotheticalRemainingProfit > 0 ? hypotheticalRemainingProfit * (1 - partnerSharePercentage) : 0;
-
-    //   console.log('=== HYPOTHETICAL PARTNER TAXI CALCULATIONS ===');
-    //   console.log('If this was a partner taxi:');
-    //   console.log('Service Charge would be:', hypotheticalServiceCharge);
-    //   console.log('Partner Share would be:', hypotheticalPartnerShare);
-    //   console.log('Owner Share would be:', hypotheticalOwnerShare);
-    //   console.log('===============================================');
-    // }
-
-    // console.log('=====================================');
-
-    return {
-      totalEarnings,
-      totalExpenses,
-      totalProfit,
-      totalGst,
-      totalServiceCharge,
-      totalPartnerShare,
-      totalOwnerShare,
-      totalOwnerWithdrawal
-    };
-  }, [monthlyData, vehicle]);
-
-  // Calculate actually payable amounts (Total - Already Paid for current period)
-  const actuallyPayable = useMemo(() => {
-    const year = parseInt(selectedYear);
-    let periodStrings: string[] = [];
-
-    // Generate period strings based on current view - use same format as monthlyData.monthStr
-    if (selectedPeriod === 'month' && selectedMonth) {
-      periodStrings = [`${year}-${selectedMonth.padStart(2, '0')}`];
-    } else if (selectedPeriod === 'quarter' && selectedQuarter) {
-      const quarterMonths = {
-        '1': ['01', '02', '03'], '2': ['04', '05', '06'], '3': ['07', '08', '09'], '4': ['10', '11', '12']
-      };
-      periodStrings = quarterMonths[selectedQuarter as keyof typeof quarterMonths].map(month => `${year}-${month}`);
-    } else if (selectedPeriod === 'year') {
-      periodStrings = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-    }
-
-    // Calculate paid amounts for current period
-    const paidAmounts = {
-      gst: 0,
-      serviceCharge: 0,
-      partnerShare: 0,
-      ownerPayment: 0
-    };
-
-    periodStrings.forEach(periodStr => {
-      accountingTransactions?.forEach((transaction: any) => {
-        if (transaction.status === 'completed' && transaction.month === periodStr && transaction.vehicleId === vehicleId) {
-          switch (transaction.type) {
-            case 'gst_payment':
-              paidAmounts.gst += transaction.amount;
-              break;
-            case 'service_charge':
-              paidAmounts.serviceCharge += transaction.amount;
-              break;
-            case 'partner_payment':
-              paidAmounts.partnerShare += transaction.amount;
-              break;
-            case 'owner_payment':
-              paidAmounts.ownerPayment += transaction.amount;
-              break;
-          }
-        }
-      });
-    });
-
-    return {
-      gstActuallyPayable: Math.max(0, (cumulativeData?.totalGst || 0) - paidAmounts.gst),
-      serviceChargeActuallyPayable: Math.max(0, (cumulativeData?.totalServiceCharge || 0) - paidAmounts.serviceCharge),
-      partnerShareActuallyPayable: Math.max(0, (cumulativeData?.totalPartnerShare || 0) - paidAmounts.partnerShare),
-      ownerShareActuallyPayable: Math.max(0, ((cumulativeData?.totalOwnerShare || 0) + (cumulativeData?.totalOwnerWithdrawal || 0)) - paidAmounts.ownerPayment),
-      paidAmounts
-    };
-  }, [selectedPeriod, selectedYear, selectedMonth, selectedQuarter, accountingTransactions, vehicleId, cumulativeData]);
-
   const cumulativePeriodKey = useMemo(() => {
     if (selectedPeriod === 'year') {
       return selectedYear;
@@ -1391,57 +1367,39 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
   // Cumulative payment handlers
   const handleCumulativeGstPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    // For month period, use all months in the period
-    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedGstMonths);
-
-    if (monthsToPay.length === 0) {
-      toast({
-        title: 'No Months Selected',
-        description: 'Please select at least one month to pay GST for.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    const amountToPay = actuallyPayable.gstActuallyPayable;
+    if (amountToPay <= 0) return;
 
     setIsProcessingGstPayment(true);
     try {
-      let totalPaid = 0;
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'gst_payment',
+        amount: amountToPay,
+        month: periodStr,
+        description: `GST Payment for ${cumulativePeriodLabel}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
 
-      // Process each selected month
-      for (const monthData of monthsToPay) {
-        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-        await addDoc(transactionRef, {
-          vehicleId,
-          type: 'gst_payment',
-          amount: monthData.gstAmount,
-          month: monthData.monthStr,
-          description: `GST Payment for ${monthData.monthName} ${monthData.year}`,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-
-        totalPaid += monthData.gstAmount;
-      }
-
-      // Update cash in hand once for total amount
+      // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-totalPaid),
+        balance: increment(-amountToPay),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
-        title: 'GST Paid Successfully',
-        description: `₹${totalPaid.toLocaleString()} GST payment recorded for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
+        title: 'GST Payment Successful',
+        description: `GST payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
       });
-
-      // Clear selections
-      setSelectedGstMonthIndices([]);
     } catch (error) {
+      console.error('GST payment error:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to record GST payment',
+        title: 'Payment Failed',
+        description: 'Failed to process GST payment. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -1450,57 +1408,39 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   };
 
   const handleCumulativeServiceChargeCollection = async (selectedMonthsData?: typeof monthlyData) => {
-    // For month period, use all months in the period
-    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedServiceChargeMonths);
-
-    if (monthsToPay.length === 0) {
-      toast({
-        title: 'No Months Selected',
-        description: 'Please select at least one month to collect service charge for.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    const amountToPay = actuallyPayable.serviceChargeActuallyPayable;
+    if (amountToPay <= 0) return;
 
     setIsProcessingServiceCharge(true);
     try {
-      let totalPaid = 0;
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'service_charge',
+        amount: amountToPay,
+        month: periodStr,
+        description: `Service Charge Collection for ${cumulativePeriodLabel}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
 
-      // Process each selected month
-      for (const monthData of monthsToPay) {
-        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-        await addDoc(transactionRef, {
-          vehicleId,
-          type: 'service_charge',
-          amount: monthData.serviceCharge,
-          month: monthData.monthStr,
-          description: `Service Charge Collection for ${monthData.monthName} ${monthData.year}`,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-
-        totalPaid += monthData.serviceCharge;
-      }
-
-      // Update cash in hand once for total amount
+      // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-totalPaid),
+        balance: increment(-amountToPay),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
-        title: 'Service Charge Withdrawn',
-        description: `₹${totalPaid.toLocaleString()} service charge withdrawn for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
+        title: 'Service Charge Collection Successful',
+        description: `Service charge collection of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
       });
-
-      // Clear selections
-      setSelectedServiceChargeMonthIndices([]);
     } catch (error) {
+      console.error('Service charge collection error:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to collect service charge',
+        title: 'Collection Failed',
+        description: 'Failed to collect service charge. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -1509,57 +1449,39 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   };
 
   const handleCumulativePartnerPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    // For month period, use all months in the period
-    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedPartnerMonths);
-
-    if (monthsToPay.length === 0) {
-      toast({
-        title: 'No Months Selected',
-        description: 'Please select at least one month to pay partner for.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    const amountToPay = actuallyPayable.partnerShareActuallyPayable;
+    if (amountToPay <= 0) return;
 
     setIsProcessingPartnerPayment(true);
     try {
-      let totalPaid = 0;
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'partner_payment',
+        amount: amountToPay,
+        month: periodStr,
+        description: `Partner Payment for ${cumulativePeriodLabel}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
 
-      // Process each selected month
-      for (const monthData of monthsToPay) {
-        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-        await addDoc(transactionRef, {
-          vehicleId,
-          type: 'partner_payment',
-          amount: monthData.partnerShare,
-          month: monthData.monthStr,
-          description: `Partner Payment for ${monthData.monthName} ${monthData.year}`,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-
-        totalPaid += monthData.partnerShare;
-      }
-
-      // Update cash in hand once for total amount
+      // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-totalPaid),
+        balance: increment(-amountToPay),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
-        title: 'Partner Paid Successfully',
-        description: `₹${totalPaid.toLocaleString()} paid to partner for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
+        title: 'Partner Payment Successful',
+        description: `Partner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
       });
-
-      // Clear selections
-      setSelectedPartnerMonthIndices([]);
     } catch (error) {
+      console.error('Partner payment error:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to record partner payment',
+        title: 'Payment Failed',
+        description: 'Failed to process partner payment. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -1568,107 +1490,39 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   };
 
   const handleCumulativeOwnerPayment = async (selectedMonthsData?: typeof monthlyData) => {
-    // For month period, use all months in the period
-    const monthsToPay = selectedMonthsData || (selectedPeriod === 'month' ? monthlyData : selectedOwnerShareMonths);
-
-    if (monthsToPay.length === 0) {
-      toast({
-        title: 'No Months Selected',
-        description: 'Please select at least one month to pay owner for.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    const amountToPay = actuallyPayable.ownerShareActuallyPayable;
+    if (amountToPay <= 0) return;
 
     setIsProcessingOwnerPayment(true);
     try {
-      let totalPaid = 0;
+      const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+      await addDoc(transactionRef, {
+        vehicleId,
+        type: 'owner_payment',
+        amount: amountToPay,
+        month: periodStr,
+        description: `Owner Payment for ${cumulativePeriodLabel}`,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
 
-      // Process each selected month
-      for (const monthData of monthsToPay) {
-        // Calculate owner payment for this month (same logic as in the UI)
-        const year = parseInt(selectedYear);
-        const monthIndex = monthData.month;
-        const monthStart = new Date(year, monthIndex, 1);
-        const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
-
-        // Get payments and expenses for this month
-        const monthPayments = vehiclePayments.filter((p: any) =>
-          p.status === 'paid' &&
-          new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
-          new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
-        );
-
-        const monthExpenses = expenses.filter((e: any) =>
-          e.vehicleId === vehicleId &&
-          e.status === 'approved' &&
-          new Date(e.createdAt) >= monthStart &&
-          new Date(e.createdAt) <= monthEnd
-        );
-
-        const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
-        const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-        const monthlyProfit = monthEarnings - monthExpensesAmount;
-
-        // GST calculation
-        const monthlyGst = monthlyProfit > 0 ? monthlyProfit * 0.04 : 0;
-
-        // Service charge
-        const isPartnerTaxi = vehicle?.isPartnership === true;
-        const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100;
-        const monthlyServiceCharge = isPartnerTaxi && monthlyProfit > 0 ? monthlyProfit * serviceChargeRate : 0;
-
-        // Remaining profit
-        const remainingProfit = monthlyProfit - monthlyGst - monthlyServiceCharge;
-
-        // Partner share percentage
-        const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50;
-
-        // Calculate owner payment
-        let monthlyOwnerPayment = 0;
-        if (isPartnerTaxi && remainingProfit > 0) {
-          // Partner taxi: owner gets remaining after partner share
-          monthlyOwnerPayment = remainingProfit * (1 - partnerSharePercentage);
-        } else if (!isPartnerTaxi && (monthlyProfit - monthlyGst) > 0) {
-          // Company taxi: owner gets full remaining profit after GST
-          monthlyOwnerPayment = monthlyProfit - monthlyGst;
-        }
-
-        if (monthlyOwnerPayment <= 0) continue;
-
-        const transactionRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
-        await addDoc(transactionRef, {
-          vehicleId,
-          type: 'owner_payment',
-          amount: monthlyOwnerPayment,
-          month: monthData.monthStr,
-          description: `Owner Payment for ${monthData.monthName} ${monthData.year}`,
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        });
-
-        totalPaid += monthlyOwnerPayment;
-      }
-
-      // Update cash in hand once for total amount
+      // Update cash in hand
       const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
       await setDoc(cashRef, {
-        balance: increment(-totalPaid),
+        balance: increment(-amountToPay),
         lastUpdated: new Date().toISOString()
       }, { merge: true });
 
       toast({
-        title: 'Owner Payment Completed',
-        description: `₹${totalPaid.toLocaleString()} paid to owner for ${monthsToPay.length} month${monthsToPay.length > 1 ? 's' : ''}`,
+        title: 'Owner Payment Successful',
+        description: `Owner payment of ₹${amountToPay.toLocaleString()} completed for ${cumulativePeriodLabel}.`
       });
-
-      // Clear selections
-      setSelectedOwnerShareMonthIndices([]);
     } catch (error) {
+      console.error('Owner payment error:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to process owner payment',
+        title: 'Payment Failed',
+        description: 'Failed to process owner payment. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -1904,13 +1758,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               onClick={() => {
                 setConfirmGstPaymentDialog(true);
               }}
-              disabled={actuallyPayable.gstActuallyPayable === 0}
+              disabled={actuallyPayable.gstActuallyPayable <= 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <CreditCard className="h-4 w-4" />
-              Pay GST ({selectedPeriod === 'month' ? actuallyPayable.gstActuallyPayable.toLocaleString() : selectedGstMonthTotal.toLocaleString()})
+              Pay GST (₹{actuallyPayable.gstActuallyPayable.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
@@ -1928,13 +1782,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmServiceChargeMonthSelectionDialog(true);
                 }
               }}
-              disabled={actuallyPayable.serviceChargeActuallyPayable === 0}
+              disabled={actuallyPayable.serviceChargeActuallyPayable <= 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <TrendingUp className="h-4 w-4" />
-              Withdraw Service Charges ({selectedPeriod === 'month' ? actuallyPayable.serviceChargeActuallyPayable.toLocaleString() : selectedServiceChargeMonthTotal.toLocaleString()})
+              Withdraw Service Charges (₹{actuallyPayable.serviceChargeActuallyPayable.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
@@ -1952,13 +1806,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmPartnerMonthSelectionDialog(true);
                 }
               }}
-              disabled={actuallyPayable.partnerShareActuallyPayable === 0}
+              disabled={actuallyPayable.partnerShareActuallyPayable <= 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <Users className="h-4 w-4" />
-              Pay Partner ({selectedPeriod === 'month' ? actuallyPayable.partnerShareActuallyPayable.toLocaleString() : selectedPartnerMonthTotal.toLocaleString()})
+              Pay Partner (₹{actuallyPayable.partnerShareActuallyPayable.toLocaleString()})
             </Button>
             <Button
               onClick={() => {
@@ -2037,13 +1891,13 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   setConfirmOwnerShareMonthSelectionDialog(true);
                 }
               }}
-              disabled={actuallyPayable.ownerShareActuallyPayable === 0}
+              disabled={actuallyPayable.ownerShareActuallyPayable <= 0}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
               <Banknote className="h-4 w-4" />
-              Withdraw Owner Share ({selectedPeriod === 'month' ? (cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal).toLocaleString() : selectedOwnerShareMonthTotal.toLocaleString()})
+              Withdraw Owner Share (₹{actuallyPayable.ownerShareActuallyPayable.toLocaleString()})
             </Button>
           </div>
         </CardContent>
