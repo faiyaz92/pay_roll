@@ -2041,8 +2041,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           const latestGstStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'gst_payment', monthData.monthStr);
 
                           if (monthData.gstAmount <= 0) {
-                            // GST = 0, don't show button
-                            return null;
+                            // GST = 0, show disabled button
+                            return (
+                              <Button
+                                size="sm"
+                                disabled={true}
+                              >
+                                <CreditCard className="h-3 w-3 mr-1" />
+                                Pay GST ₹0
+                              </Button>
+                            );
                           } else if (latestGstStatus === null) {
                             // No transaction, show button
                             return (
@@ -2094,8 +2102,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           const latestServiceChargeStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'service_charge', monthData.monthStr);
 
                           if (monthData.serviceCharge <= 0) {
-                            // Service Charge = 0, don't show button
-                            return null;
+                            // Service Charge = 0, show disabled button
+                            return (
+                              <Button
+                                size="sm"
+                                disabled={true}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Collect ₹0
+                              </Button>
+                            );
                           } else if (latestServiceChargeStatus === null) {
                             // No transaction, show button
                             return (
@@ -2147,8 +2163,16 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                           const latestPartnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'partner_payment', monthData.monthStr);
 
                           if (monthData.partnerShare <= 0) {
-                            // Partner Share = 0, don't show button
-                            return null;
+                            // Partner Share = 0, show disabled button
+                            return (
+                              <Button
+                                size="sm"
+                                disabled={true}
+                              >
+                                <Banknote className="h-3 w-3 mr-1" />
+                                Pay Partner ₹0
+                              </Button>
+                            );
                           } else if (latestPartnerPaymentStatus === null) {
                             // No transaction, show button
                             return (
@@ -2197,199 +2221,64 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Owner Payment</span>
                         {(() => {
-                          // For monthly view, use latest transaction status logic
-                          if (selectedPeriod === 'month') {
-                            const monthStr = `${selectedYear}-${String(parseInt(selectedMonth)).padStart(2, '0')}`;
-                            const latestOwnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', monthStr);
+                          const latestOwnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', monthData.monthStr);
+                          const ownerAmount = vehicle?.isPartnership === true ? monthData.ownerShare : monthData.ownerFullShare;
 
-                            // Calculate monthly owner payment for this vehicle
-                            const year = parseInt(selectedYear);
-                            const monthIndex = parseInt(selectedMonth) - 1; // Convert to 0-based
-                            const monthStart = new Date(year, monthIndex, 1);
-                            const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
-
-                            // Get payments and expenses for this month
-                            const monthPayments = vehiclePayments.filter((p: any) =>
-                              p.status === 'paid' &&
-                              new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
-                              new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
+                          if (ownerAmount <= 0) {
+                            // Owner Share = 0, show disabled button
+                            return (
+                              <Button
+                                size="sm"
+                                disabled={true}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Pay Owner ₹0
+                              </Button>
                             );
-
-                            const monthExpenses = expenses.filter((e: any) =>
-                              e.vehicleId === vehicleId &&
-                              e.status === 'approved' &&
-                              new Date(e.createdAt) >= monthStart &&
-                              new Date(e.createdAt) <= monthEnd
+                          } else if (latestOwnerPaymentStatus === null) {
+                            // No transaction, show button
+                            return (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedMonthDataForPayment({
+                                    ...monthData,
+                                    ownerPayment: ownerAmount
+                                  });
+                                  setConfirmMonthlyOwnerPaymentDialog(true);
+                                }}
+                                disabled={isProcessingOwnerPayment}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Pay Owner ₹{ownerAmount.toLocaleString()}
+                              </Button>
                             );
-
-                            const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
-                            const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-                            const monthlyProfit = monthEarnings - monthExpensesAmount;
-
-                            // GST calculation
-                            const monthlyGst = monthlyProfit > 0 ? monthlyProfit * 0.04 : 0;
-
-                            // Service charge
-                            const isPartnerTaxi = vehicle?.isPartnership === true;
-                            const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100;
-                            const monthlyServiceCharge = isPartnerTaxi && monthlyProfit > 0 ? monthlyProfit * serviceChargeRate : 0;
-
-                            // Remaining profit
-                            const remainingProfit = monthlyProfit - monthlyGst - monthlyServiceCharge;
-
-                            // Partner share percentage
-                            const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50;
-
-                            // Calculate owner payment (remaining after partner share for partner taxis, or full remaining for company taxis)
-                            let monthlyOwnerPayment = 0;
-                            if (isPartnerTaxi && remainingProfit > 0) {
-                              // Partner taxi: owner gets remaining after partner share
-                              monthlyOwnerPayment = remainingProfit * (1 - partnerSharePercentage);
-                            } else if (!isPartnerTaxi && (monthlyProfit - monthlyGst) > 0) {
-                              // Company taxi: owner gets full remaining profit after GST
-                              monthlyOwnerPayment = monthlyProfit - monthlyGst;
-                            }
-
-                            if (monthlyOwnerPayment <= 0) {
-                              // No owner payment due, don't show button
-                              return null;
-                            } else if (latestOwnerPaymentStatus === null) {
-                              // No transaction, show button
-                              return (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedMonthDataForPayment({
-                                      ...monthData,
-                                      ownerPayment: monthlyOwnerPayment,
-                                      monthStr: monthStr
-                                    });
-                                    setConfirmMonthlyOwnerPaymentDialog(true);
-                                  }}
-                                  disabled={isProcessingOwnerPayment}
-                                >
-                                  <DollarSign className="h-3 w-3 mr-1" />
-                                  Pay Owner ₹{monthlyOwnerPayment.toLocaleString()}
-                                </Button>
-                              );
-                            } else if (latestOwnerPaymentStatus === 'completed') {
-                              // Latest transaction completed, show badge
-                              return (
-                                <Badge variant="default" className="bg-green-500">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Paid
-                                </Badge>
-                              );
-                            } else if (latestOwnerPaymentStatus === 'reversed') {
-                              // Latest transaction reversed, show button for re-payment
-                              return (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedMonthDataForPayment({
-                                      ...monthData,
-                                      ownerPayment: monthlyOwnerPayment,
-                                      monthStr: monthStr
-                                    });
-                                    setConfirmMonthlyOwnerPaymentDialog(true);
-                                  }}
-                                  disabled={isProcessingOwnerPayment}
-                                >
-                                  <DollarSign className="h-3 w-3 mr-1" />
-                                  Pay Owner ₹{monthlyOwnerPayment.toLocaleString()}
-                                </Button>
-                              );
-                            }
-                          } else {
-                            // For quarterly/yearly views, calculate total owner payment for the period
-                            const periodOwnerPayment = monthlyData.reduce((sum, month) => {
-                              const year = parseInt(selectedYear);
-                              const monthIndex = month.month;
-                              const monthStart = new Date(year, monthIndex, 1);
-                              const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
-
-                              // Get payments and expenses for this month
-                              const monthPayments = vehiclePayments.filter((p: any) =>
-                                p.status === 'paid' &&
-                                new Date(p.paidAt || p.collectionDate || p.createdAt) >= monthStart &&
-                                new Date(p.paidAt || p.collectionDate || p.createdAt) <= monthEnd
-                              );
-
-                              const monthExpenses = expenses.filter((e: any) =>
-                                e.vehicleId === vehicleId &&
-                                e.status === 'approved' &&
-                                new Date(e.createdAt) >= monthStart &&
-                                new Date(e.createdAt) <= monthEnd
-                              );
-
-                              const monthEarnings = monthPayments.reduce((sum: number, p: any) => sum + p.amountPaid, 0);
-                              const monthExpensesAmount = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
-                              const monthlyProfit = monthEarnings - monthExpensesAmount;
-
-                              // GST calculation
-                              const monthlyGst = monthlyProfit > 0 ? monthlyProfit * 0.04 : 0;
-
-                              // Service charge
-                              const isPartnerTaxi = vehicle?.isPartnership === true;
-                              const serviceChargeRate = (vehicle?.serviceChargeRate || 10) / 100;
-                              const monthlyServiceCharge = isPartnerTaxi && monthlyProfit > 0 ? monthlyProfit * serviceChargeRate : 0;
-
-                              // Remaining profit
-                              const remainingProfit = monthlyProfit - monthlyGst - monthlyServiceCharge;
-
-                              // Partner share percentage
-                              const partnerSharePercentage = vehicle?.partnershipPercentage ? vehicle.partnershipPercentage / 100 : 0.50;
-
-                              // Calculate owner payment
-                              let monthlyOwnerPayment = 0;
-                              if (isPartnerTaxi && remainingProfit > 0) {
-                                monthlyOwnerPayment = remainingProfit * (1 - partnerSharePercentage);
-                              } else if (!isPartnerTaxi && (monthlyProfit - monthlyGst) > 0) {
-                                monthlyOwnerPayment = monthlyProfit - monthlyGst;
-                              }
-
-                              return sum + monthlyOwnerPayment;
-                            }, 0);
-
-                            // Check if all months in period have been paid
-                            const periodMonths = monthlyData.map(month => month.monthStr);
-                            const allMonthsPaid = periodMonths.every(monthStr => {
-                              const status = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', monthStr);
-                              return status === 'completed';
-                            });
-
-                            if (periodOwnerPayment <= 0) {
-                              // No owner payment due, don't show button
-                              return null;
-                            } else if (allMonthsPaid) {
-                              // All months paid, show badge
-                              return (
-                                <Badge variant="default" className="bg-green-500">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Paid
-                                </Badge>
-                              );
-                            } else {
-                              // Some months not paid, show button
-                              return (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedMonthDataForPayment({
-                                      ...monthData,
-                                      ownerPayment: periodOwnerPayment,
-                                      monthStr: cumulativePeriodKey,
-                                      isCumulative: true
-                                    });
-                                    setConfirmMonthlyOwnerPaymentDialog(true);
-                                  }}
-                                  disabled={isProcessingOwnerPayment}
-                                >
-                                  <DollarSign className="h-3 w-3 mr-1" />
-                                  Pay Owner ₹{periodOwnerPayment.toLocaleString()}
-                                </Button>
-                              );
-                            }
+                          } else if (latestOwnerPaymentStatus === 'completed') {
+                            // Latest transaction completed, show badge
+                            return (
+                              <Badge variant="default" className="bg-green-500">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Paid
+                              </Badge>
+                            );
+                          } else if (latestOwnerPaymentStatus === 'reversed') {
+                            // Latest transaction reversed, show button for re-payment
+                            return (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedMonthDataForPayment({
+                                    ...monthData,
+                                    ownerPayment: ownerAmount
+                                  });
+                                  setConfirmMonthlyOwnerPaymentDialog(true);
+                                }}
+                                disabled={isProcessingOwnerPayment}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Pay Owner ₹{ownerAmount.toLocaleString()}
+                              </Button>
+                            );
                           }
                         })()}
                       </div>
