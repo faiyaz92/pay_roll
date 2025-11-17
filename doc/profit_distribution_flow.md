@@ -6,8 +6,10 @@ This document outlines the complete profit distribution flow and payment calcula
 **IMPORTANT**: This flow specifically covers the individual payment buttons that appear on each vehicle card in Section 5. The bulk payment buttons at the top of the section follow similar logic but operate across multiple vehicles.
 
 # Section 5: Individual Vehicle Payment Buttons - Complete Implementation Guide
+*(Corresponds to Section 5 in FinancialAccountsTab.tsx - Individual Vehicle Payment Buttons)*
 
 ### 5.1 Overview
+*(Corresponds to Section 5.1 in FinancialAccountsTab.tsx - Vehicle Card Overview and Payment Button Logic)*
 Section 5 displays individual payment buttons for each vehicle card in `FinancialAccountsTab.tsx`. Each vehicle shows its financial breakdown and payment buttons based on calculated amounts for the selected period (monthly/quarterly/yearly). The calculations follow a strict sequence: **Gross Profit → GST Deduction → Service Charge Deduction → Net Profit → Partner/Owner Distribution**.
 
 **Key Features:**
@@ -215,6 +217,7 @@ const isInPeriod = periodStrings.includes(t.month) ||
 - Logic: `{userInfo?.role !== Role.PARTNER && (...)}`
 
 ### 5.5 Complete Calculation Flow for Each Vehicle
+*(Corresponds to Section 5.5 in FinancialAccountsTab.tsx - Individual Payment Dialog and Calculation Logic)*
 
 #### Step 1: Determine Period Months Based on Selection Type
 The `getPeriodData()` function uses the same logic for all period types, but determines different month arrays:
@@ -425,11 +428,15 @@ const ownerActuallyPayable = Math.max(0, cumulativeOwnerPayment - paidOwnerAmoun
 
 ### 5.7 Payment Processing Flow
 
-#### Step 1: User Clicks Payment Button
-- Button shows the calculated "actually payable" amount
-- Triggers confirmation dialog with payment details
+The payment processing flow differs between monthly and quarterly/yearly views due to the different button behaviors and transaction creation patterns.
 
-#### Step 2: Confirmation Dialog Display
+#### Monthly View Payment Flow (Single Transaction)
+
+**Step 1: User Clicks Payment Button**
+- Button shows the calculated "actually payable" amount for the single month
+- Triggers direct confirmation dialog (no month selection needed)
+
+**Step 2: Confirmation Dialog Display**
 ```javascript
 // Example for Owner Payment Dialog
 const dialogProps = {
@@ -441,13 +448,13 @@ const dialogProps = {
 };
 ```
 
-#### Step 3: User Confirms Payment
+**Step 3: User Confirms Payment**
 - Dialog validates no additional checks (button enable logic already handles validation)
-- Proceeds to payment processing
+- Proceeds to single transaction creation
 
-#### Step 4: Create Accounting Transaction
+**Step 4: Create Single Accounting Transaction**
 ```javascript
-// Create transaction document in Firestore
+// Create single transaction document in Firestore
 const transactionRef = collection(firestore,
   `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accountingTransactions`
 );
@@ -456,7 +463,7 @@ const newTransaction = {
   vehicleId: vehicleId,
   type: 'owner_payment', // 'gst_payment', 'service_charge', 'partner_payment'
   amount: paymentAmount,
-  month: periodStr, // e.g., "2025-11", "2025-Q4", "2025"
+  month: `${year}-${selectedMonth.padStart(2, '0')}`, // Single month string
   description: `Owner Payment for ${registrationNumber} - ${periodLabel} ${year}`,
   status: 'completed',
   createdAt: new Date().toISOString(),
@@ -466,55 +473,145 @@ const newTransaction = {
 const docRef = await addDoc(transactionRef, newTransaction);
 ```
 
-#### Step 5: Update Vehicle Cash Balance
-```javascript
-// Decrease vehicle cash in hand
-const cashRef = doc(firestore,
-  `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/cashInHand`,
-  vehicleId
-);
+**Step 5: Update Cash Balances**
+- Decrement vehicle cash in hand by full payment amount
+- Decrement company cash balance by full payment amount
 
-await setDoc(cashRef, {
-  balance: increment(-paymentAmount) // Atomic decrement
-}, { merge: true });
+**Step 6: Update Local State**
+- Add single transaction to accountingTransactions state
+- Update vehicleCashBalances state
+
+#### Quarterly/Yearly View Payment Flow (Multi-Month Dialog)
+
+**Step 1: User Clicks Payment Button**
+- Button shows cumulative "actually payable" amount across all months
+- Opens Individual Payment Dialog (Section 5.5) for month selection
+
+**Step 2: Individual Payment Dialog Opens**
+- Dialog shows all months in the selected period (3 months for quarterly, 12 for yearly)
+- Each month displays its actual calculated amount (not divided equally)
+- Months with zero amounts are disabled and cannot be selected
+- Auto-selects all months with positive amounts on dialog open
+
+**Step 3: User Modifies Month Selection (Optional)**
+- User can check/uncheck months to customize payment scope
+- Total amount updates dynamically based on selected months
+- Only months with actual calculated amounts > 0 can be selected
+
+**Step 4: User Confirms Multi-Month Payment**
+- Dialog validates at least one month is selected
+- Proceeds to create multiple transactions (one per selected month)
+
+**Step 5: Create Multiple Accounting Transactions**
+```javascript
+// For GST and Service Charge: Create separate transaction per month
+for (let i = 0; i < selectedMonths.length; i++) {
+  const monthIndex = selectedMonths[i];
+  const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+  
+  // Get actual amount for this specific month using breakdown functions
+  const monthAmount = getMonthlyAmountForPaymentType(monthIndex);
+  
+  const transaction = {
+    vehicleId: vehicleId,
+    type: paymentType, // 'gst_payment' or 'service_charge'
+    amount: monthAmount, // Actual monthly amount, not divided
+    month: monthStr,
+    description: `${paymentType.replace('_', ' ').toUpperCase()} for ${registrationNumber} - ${monthStr}`,
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    completedAt: new Date().toISOString()
+  };
+  
+  await addDoc(transactionRef, transaction);
+  newTransactions.push({...transaction, id: docRef.id});
+}
+
+// For Partner and Owner Payments: Use existing handlers
+// These handle their own transaction creation logic internally
+if (paymentType === 'partner_share') {
+  await handlePartnerPayment(vehicleInfo, selectedMonths);
+} else if (paymentType === 'owner_payment') {
+  await handleOwnerPayment(vehicleInfo, selectedMonths);
+}
 ```
 
-#### Step 6: Update Company Cash Balance
+**Step 6: Update Cash Balances**
+- Calculate total payment amount from all selected months
+- Decrement vehicle cash in hand by total amount
+- Decrement company cash balance by total amount
+
+**Step 7: Update Local State**
+- Add all new transactions to accountingTransactions state
+- Update vehicleCashBalances state
+- Close dialog and reset selection state
+
+#### Key Differences: Monthly vs Quarterly/Yearly Processing
+
+| Aspect | Monthly View | Quarterly/Yearly View |
+|--------|-------------|----------------------|
+| **Transaction Count** | 1 transaction | Multiple transactions (1 per month) |
+| **Amount Distribution** | Full amount in single transaction | Actual monthly amounts in separate transactions |
+| **User Interaction** | Direct confirmation | Month selection dialog |
+| **Amount Calculation** | `actuallyPayable` (already calculated) | Sum of selected months' actual amounts |
+| **Period String** | Single month: `"2025-11"` | Multiple months: `["2025-10", "2025-11", "2025-12"]` |
+| **Dialog Type** | Simple confirmation | Individual Payment Dialog with checkboxes |
+
+#### Transaction Creation Patterns by Payment Type
+
+**GST & Service Charge (Individual Dialog):**
+- Creates separate transactions for each selected month
+- Uses actual monthly amounts from breakdown functions
+- Returns transaction array for state updates
+
+**Partner & Owner Payments (Existing Handlers):**
+- Uses existing `handlePartnerPayment()` and `handleOwnerPayment()` functions
+- These functions handle their own transaction creation and state updates
+- Dialog closes immediately after calling handlers
+
+#### Error Handling and State Management
+
+**Success Flow:**
 ```javascript
-// Decrease company cash balance
-const companyCashRef = doc(firestore,
-  `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/companyCashInHand`,
-  'main'
-);
+// Update accounting transactions state
+setAccountingTransactions(prev => [...prev, ...newTransactions]);
 
-await setDoc(companyCashRef, {
-  balance: increment(-paymentAmount), // Atomic decrement
-  lastUpdated: new Date().toISOString()
-}, { merge: true });
-```
-
-#### Step 7: Update Local State
-```javascript
-// Add transaction to local state
-setAccountingTransactions(prev => [...prev, { ...newTransaction, id: docRef.id }]);
-
-// Update vehicle cash balance in local state
+// Update vehicle cash balances
 setVehicleCashBalances(prev => ({
   ...prev,
-  [vehicleId]: (prev[vehicleId] || 0) - paymentAmount
+  [vehicleId]: (prev[vehicleId] || 0) - totalPaymentAmount
 }));
 
 // Show success toast
 toast({
-  title: 'Owner Payment Completed',
-  description: `₹${paymentAmount.toLocaleString()} paid to owner for ${registrationNumber}`,
+  title: 'Payment Successful',
+  description: `${paymentType.replace('_', ' ').toUpperCase()} payment completed for selected months.`,
 });
 ```
 
-#### Step 8: UI Updates Automatically
-- Payment button becomes disabled (actually payable becomes 0)
-- Status badge shows "Paid"
-- Cash balances update across the interface
+**Error Flow:**
+```javascript
+// Show error toast
+toast({
+  title: 'Payment Failed',
+  description: 'Failed to process payment. Please try again.',
+  variant: 'destructive'
+});
+
+// Reset processing state
+setIsBulkProcessing(false);
+```
+
+#### UI Updates After Payment
+
+**Automatic State Changes:**
+1. Payment buttons become disabled (actually payable becomes 0)
+2. Status badges show "Paid" (for monthly) or remain disabled (for quarterly/yearly with mixed completion)
+3. Cash balances update across all UI components
+4. Transaction counts update in period summaries
+5. Button text changes from "Pay ₹X" to disabled state
+
+This dual-path payment processing ensures flexibility for different period types while maintaining accurate transaction records and cash balance tracking.
 - Button text changes from "Pay ₹X" to disabled state
 
 ### 5.8 Key Technical Implementation Details
