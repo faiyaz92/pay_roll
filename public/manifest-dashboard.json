@@ -1,6 +1,6 @@
 {
   "name": "Route Glide Dashboard",
-  "short_name": "Dashboard",
+  "short_name": "Car rental",
   "description": "Transportation dashboard for daily operations and fleet overview",
   "start_url": "/",
   "display": "standalone",
