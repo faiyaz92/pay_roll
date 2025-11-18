@@ -117,7 +117,7 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="make"
@@ -147,7 +147,7 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="year"
@@ -257,7 +257,7 @@ const EditVehicleForm: React.FC<EditVehicleFormProps> = ({ vehicle, onSuccess })
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="mileageValue"

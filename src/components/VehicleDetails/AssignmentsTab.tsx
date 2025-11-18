@@ -75,7 +75,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                         <div>
                           <Label className="text-gray-500">Driver</Label>
                           <p className="font-medium">{getDriverName(assignment.driverId)}</p>
@@ -99,7 +99,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm mt-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mt-3">
                         <div>
                           <Label className="text-gray-500">Daily Rent</Label>
                           <p className="font-medium">₹{assignment.dailyRent.toLocaleString()}</p>
@@ -157,7 +157,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ vehicleId, getDr
       {/* Summary Statistics */}
       <div>
         <SectionNumberBadge id="2" label="Assignment Summary Metrics" className="mb-2" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-blue-600">

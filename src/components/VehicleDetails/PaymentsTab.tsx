@@ -55,7 +55,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           <h3 className="text-lg font-semibold">Payment History</h3>
           <p className="text-sm text-muted-foreground">Track all payments and receipts for this vehicle</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
           {/* Level 1: Transaction Type Filter */}
           <select
             className="px-3 py-2 border rounded-md text-sm min-w-[120px]"

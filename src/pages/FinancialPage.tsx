@@ -306,20 +306,20 @@ const FinancialPage: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Company Financial Management</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Company Financial Management</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Comprehensive financial overview and accounting for all vehicles
           </p>
         </div>
         <div className="flex items-center gap-4">
           <Card className="px-4 py-2">
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-xl sm:text-2xl font-bold text-green-600">
                 ₹{companyCashInHand.toLocaleString()}
               </div>
-              <div className="text-sm text-gray-600">Company Cash in Hand</div>
+              <div className="text-xs sm:text-sm text-gray-600">Company Cash in Hand</div>
             </div>
           </Card>
         </div>
@@ -339,7 +339,7 @@ const FinancialPage: React.FC = () => {
         <CardContent>
           <div className="space-y-4">
             {/* All Filters in One Row */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
               {/* Filter Type Selection */}
               <div>
                 <label className="text-sm font-medium">Filter Type</label>
@@ -485,32 +485,34 @@ const FinancialPage: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="financial" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Financial
-          </TabsTrigger>
-          <TabsTrigger value="expenses" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            Expenses
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Payment History
-          </TabsTrigger>
-          <TabsTrigger value="accounts" className="flex items-center gap-2">
-            <Calculator className="h-4 w-4" />
-            Accounts
-          </TabsTrigger>
-          <TabsTrigger value="transactions" className="flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Accounting Transactions
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-hidden">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+            <TabsTrigger value="overview" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <BarChart3 className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="financial" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <DollarSign className="h-4 w-4" />
+              Financial
+            </TabsTrigger>
+            <TabsTrigger value="expenses" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <Receipt className="h-4 w-4" />
+              Expenses
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <History className="h-4 w-4" />
+              Payment History
+            </TabsTrigger>
+            <TabsTrigger value="accounts" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <Calculator className="h-4 w-4" />
+              Accounts
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-2 flex-shrink-0">
+              <RotateCcw className="h-4 w-4" />
+              Accounting Transactions
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview">
           <FinancialOverviewTab companyFinancialData={companyFinancialData} />

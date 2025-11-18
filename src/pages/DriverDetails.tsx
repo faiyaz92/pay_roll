@@ -167,7 +167,7 @@ const DriverDetails: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <Button onClick={() => navigate('/drivers')} variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -191,9 +191,9 @@ const DriverDetails: React.FC = () => {
       </div>
 
       {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Credit Score</CardTitle>
             <Star className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
@@ -208,7 +208,7 @@ const DriverDetails: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
             <DollarSign className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
@@ -221,7 +221,7 @@ const DriverDetails: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Amount Due</CardTitle>
             <AlertCircle className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
@@ -237,7 +237,7 @@ const DriverDetails: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Engagement</CardTitle>
             <Truck className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
@@ -276,25 +276,25 @@ const DriverDetails: React.FC = () => {
             </div>
             
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-gray-500">Email:</span>
                 <span className="font-medium">{driver.email}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-gray-500">Phone:</span>
                 <span className="font-medium">{driver.phone}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-gray-500">License:</span>
                 <span className="font-medium">{driver.licenseNumber}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-gray-500">Join Date:</span>
                 <span className="font-medium">{new Date(driver.joinDate).toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-gray-500">Address:</span>
-                <span className="font-medium text-right">{driver.address}</span>
+                <span className="font-medium text-left sm:text-right">{driver.address}</span>
               </div>
             </div>
 
@@ -302,7 +302,7 @@ const DriverDetails: React.FC = () => {
             {driver.documents && (
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-2">Documents</h4>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Badge variant={driver.documents.drivingLicense ? "default" : "secondary"} className="text-xs">
                     License {driver.documents.drivingLicense ? '✓' : '✗'}
                   </Badge>
@@ -326,12 +326,14 @@ const DriverDetails: React.FC = () => {
         {/* Analytics and Tabs */}
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-              <TabsTrigger value="assignments">Assignments</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-            </TabsList>
+            <div className="w-full overflow-hidden">
+              <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+                <TabsTrigger value="analytics" className="whitespace-nowrap flex-shrink-0">Analytics</TabsTrigger>
+                <TabsTrigger value="assignments" className="whitespace-nowrap flex-shrink-0">Assignments</TabsTrigger>
+                <TabsTrigger value="payments" className="whitespace-nowrap flex-shrink-0">Payments</TabsTrigger>
+                <TabsTrigger value="documents" className="whitespace-nowrap flex-shrink-0">Documents</TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="analytics" className="space-y-4">
               <Card>
@@ -339,7 +341,7 @@ const DriverDetails: React.FC = () => {
                   <CardTitle>Payment Performance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">{analytics.onTimePayments}</div>
                       <p className="text-sm text-gray-500">On-Time Payments</p>
@@ -364,7 +366,7 @@ const DriverDetails: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <span>Payment History</span>
                       <div className="flex items-center space-x-2">
                         {analytics.onTimePayments >= analytics.latePayments ? (
@@ -377,7 +379,7 @@ const DriverDetails: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <span>Average Delay</span>
                       <div className="flex items-center space-x-2">
                         {analytics.averagePaymentDelay <= 3 ? (
@@ -388,7 +390,7 @@ const DriverDetails: React.FC = () => {
                         <span className="font-medium">{analytics.averagePaymentDelay} days</span>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                       <span>Engagement Length</span>
                       <div className="flex items-center space-x-2">
                         <Target className="w-4 h-4 text-blue-600" />
@@ -411,7 +413,7 @@ const DriverDetails: React.FC = () => {
                   ) : (
                     <div className="space-y-3">
                       {driverAssignments.map((assignment, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded-lg gap-3">
                           <div>
                             <p className="font-medium">{getVehicleName(assignment.vehicleId)}</p>
                             <p className="text-sm text-gray-500">
@@ -419,7 +421,7 @@ const DriverDetails: React.FC = () => {
                               {assignment.endDate ? new Date(assignment.endDate).toLocaleDateString() : 'Ongoing'}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-left sm:text-right">
                             <p className="font-bold">₹{assignment.weeklyRent?.toLocaleString() || 'N/A'}</p>
                             <p className="text-sm text-gray-500">per week</p>
                           </div>
@@ -442,14 +444,14 @@ const DriverDetails: React.FC = () => {
                   ) : (
                     <div className="space-y-3">
                       {driverPayments.slice(0, 10).map((payment, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded-lg gap-3">
                           <div>
                             <p className="font-medium">₹{payment.amountPaid?.toLocaleString()}</p>
                             <p className="text-sm text-gray-500">
                               {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : 'Pending'}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-left sm:text-right">
                             <Badge 
                               variant={payment.status === 'paid' ? 'default' : 'secondary'}
                             >

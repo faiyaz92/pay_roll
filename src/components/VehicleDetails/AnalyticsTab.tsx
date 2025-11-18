@@ -608,31 +608,31 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           </CardHeader>
           <CardContent className="flex flex-col flex-grow min-h-0">
             <div className="space-y-3 flex-grow overflow-y-auto">
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Current Monthly Rent</span>
                 <span className="font-medium">
                   ₹{Math.round(financialData.monthlyRent).toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Avg Monthly Profit</span>
                 <span className={`font-medium ${financialData.avgMonthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ₹{Math.round(financialData.avgMonthlyProfit).toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Projected Yearly Profit/Loss</span>
                 <span className={`font-bold ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ₹{Math.round(financialData.projectedYearlyProfit).toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>ROI</span>
                 <span className={`font-medium ${financialData.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {financialData.roiPercentage >= 0 ? '+' : ''}{financialData.roiPercentage.toFixed(1)}%
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Projected ROI (1 Year)</span>
                 <span className={`font-medium ${financialData.projectedYearlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {getTotalInvestment() > 0 ?
@@ -641,7 +641,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                 </span>
               </div>
               {financialData.isInvestmentCovered && (
-                <div className="flex justify-between">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <span>Investment Status</span>
                   <Badge variant="default" className="bg-green-500 text-white">
                     Investment Covered
@@ -651,7 +651,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
             </div>
 
             <div className="flex-shrink-0 mt-auto">
-              <div className="flex justify-between border-t pt-2 mb-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-2 mb-2">
                 <span className="font-medium">Business Status</span>
                 <Badge variant={financialData.projectedYearlyProfit >= 0 ? "default" : "destructive"}>
                   {financialData.projectedYearlyProfit >= 0 ? "Profitable Projection" : "Loss Projection"}
@@ -787,48 +787,48 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
               return (
                 <>
                   <div className="space-y-3 flex-1">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Initial Investment</span>
                       <span className="font-medium">₹{(vehicle.initialInvestment || vehicle.initialCost)?.toLocaleString() || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Prepayment</span>
                       <span className="font-medium">₹{expenseData.prepayments.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Total Earnings ({projectionYear} year{projectionYear > 1 ? 's' : ''})</span>
                       <span className="font-medium text-green-600">₹{projection.projectedEarnings.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Projected Vehicle Value ({projectionYear} year{projectionYear > 1 ? 's' : ''})</span>
                       <span className="font-medium text-green-600">₹{projection.projectedDepreciatedCarValue.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Total Expenses ({projectionYear} year{projectionYear > 1 ? 's' : ''})</span>
                       <span className="font-medium text-red-600">₹{(projection.projectedTotalExpenses || projection.projectedOperatingExpenses).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between border-t pt-2">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-2">
                       <span>Total Investment</span>
                       <span className="font-medium">₹{fixedInvestment.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Projected Total Return</span>
                       <span className="font-medium text-green-600">₹{projection.projectedTotalReturn.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="font-medium">Projected ROI</span>
                       <span className={`font-bold ${projection.projectedROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {projection.projectedROI >= 0 ? '+' : ''}{projection.projectedROI.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="font-medium">Projected Net Cash Flow</span>
                       <span className={`font-bold ${projection.projectedNetCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         ₹{projection.projectedNetCashFlow.toLocaleString()}
                       </span>
                     </div>
                     {projection.breakEvenMonths && (
-                      <div className="flex justify-between">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="font-medium">Break-even Point</span>
                         <span className="font-bold text-blue-600">
                           {projection.breakEvenMonths} months ({projection.breakEvenDate})
@@ -836,7 +836,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       </div>
                     )}
                     {projection.loanClearanceMonths && (
-                      <div className="flex justify-between">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="font-medium">Loan Clearance</span>
                         <span className="font-bold text-purple-600">
                           {projection.loanClearanceMonths} months ({projection.loanClearanceDate})
@@ -844,7 +844,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-between border-t pt-2 mt-auto">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-2 mt-auto">
                     <span className="font-medium">Projected Profit/Loss</span>
                     <span className={`font-bold ${projectedIsProfit ? 'text-green-600' : 'text-red-600'}`}>
                       ₹{projection.projectedProfitLoss.toLocaleString()} ({projectedGrossProfitLossPercentage.toFixed(1)}%)
@@ -877,25 +877,25 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
               return (
                 <div className="space-y-4 flex-1 flex flex-col">
                   <div className="space-y-3 flex-1">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Investment Recovery:</span>
                       <Badge variant={isProfitable ? "default" : "destructive"}>
                         {isProfitable ? "Recovered" : "Not Recovered"}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>ROI Status:</span>
                       <Badge variant={roiPositive ? "default" : "destructive"}>
                         {roiPositive ? "Positive" : "Negative"}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Cash Flow:</span>
                       <Badge variant={projection.projectedNetCashFlow >= 0 ? "default" : "destructive"}>
                         {projection.projectedNetCashFlow >= 0 ? "Positive" : "Negative"}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span>Loan Status:</span>
                       <Badge variant={projection.futureOutstandingLoan === 0 ? "default" : "secondary"}>
                         {projection.futureOutstandingLoan === 0 ? "Cleared" : "Outstanding"}

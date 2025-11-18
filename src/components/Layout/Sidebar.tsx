@@ -58,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   return (
     <div className={cn(
       "bg-primary text-primary-foreground transition-all duration-300 flex flex-col",
-      collapsed ? "w-16" : "w-64"
+      collapsed ? "w-12 md:w-16" : "w-48 md:w-64"
     )}>
       {/* Logo */}
       <div className="p-4 border-b border-primary-foreground/10">

@@ -350,7 +350,7 @@ const Reports: React.FC = () => {
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-24 bg-gray-200 rounded"></div>
             ))}
@@ -363,7 +363,7 @@ const Reports: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Reports & Analytics</h1>
           <p className="text-gray-600 mt-2">Comprehensive fleet performance and financial analytics</p>
@@ -389,7 +389,7 @@ const Reports: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="dateRange">Date Range</Label>
               <Select value={dateRange} onValueChange={setDateRange}>
@@ -457,17 +457,19 @@ const Reports: React.FC = () => {
 
       {/* Analytics Tabs */}
       <Tabs value={reportType} onValueChange={setReportType}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="financial">Financial</TabsTrigger>
-          <TabsTrigger value="operational">Operational</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-hidden">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+            <TabsTrigger value="summary" className="whitespace-nowrap flex-shrink-0">Summary</TabsTrigger>
+            <TabsTrigger value="financial" className="whitespace-nowrap flex-shrink-0">Financial</TabsTrigger>
+            <TabsTrigger value="operational" className="whitespace-nowrap flex-shrink-0">Operational</TabsTrigger>
+            <TabsTrigger value="performance" className="whitespace-nowrap flex-shrink-0">Performance</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Summary Tab */}
         <TabsContent value="summary" className="space-y-6">
           {/* Key Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -524,12 +526,12 @@ const Reports: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Fuel className="w-4 h-4 text-orange-600" />
                     <span>Fuel Expenses</span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right sm:text-right">
                     <div className="font-semibold">{formatCurrency(analytics.financial.expenseBreakdown.fuel)}</div>
                     <div className="text-sm text-gray-500">
                       {analytics.financial.totalExpenses > 0 ? ((analytics.financial.expenseBreakdown.fuel / analytics.financial.totalExpenses) * 100).toFixed(1) : 0}%
@@ -538,12 +540,12 @@ const Reports: React.FC = () => {
                 </div>
                 <Progress value={analytics.financial.totalExpenses > 0 ? (analytics.financial.expenseBreakdown.fuel / analytics.financial.totalExpenses) * 100 : 0} className="h-2" />
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-blue-600" />
                     <span>Maintenance</span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right sm:text-right">
                     <div className="font-semibold">{formatCurrency(analytics.financial.expenseBreakdown.maintenance)}</div>
                     <div className="text-sm text-gray-500">
                       {analytics.financial.totalExpenses > 0 ? ((analytics.financial.expenseBreakdown.maintenance / analytics.financial.totalExpenses) * 100).toFixed(1) : 0}%
@@ -552,12 +554,12 @@ const Reports: React.FC = () => {
                 </div>
                 <Progress value={analytics.financial.totalExpenses > 0 ? (analytics.financial.expenseBreakdown.maintenance / analytics.financial.totalExpenses) * 100 : 0} className="h-2" />
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-green-600" />
                     <span>Insurance</span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right sm:text-right">
                     <div className="font-semibold">{formatCurrency(analytics.financial.expenseBreakdown.insurance)}</div>
                     <div className="text-sm text-gray-500">
                       {analytics.financial.totalExpenses > 0 ? ((analytics.financial.expenseBreakdown.insurance / analytics.financial.totalExpenses) * 100).toFixed(1) : 0}%
@@ -566,12 +568,12 @@ const Reports: React.FC = () => {
                 </div>
                 <Progress value={analytics.financial.totalExpenses > 0 ? (analytics.financial.expenseBreakdown.insurance / analytics.financial.totalExpenses) * 100 : 0} className="h-2" />
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <PieChart className="w-4 h-4 text-gray-600" />
                     <span>Other Expenses</span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right sm:text-right">
                     <div className="font-semibold">{formatCurrency(analytics.financial.expenseBreakdown.other)}</div>
                     <div className="text-sm text-gray-500">
                       {analytics.financial.totalExpenses > 0 ? ((analytics.financial.expenseBreakdown.other / analytics.financial.totalExpenses) * 100).toFixed(1) : 0}%
@@ -593,9 +595,9 @@ const Reports: React.FC = () => {
             <CardContent>
               <div className="space-y-4">
                 {analytics.trends.map((trend, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                     <div className="font-medium">{trend.month}</div>
-                    <div className="flex gap-6 text-sm">
+                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-sm">
                       <div className="text-green-600">
                         <div className="font-semibold">{formatCurrency(trend.revenue)}</div>
                         <div>Revenue</div>
@@ -618,7 +620,7 @@ const Reports: React.FC = () => {
 
         {/* Operational Tab */}
         <TabsContent value="operational" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -662,7 +664,7 @@ const Reports: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between text-sm gap-1">
                   <span>Completion Rate</span>
                   <span>{analytics.operational.completionRate.toFixed(1)}%</span>
                 </div>

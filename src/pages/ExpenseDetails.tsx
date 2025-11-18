@@ -181,7 +181,7 @@ const ExpenseDetails: React.FC = () => {
               <div className="space-y-3">
                 {/* Main Document */}
                 {expense.expenseDocuments.mainDocument && (
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-lg gap-4">
                     <div className="flex items-center gap-3">
                       <FileText className="h-8 w-8 text-blue-600" />
                       <div>
@@ -217,7 +217,7 @@ const ExpenseDetails: React.FC = () => {
                 {Object.entries(expense.expenseDocuments)
                   .filter(([key]) => key.startsWith('additional_'))
                   .map(([key, url]) => (
-                    <div key={key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-lg gap-4">
                       <div className="flex items-center gap-3">
                         <FileText className="h-8 w-8 text-green-600" />
                         <div>

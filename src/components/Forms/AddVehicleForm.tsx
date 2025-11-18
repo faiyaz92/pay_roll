@@ -638,14 +638,16 @@ const AddVehicleForm: React.FC<AddVehicleFormProps> = ({ onSuccess, vehicle = nu
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="financial">Financial</TabsTrigger>
-            <TabsTrigger value="loan">Loan Details</TabsTrigger>
-            <TabsTrigger value="insurance">Insurance</TabsTrigger>
-            <TabsTrigger value="partnership">Partnership</TabsTrigger>
-            <TabsTrigger value="history">Historical Data</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-hidden">
+            <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+              <TabsTrigger value="basic" className="whitespace-nowrap flex-shrink-0">Basic Info</TabsTrigger>
+              <TabsTrigger value="financial" className="whitespace-nowrap flex-shrink-0">Financial</TabsTrigger>
+              <TabsTrigger value="loan" className="whitespace-nowrap flex-shrink-0">Loan Details</TabsTrigger>
+              <TabsTrigger value="insurance" className="whitespace-nowrap flex-shrink-0">Insurance</TabsTrigger>
+              <TabsTrigger value="partnership" className="whitespace-nowrap flex-shrink-0">Partnership</TabsTrigger>
+              <TabsTrigger value="history" className="whitespace-nowrap flex-shrink-0">Historical Data</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Basic Information Tab */}
           <TabsContent value="basic" className="space-y-4">

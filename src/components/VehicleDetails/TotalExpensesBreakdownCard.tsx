@@ -24,31 +24,31 @@ const TotalExpensesBreakdownCard: React.FC<TotalExpensesBreakdownCardProps> = ({
       </CardHeader>
       <CardContent className="space-y-3">
         <SectionNumberBadge id="2" label="Expense Components" className="mb-2" />
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Fuel Expenses:</span>
           <span className="font-medium text-red-600">₹{expenseData.fuelExpenses.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Maintenance:</span>
           <span className="font-medium text-red-600">₹{expenseData.maintenanceExpenses.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Insurance:</span>
           <span className="font-medium text-red-600">₹{expenseData.insuranceExpenses.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Penalties:</span>
           <span className="font-medium text-red-600">₹{expenseData.penaltyExpenses.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">EMI Payments:</span>
           <span className="font-medium text-blue-600">₹{expenseData.emiPayments.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Other Expenses:</span>
           <span className="font-medium text-red-600">₹{expenseData.otherExpenses.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between border-t pt-2 font-semibold">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-2 font-semibold">
           <span>Total Expenses:</span>
           <span className="text-red-600">₹{expenseData.totalExpenses.toLocaleString()}</span>
         </div>

@@ -374,7 +374,7 @@ const PartnerDetails: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-gray-600">Period Earnings</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(partnerFinancials.totalEarnings)}</p>
@@ -386,7 +386,7 @@ const PartnerDetails: React.FC = () => {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-gray-600">Current Payable</p>
                 <p className="text-2xl font-bold text-blue-600">{formatCurrency(partnerFinancials.currentPayable)}</p>
@@ -398,7 +398,7 @@ const PartnerDetails: React.FC = () => {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-gray-600">Outstanding Amount</p>
                 <p className="text-2xl font-bold text-red-600">{formatCurrency(partnerFinancials.outstanding)}</p>
@@ -422,7 +422,7 @@ const PartnerDetails: React.FC = () => {
             {partnerFinancials.vehicleFinancials?.map((vehicleData: any) => (
               <Card key={vehicleData.vehicle.id} className="border-l-4 border-l-blue-500">
                 <CardContent className="pt-4">
-                  <div className="flex justify-between items-start mb-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
                     <div>
                       <h4 className="font-semibold text-lg">{vehicleData.vehicle.registrationNumber}</h4>
                       <p className="text-sm text-gray-600">{vehicleData.vehicle.make} {vehicleData.vehicle.model}</p>
@@ -510,7 +510,7 @@ const PartnerDetails: React.FC = () => {
             <h4 className="font-semibold">Recent Settlements</h4>
             {partnerFinancials.settlementHistory.length > 0 ? (
               partnerFinancials.settlementHistory.map((settlement: AccountingTransaction) => (
-                <div key={settlement.id} className="flex justify-between items-center p-3 border border-gray-200 rounded">
+                <div key={settlement.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 border border-gray-200 rounded gap-2">
                   <div>
                     <div className="font-semibold">{formatCurrency(settlement.amount)}</div>
                     <div className="text-sm text-gray-600">
