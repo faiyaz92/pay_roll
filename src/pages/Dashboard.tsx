@@ -286,12 +286,12 @@ const Dashboard: React.FC = () => {
 
   if (loading || !dashboardData) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+              <div key={i} className="h-20 md:h-24 bg-gray-200 rounded"></div>
             ))}
           </div>
         </div>
@@ -300,21 +300,21 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Fleet Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Fleet Dashboard</h1>
           <p className="text-gray-600 mt-2">
             Comprehensive overview of your car rental business performance
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/vehicles')}>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => navigate('/vehicles')} className="w-full sm:w-auto">
             <Car className="w-4 h-4 mr-2" />
             View Fleet
           </Button>
-          <Button variant="outline" onClick={() => navigate('/assignments')}>
+          <Button variant="outline" onClick={() => navigate('/assignments')} className="w-full sm:w-auto">
             <Users className="w-4 h-4 mr-2" />
             Assignments
           </Button>
@@ -322,13 +322,13 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xl md:text-2xl font-bold text-gray-900">
                   {formatCurrency(dashboardData.financial.monthlyRevenue)}
                 </p>
                 <div className="flex items-center mt-1">
@@ -342,65 +342,65 @@ const Dashboard: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
+              <div className="p-2 md:p-3 bg-green-100 rounded-lg self-start">
+                <DollarSign className="w-5 md:w-6 h-5 md:h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-600">Monthly Profit</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xl md:text-2xl font-bold text-gray-900">
                   {formatCurrency(dashboardData.financial.monthlyProfit)}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
                   {dashboardData.financial.profitMargin.toFixed(1)}% margin
                 </p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+              <div className="p-2 md:p-3 bg-blue-100 rounded-lg self-start">
+                <TrendingUp className="w-5 md:w-6 h-5 md:h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-600">Fleet Utilization</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xl md:text-2xl font-bold text-gray-900">
                   {dashboardData.fleet.fleetUtilization.toFixed(1)}%
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
                   {dashboardData.fleet.rentedVehicles} of {dashboardData.fleet.totalVehicles} vehicles
                 </p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Car className="w-6 h-6 text-purple-600" />
+              <div className="p-2 md:p-3 bg-purple-100 rounded-lg self-start">
+                <Car className="w-5 md:w-6 h-5 md:h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Assignments</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xl md:text-2xl font-bold text-gray-900">
                   {dashboardData.activities.activeAssignments.length}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
                   Vehicles currently rented
                 </p>
               </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Users className="w-6 h-6 text-orange-600" />
+              <div className="p-2 md:p-3 bg-orange-100 rounded-lg self-start">
+                <Users className="w-5 md:w-6 h-5 md:h-6 text-orange-600" />
               </div>
             </div>
           </CardContent>
@@ -408,43 +408,43 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Fleet Status & Financial Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Fleet Status */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Car className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+              <Car className="w-4 md:w-5 h-4 md:h-5" />
               Fleet Status Overview
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 md:p-6 space-y-4">
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
+              <div>
                 <span className="text-sm font-medium">Available</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Progress
                     value={(dashboardData.fleet.availableVehicles / dashboardData.fleet.totalVehicles) * 100}
-                    className="w-20 h-2"
+                    className="flex-1 h-2"
                   />
                   <span className="text-sm text-gray-600">{dashboardData.fleet.availableVehicles}</span>
                 </div>
               </div>
-              <div className="flex justify-between items-center">
+              <div>
                 <span className="text-sm font-medium">Rented</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Progress
                     value={(dashboardData.fleet.rentedVehicles / dashboardData.fleet.totalVehicles) * 100}
-                    className="w-20 h-2"
+                    className="flex-1 h-2"
                   />
                   <span className="text-sm text-gray-600">{dashboardData.fleet.rentedVehicles}</span>
                 </div>
               </div>
-              <div className="flex justify-between items-center">
+              <div>
                 <span className="text-sm font-medium">Maintenance</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Progress
                     value={(dashboardData.fleet.maintenanceVehicles / dashboardData.fleet.totalVehicles) * 100}
-                    className="w-20 h-2"
+                    className="flex-1 h-2"
                   />
                   <span className="text-sm text-gray-600">{dashboardData.fleet.maintenanceVehicles}</span>
                 </div>
@@ -452,17 +452,17 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="pt-4 border-t">
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-green-600">{dashboardData.fleet.availableVehicles}</p>
+                  <p className="text-xl md:text-2xl font-bold text-green-600">{dashboardData.fleet.availableVehicles}</p>
                   <p className="text-xs text-gray-500">Available</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-blue-600">{dashboardData.fleet.rentedVehicles}</p>
+                  <p className="text-xl md:text-2xl font-bold text-blue-600">{dashboardData.fleet.rentedVehicles}</p>
                   <p className="text-xs text-gray-500">Rented</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-orange-600">{dashboardData.fleet.maintenanceVehicles}</p>
+                  <p className="text-xl md:text-2xl font-bold text-orange-600">{dashboardData.fleet.maintenanceVehicles}</p>
                   <p className="text-xs text-gray-500">Maintenance</p>
                 </div>
               </div>
@@ -473,14 +473,14 @@ const Dashboard: React.FC = () => {
         {/* Financial Breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+              <CreditCard className="w-4 md:w-5 h-4 md:h-5" />
               Monthly Financial Breakdown
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 md:p-6 space-y-4">
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-green-500" />
                   <span className="text-sm">Revenue</span>
@@ -491,7 +491,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-2">
                     <Fuel className="w-4 h-4 text-blue-500" />
                     <span className="text-sm">Fuel</span>
@@ -500,7 +500,7 @@ const Dashboard: React.FC = () => {
                     {formatCurrency(dashboardData.financial.fuelExpenses)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-orange-500" />
                     <span className="text-sm">Maintenance</span>
@@ -509,7 +509,7 @@ const Dashboard: React.FC = () => {
                     {formatCurrency(dashboardData.financial.maintenanceExpenses)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-purple-500" />
                     <span className="text-sm">Insurance</span>
@@ -518,7 +518,7 @@ const Dashboard: React.FC = () => {
                     {formatCurrency(dashboardData.financial.insuranceExpenses)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-2">
                     <Settings className="w-4 h-4 text-gray-500" />
                     <span className="text-sm">Other Expenses</span>
@@ -533,7 +533,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="pt-3 border-t">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <span className="font-medium">Net Profit</span>
                   <span className={`font-bold ${dashboardData.financial.monthlyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(dashboardData.financial.monthlyProfit)}
@@ -546,16 +546,16 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Alerts & Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Alerts */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+              <AlertTriangle className="w-4 md:w-5 h-4 md:h-5" />
               Important Alerts
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 md:p-6 space-y-4">
             {dashboardData.alerts.expiredInsurance.length > 0 && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-center gap-2">
@@ -706,16 +706,16 @@ const Dashboard: React.FC = () => {
         {/* Recent Activities */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+              <Activity className="w-4 md:w-5 h-4 md:h-5" />
               Recent Activities
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6">
             <div className="space-y-3">
               {dashboardData.activities.recentActivities.length > 0 ? (
                 dashboardData.activities.recentActivities.slice(0, 8).map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                  <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-2 border-b border-gray-100 last:border-b-0">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
                         activity.type === 'payment' ? 'bg-green-100' : 'bg-red-100'

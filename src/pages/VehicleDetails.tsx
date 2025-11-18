@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc, updateDoc, doc, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, getDoc, query, where, getDocs, setDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
@@ -991,17 +991,24 @@ const VehicleDetails: React.FC = () => {
 
       const emiAmount = latestLoanDetails.emiPerMonth || 0;
 
+      // Generate transaction timestamp for consistent createdAt across EMI and penalty
+      const transactionTimestamp = new Date().toISOString();
+
       const expenseEntries: Array<{
         amount: number;
         description: string;
-        type: 'paid' | 'general';
+        type: 'paid' | 'general' | 'penalties';
         paymentType?: 'emi';
+        dueDate?: string;
+        createdAt: string;
       }> = [
         {
           amount: emiAmount,
           description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
           type: 'paid' as const,
-          paymentType: 'emi' as const
+          paymentType: 'emi' as const,
+          dueDate: scheduleItem.dueDate,
+          createdAt: transactionTimestamp
         }
       ];
 
@@ -1009,8 +1016,10 @@ const VehicleDetails: React.FC = () => {
         expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          type: 'general' as const,
-          paymentType: undefined
+          type: 'penalties' as const,
+          paymentType: undefined,
+          dueDate: scheduleItem.dueDate, // Add dueDate for penalty linking
+          createdAt: transactionTimestamp
         });
       }
 
@@ -1031,8 +1040,9 @@ const VehicleDetails: React.FC = () => {
               paymentType: entry.paymentType,
               verifiedKm: 0,
               companyId: '',
-              createdAt: '',
-              updatedAt: ''
+              createdAt: entry.createdAt,
+              updatedAt: '',
+              dueDate: entry.dueDate
             })
           ),
         Promise.resolve()
@@ -1058,6 +1068,258 @@ const VehicleDetails: React.FC = () => {
       toast({
         title: 'Error',
         description: 'Failed to record EMI payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const reverseEMIPayment = async (monthIndex: number, scheduleItem: EMIScheduleItem) => {
+    if (!scheduleItem.isPaid || !scheduleItem.paidAt) {
+      toast({
+        title: 'Not Paid',
+        description: `EMI for month ${monthIndex + 1} has not been paid yet.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check 24-hour time restriction
+    const paidAt = new Date(scheduleItem.paidAt);
+    const now = new Date();
+    const hoursSincePayment = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSincePayment > 24) {
+      toast({
+        title: 'Cannot Reverse',
+        description: `EMI payments can only be reversed within 24 hours of payment. This payment was made ${Math.floor(hoursSincePayment)} hours ago.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Get the latest vehicle data to avoid conflicts
+      let latestLoanDetails = vehicle.loanDetails;
+      try {
+        const vehiclesPath = paths.getVehiclesPath();
+        if (vehiclesPath && vehicleId) {
+          const vehicleRef = doc(firestore, vehiclesPath, vehicleId);
+          const vehicleSnapshot = await getDoc(vehicleRef);
+          if (vehicleSnapshot.exists()) {
+            const latestData = vehicleSnapshot.data() as Vehicle;
+            if (latestData.loanDetails) {
+              latestLoanDetails = latestData.loanDetails;
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI reversal:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+
+      if (!updatedSchedule[monthIndex]) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
+      // Find the original EMI payment amount by looking up the expense entry
+      let originalEmiAmount = emiAmount; // fallback to emiPerMonth
+      try {
+        const expensesRef = collection(firestore, paths.getExpensesPath());
+        // Simplified query - get all expenses for this vehicle and filter in code
+        const allExpensesQuery = query(
+          expensesRef,
+          where('vehicleId', '==', vehicleId),
+          where('status', '==', 'approved'),
+          orderBy('updatedAt', 'desc')
+        );
+
+        const allExpensesSnapshot = await getDocs(allExpensesQuery);
+        const emiExpense = allExpensesSnapshot.docs.find(doc => {
+          const data = doc.data() as Expense;
+          return data.type === 'paid' &&
+                 data.paymentType === 'emi' &&
+                 data.dueDate === scheduleItem.dueDate;
+        });
+
+        if (emiExpense) {
+          originalEmiAmount = emiExpense.data().amount;
+        }
+      } catch (error) {
+        console.warn('Could not find original EMI payment amount, using emiPerMonth:', error);
+      }
+
+      // Mark EMI as unpaid
+      const { paidAt, ...emiWithoutPaidAt } = updatedSchedule[monthIndex];
+      updatedSchedule[monthIndex] = {
+        ...emiWithoutPaidAt,
+        isPaid: false
+      };
+
+      // Update vehicle loan details
+      await updateVehicle(vehicleId, {
+        loanDetails: {
+          ...latestLoanDetails,
+          amortizationSchedule: updatedSchedule
+        }
+      });
+
+      // Update local cache for immediate UI feedback
+      if (vehicle.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule
+        };
+      }
+
+      // Create reversing expense entries (negative amounts to offset original entries)
+      const reversingExpenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general' | 'penalties';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: -originalEmiAmount, // Negative amount to offset original EMI payment
+          description: `EMI Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid' as const,
+          paymentType: 'emi' as const
+        }
+      ];
+
+      // Check if there was a penalty by looking for penalty expense entries
+      // We need to find and reverse ONLY the penalty that was charged with the same transaction as the EMI
+      try {
+        const expensesRef = collection(firestore, paths.getExpensesPath());
+        
+        // Query the latest EMI record for this month
+        const latestEmiQuery = query(
+          expensesRef,
+          where('vehicleId', '==', vehicleId),
+          where('type', '==', 'paid'),
+          where('dueDate', '==', scheduleItem.dueDate),
+          where('paymentType', '==', 'emi'),
+          where('status', '==', 'approved'),
+          orderBy('updatedAt', 'desc'),
+          limit(1)
+        );
+        
+        const latestEmiSnapshot = await getDocs(latestEmiQuery);
+        if (latestEmiSnapshot.empty) {
+          console.warn('No EMI record found for reversal');
+        } else {
+          const latestEmiData = latestEmiSnapshot.docs[0].data() as Expense;
+          const emiCreatedAt = latestEmiData.createdAt;
+          
+          console.log('EMI record found for reversal:', {
+            emiId: latestEmiSnapshot.docs[0].id,
+            emiCreatedAt,
+            emiDueDate: latestEmiData.dueDate,
+            emiType: latestEmiData.type,
+            emiPaymentType: latestEmiData.paymentType
+          });
+          
+          // Query penalty records that were created at the same time as the EMI (same transaction)
+          const penaltyQuery = query(
+            expensesRef,
+            where('vehicleId', '==', vehicleId),
+            where('type', '==', 'penalties'),
+            where('dueDate', '==', scheduleItem.dueDate),
+            where('createdAt', '==', emiCreatedAt), // Match the exact transaction timestamp
+            where('status', '==', 'approved')
+          );
+          
+          const penaltySnapshot = await getDocs(penaltyQuery);
+          console.log('Penalty query result:', {
+            penaltyCount: penaltySnapshot.size,
+            vehicleId,
+            dueDate: scheduleItem.dueDate,
+            emiCreatedAt,
+            queryParams: {
+              vehicleId,
+              type: 'penalties',
+              dueDate: scheduleItem.dueDate,
+              createdAt: emiCreatedAt,
+              status: 'approved'
+            }
+          });
+          
+          if (!penaltySnapshot.empty) {
+            // There should be only one penalty per transaction, but get the first one
+            const penaltyData = penaltySnapshot.docs[0].data() as Expense;
+            console.log('Penalty found for reversal:', {
+              penaltyId: penaltySnapshot.docs[0].id,
+              penaltyAmount: penaltyData.amount,
+              penaltyCreatedAt: penaltyData.createdAt,
+              penaltyDueDate: penaltyData.dueDate,
+              penaltyType: penaltyData.type
+            });
+            
+            // Add reversing entry for the penalty since it was part of the same transaction
+            reversingExpenseEntries.push({
+              amount: -penaltyData.amount, // Negative amount to offset penalty
+              description: `EMI Penalty Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+              type: 'penalties' as const,
+              paymentType: undefined
+            });
+          } else {
+            console.log('No penalty found with matching createdAt');
+          }
+        }
+      } catch (penaltyError) {
+        console.warn('Could not find penalty entries to reverse:', penaltyError);
+        // Continue without penalty reversal - penalty might not have been charged
+      }
+
+      // Add all reversing expense entries
+      await reversingExpenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addExpense({
+              vehicleId,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved' as const,
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0,
+              companyId: '',
+              createdAt: '',
+              updatedAt: ''
+            })
+          ),
+        Promise.resolve()
+      );
+
+      // Calculate total reversed amount for cash balance update
+      const totalReversedAmount = reversingExpenseEntries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+
+      // Update company cash balance (vehicle cash is handled automatically by addExpense)
+      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/companyCashInHand`, 'main');
+      await setDoc(companyCashRef, {
+        balance: increment(totalReversedAmount),
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+
+      toast({
+        title: 'EMI Payment Reversed',
+        description: `EMI for month ${monthIndex + 1} has been marked as unpaid and ₹${totalReversedAmount.toLocaleString()} has been restored to cash balance.`,
+      });
+
+    } catch (error) {
+      console.error('Error reversing EMI payment:', error);
+      toast({
+        title: 'Reversal Failed',
+        description: 'Failed to reverse EMI payment. Please try again.',
         variant: 'destructive'
       });
     }
@@ -1373,6 +1635,78 @@ const VehicleDetails: React.FC = () => {
     // The AddInsuranceRecordForm handles all the Firebase operations
     // We just need to trigger a re-render of the component
     window.location.reload();
+  };
+
+  const reverseRentPayment = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
+    // Find the payment record
+    const weekRentPayment = firebasePayments.find(payment => {
+      if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+      const paymentWeekStart = new Date(payment.weekStart);
+      return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+    });
+
+    if (!weekRentPayment) {
+      toast({
+        title: 'Payment Not Found',
+        description: `No payment record found for week ${weekIndex + 1}.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check 24-hour time restriction
+    const paidAt = new Date(weekRentPayment.paidAt || weekRentPayment.createdAt);
+    const now = new Date();
+    const hoursSincePayment = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSincePayment > 24) {
+      toast({
+        title: 'Cannot Reverse',
+        description: `Rent payments can only be reversed within 24 hours of collection. This payment was made ${Math.floor(hoursSincePayment)} hours ago.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Update the payment status to 'reversed' instead of deleting
+      const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/payments`);
+      const paymentQuery = query(
+        paymentsRef,
+        where('vehicleId', '==', vehicleId),
+        where('weekStart', '==', weekRentPayment.weekStart),
+        where('status', '==', 'paid')
+      );
+      const paymentSnapshot = await getDocs(paymentQuery);
+      if (!paymentSnapshot.empty) {
+        const paymentDocRef = paymentSnapshot.docs[0].ref;
+        await updateDoc(paymentDocRef, {
+          status: 'reversed',
+          reversedAt: new Date().toISOString(),
+          reversedBy: userInfo?.email || 'system'
+        });
+      }
+
+      // Decrease cash in hand by the rent amount (reverse of markRentCollected)
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(-weekRentPayment.amountPaid), // Negative increment = decrement
+        updatedAt: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Rent Payment Reversed',
+        description: `Rent collection for week ${weekIndex + 1} has been reversed and ₹${weekRentPayment.amountPaid.toLocaleString()} has been deducted from cash balance.`,
+      });
+
+    } catch (error) {
+      console.error('Error reversing rent payment:', error);
+      toast({
+        title: 'Reversal Failed',
+        description: 'Failed to reverse rent payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
   const markRentCollected = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
@@ -1859,20 +2193,20 @@ const VehicleDetails: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="space-y-2">
         <SectionNumberBadge id="1" label="Vehicle Header" className="mb-1" />
         {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Car className="h-8 w-8" />
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+              <Car className="h-6 w-6 md:h-8 md:w-8" />
               {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1 text-sm md:text-base">
               {vehicle.make} {vehicle.model} ({vehicle.year}) • {vehicle.registrationNumber}
             </p>
-            <div className="flex gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-2">
               {getStatusBadge(vehicle.status)}
               {getFinancialStatusBadge(vehicle.financialStatus || 'cash')}
               <Badge variant="outline">
@@ -1887,7 +2221,7 @@ const VehicleDetails: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {userInfo?.role !== Role.PARTNER && (
               <>
                 <Button variant="outline" onClick={exportToExcel}>
@@ -1914,18 +2248,20 @@ const VehicleDetails: React.FC = () => {
       <div className="space-y-2">
         <SectionNumberBadge id="2" label="Vehicle Detail Tabs" className="mb-1" />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-10">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="emi">EMI Tracking</TabsTrigger>
-          <TabsTrigger value="rent">Rent Collection</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="payments">Payment History</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="assignments">Assignments</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-        </TabsList>
+          <div className="overflow-x-auto pb-2">
+            <TabsList className="inline-flex h-auto min-h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground w-full sm:w-auto flex-nowrap">
+              <TabsTrigger value="overview" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Overview</TabsTrigger>
+              <TabsTrigger value="financials" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Financials</TabsTrigger>
+              <TabsTrigger value="emi" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">EMI Tracking</TabsTrigger>
+              <TabsTrigger value="rent" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Rent Collection</TabsTrigger>
+              <TabsTrigger value="expenses" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Expenses</TabsTrigger>
+              <TabsTrigger value="payments" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Payment History</TabsTrigger>
+              <TabsTrigger value="analytics" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Analytics</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Documents</TabsTrigger>
+              <TabsTrigger value="assignments" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Assignments</TabsTrigger>
+              <TabsTrigger value="accounts" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Accounts</TabsTrigger>
+            </TabsList>
+          </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
@@ -1968,6 +2304,7 @@ const VehicleDetails: React.FC = () => {
             financialData={financialData}
             markEMIPaid={markEMIPaid}
             processEMIPayment={processEMIPayment}
+            reverseEMIPayment={reverseEMIPayment}
           />
         </TabsContent>
 
@@ -1980,6 +2317,7 @@ const VehicleDetails: React.FC = () => {
             financialData={financialData}
             getCurrentAssignmentDetails={getCurrentAssignmentDetails}
             markRentCollected={markRentCollected}
+            reverseRentPayment={reverseRentPayment}
             isProcessingRentPayment={isProcessingRentPayment}
           />
         </TabsContent>

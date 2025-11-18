@@ -18,7 +18,6 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
-            className="lg:hidden"
           >
             <Menu className="w-5 h-5" />
           </Button>

@@ -585,7 +585,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="vehicleId"
@@ -637,7 +637,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="insuranceType"
@@ -703,7 +703,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="startDate"
@@ -733,7 +733,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="amount"
@@ -805,7 +805,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
 
           {form.watch('isAdvance') && prorationValues.coverageMonths > 0 && (
             <div className="pl-6 border-l-2 border-gray-200">
-              <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-50 rounded-lg">
                 <div>
                   <div className="text-sm text-blue-700 font-medium">Coverage Period</div>
                   <div className="text-lg font-bold text-blue-900">{prorationValues.coverageMonths} months</div>
@@ -833,7 +833,7 @@ const [insuranceDocuments, setInsuranceDocuments] = useState<{
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="receiptNumber"

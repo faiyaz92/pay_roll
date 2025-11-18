@@ -35,9 +35,9 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
     <div className="space-y-6">
       {/* Summary Cards */}
       <SectionNumberBadge id="1" label="Financial Summary" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
@@ -52,7 +52,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
@@ -67,7 +67,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
@@ -82,7 +82,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Fleet Status</CardTitle>
             <Car className="h-4 w-4 text-blue-600" />
           </CardHeader>
@@ -107,27 +107,27 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             {vehicleData.map((vehicleInfo: any) => (
               <Card key={vehicleInfo.vehicle.id} className="p-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                     <h4 className="font-medium text-sm">{vehicleInfo.vehicle.registrationNumber}</h4>
-                    <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"} className="text-xs">
+                    <Badge variant={vehicleInfo.profit >= 0 ? "default" : "destructive"} className="text-xs w-fit">
                       {vehicleInfo.profit >= 0 ? 'Profit' : 'Loss'}
                     </Badge>
                   </div>
 
                   <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Earnings:</span>
                       <span className="text-green-600 font-medium">₹{vehicleInfo.earnings.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Expenses:</span>
                       <span className="text-red-600 font-medium">₹{vehicleInfo.expenses.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between border-t pt-1">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-1">
                       <span className="text-gray-600 font-medium">Profit:</span>
                       <span className={`font-bold ${vehicleInfo.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         ₹{vehicleInfo.profit.toLocaleString()}
@@ -143,14 +143,14 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
 
       {/* Financial Health Indicators */}
       <SectionNumberBadge id="3" label="Financial Health Indicators" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Profitability Analysis</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                 <span>Gross Profit Margin</span>
                 <span className={`font-medium ${profitMargin >= 20 ? 'text-green-600' : profitMargin >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
                   {profitMargin.toFixed(1)}%
@@ -177,7 +177,7 @@ const FinancialOverviewTab: React.FC<FinancialOverviewTabProps> = ({ companyFina
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                 <span>Fleet Utilization</span>
                 <span className={`font-medium ${fleetUtilization >= 80 ? 'text-green-600' : fleetUtilization >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                   {fleetUtilization.toFixed(1)}%

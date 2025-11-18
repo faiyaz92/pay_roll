@@ -149,7 +149,7 @@ const Partners: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Partners</h1>
           <p className="text-gray-600 mt-2">Manage your business partners</p>
@@ -165,7 +165,7 @@ const Partners: React.FC = () => {
         {partners.map((partner) => (
           <Card key={partner.userId} className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <UserPlus className="w-5 h-5 text-blue-600" />
                   {partner.name}

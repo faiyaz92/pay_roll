@@ -65,7 +65,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
     <div className="space-y-6">
       {/* Payment Summary */}
       <SectionNumberBadge id="1" label="Payment Summary" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
@@ -128,7 +128,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
                 .sort((a: any, b: any) => new Date(b.paidAt || b.collectionDate || b.createdAt).getTime() -
                                           new Date(a.paidAt || a.collectionDate || a.createdAt).getTime())
                 .map((payment: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-green-50">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-green-50 gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                         <DollarSign className="h-4 w-4 text-green-600" />
@@ -143,7 +143,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-lg font-bold text-green-600">
                         +₹{payment.amountPaid.toLocaleString()}
                       </div>
@@ -177,7 +177,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
               expenseTransactions
                 .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                 .map((expense: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-red-50">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-red-50 gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                         <DollarSign className="h-4 w-4 text-red-600" />
@@ -192,7 +192,7 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-lg font-bold text-red-600">
                         -₹{expense.amount.toLocaleString()}
                       </div>
@@ -224,12 +224,12 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
           <div className="space-y-4">
             {vehicleData.map((vehicle: any) => (
               <div key={vehicle.vehicle.id} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
                   <h4 className="font-medium flex items-center gap-2">
                     <Car className="h-4 w-4" />
                     {vehicle.vehicle.registrationNumber}
                   </h4>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <div className={`text-lg font-bold ${vehicle.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       ₹{vehicle.profit.toLocaleString()}
                     </div>
@@ -238,11 +238,11 @@ const FinancialPaymentsTab: React.FC<FinancialPaymentsTabProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                     <span className="text-gray-600">Income:</span>
                     <span className="font-medium text-green-600">₹{vehicle.earnings.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                     <span className="text-gray-600">Expenses:</span>
                     <span className="font-medium text-red-600">₹{vehicle.expenses.toLocaleString()}</span>
                   </div>

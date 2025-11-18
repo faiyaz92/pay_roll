@@ -121,13 +121,13 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   }) => (
     <Card className={`relative ${isRequired && !doc ? 'border-red-200 bg-red-50' : ''}`}>
       <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <CardTitle className="text-sm font-medium">
             {getDocumentTypeName(type)}
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </CardTitle>
           {doc && (
-            <div className="flex gap-1">
+            <div className="flex gap-1 self-start">
               <Button
                 type="button"
                 variant="ghost"
@@ -249,7 +249,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
       {/* Additional Documents */}
       <div className="space-y-3">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <h4 className="font-medium text-gray-700">Additional Documents (Optional)</h4>
           <span className="text-sm text-gray-500">
             {documents.additional.length}/2 uploaded
@@ -260,9 +260,9 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           {documents.additional.map((doc, index) => (
             <Card key={doc.id}>
               <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <CardTitle className="text-sm font-medium">{doc.name}</CardTitle>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 self-start">
                     <Button
                       type="button"
                       variant="ghost"
@@ -373,7 +373,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       {previewUrl && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b flex justify-between items-center">
+            <div className="p-4 border-b flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <h3 className="font-medium">Document Preview</h3>
               <Button
                 variant="ghost"

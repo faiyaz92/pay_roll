@@ -679,17 +679,24 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       const emiAmount = latestLoanDetails.emiPerMonth || 0;
 
+      // Generate transaction timestamp for consistent createdAt across EMI and penalty
+      const transactionTimestamp = new Date().toISOString();
+
       const expenseEntries: Array<{
         amount: number;
         description: string;
-        type: 'paid' | 'general';
+        type: 'paid' | 'general' | 'penalties';
         paymentType?: 'emi';
+        dueDate?: string;
+        createdAt: string;
       }> = [
         {
           amount: emiAmount,
           description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
           type: 'paid',
-          paymentType: 'emi'
+          paymentType: 'emi',
+          dueDate: scheduleItem?.dueDate,
+          createdAt: transactionTimestamp
         }
       ];
 
@@ -697,7 +704,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem?.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          type: 'general'
+          type: 'penalties',
+          dueDate: scheduleItem?.dueDate, // Add dueDate for penalty linking
+          createdAt: transactionTimestamp
         });
       }
 
@@ -717,8 +726,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               paymentType: entry.paymentType,
               verifiedKm: 0,
               companyId: '',
-              createdAt: '',
-              updatedAt: ''
+              createdAt: entry.createdAt,
+              updatedAt: '',
+              dueDate: entry.dueDate
             })
           ),
         Promise.resolve()
@@ -2220,7 +2230,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 label={`${monthData.monthName} ${monthData.year}`}
                 className="mb-2"
               />
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <span>{monthData.monthName} {monthData.year}</span>
                 <Badge variant={monthData.profit >= 0 ? "default" : "destructive"}>
                   {monthData.profit >= 0 ? 'Profit' : 'Loss'}
@@ -2342,7 +2352,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   <div className="space-y-2">
                     {/* GST Payment - Always shown */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">GST Payment</span>
                         {(() => {
                           const latestGstStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'gst_payment', monthData.monthStr);
@@ -2403,7 +2413,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Service Charge Collection - Only for partner taxis */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && vehicle?.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Service Charge</span>
                         {(() => {
                           const latestServiceChargeStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'service_charge', monthData.monthStr);
@@ -2464,7 +2474,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Partner Payment - Only for partner taxis */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && vehicle?.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Partner Payment</span>
                         {(() => {
                           const latestPartnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'partner_payment', monthData.monthStr);
@@ -2525,7 +2535,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Owner Payment - For all vehicles */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Owner Payment</span>
                         {(() => {
                           const latestOwnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', monthData.monthStr);
@@ -4025,6 +4035,112 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               className="bg-purple-600 hover:bg-purple-700"
             >
               {isProcessingPartnerPayment ? 'Processing...' : `Pay ₹${formatCurrency(selectedMonthData?.partnerShare)}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
+
+      {/* Owner Share Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="10" label="Owner Share Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-indigo-500" />
+              Confirm Owner Share Withdrawal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw owner share from <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
+                </p>
+
+                {isCumulativeSelection ? (
+                  <>
+                    {selectedPeriod === 'quarter' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <p className="font-semibold text-indigo-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
+                        <div className="space-y-1 text-sm">
+                          {(() => {
+                            const quarterMonths = {
+                              '1': ['January', 'February', 'March'],
+                              '2': ['April', 'May', 'June'],
+                              '3': ['July', 'August', 'September'],
+                              '4': ['October', 'November', 'December']
+                            } as const;
+                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                            return months.map((monthName, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerShare ?? 0) / 3)}</span>
+                              </div>
+                            ));
+                          })()}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Owner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'year' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <p className="font-semibold text-indigo-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                        <div className="space-y-1 text-sm">
+                          {monthlyData.map((month, idx) => (
+                            <div key={idx} className="flex justify-between">
+                              <span>{month.monthName} {month.year}:</span>
+                              <span className="font-medium">₹{formatCurrency(month.ownerShare + month.ownerFullShare)}</span>
+                            </div>
+                          ))}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Owner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'month' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-indigo-800">{selectedDialogPeriodLabel} Owner Share:</span>
+                          <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-indigo-50 p-3 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-indigo-800">Owner Share Amount:</span>
+                      <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600">
+                  This action will record the owner share withdrawal and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleCumulativeOwnerPayment(selectedMonthData);
+                }
+                setConfirmOwnerShareDialog(false);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {isProcessingOwnerPayment ? 'Processing...' : `Withdraw ₹${formatCurrency(selectedMonthData?.ownerShare)}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

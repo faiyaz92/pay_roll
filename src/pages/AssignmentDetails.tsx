@@ -262,7 +262,7 @@ const AssignmentDetails: React.FC = () => {
       <div className="space-y-2">
         <SectionNumberBadge id="1" label="Assignment Header" className="mb-1" />
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
@@ -348,13 +348,15 @@ const AssignmentDetails: React.FC = () => {
         <SectionNumberBadge id="3" label="Assignment Detail Tabs" className="mb-1" />
         {/* Main Content */}
         <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="rent">Rent Schedule</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+          <div className="w-full overflow-hidden">
+            <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+              <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0">Overview</TabsTrigger>
+              <TabsTrigger value="rent" className="whitespace-nowrap flex-shrink-0">Rent Schedule</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap flex-shrink-0">Documents</TabsTrigger>
+              <TabsTrigger value="analytics" className="whitespace-nowrap flex-shrink-0">Analytics</TabsTrigger>
+              <TabsTrigger value="history" className="whitespace-nowrap flex-shrink-0">History</TabsTrigger>
+            </TabsList>
+          </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
@@ -368,7 +370,7 @@ const AssignmentDetails: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm text-gray-500">Start Date</Label>
                     <p className="font-medium">{new Date(assignment.startDate).toLocaleDateString()}</p>
@@ -412,17 +414,17 @@ const AssignmentDetails: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Vehicle:</span>
                       <span className="font-medium">
                         {vehicle?.vehicleName || `${vehicle?.make} ${vehicle?.model}`}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Registration:</span>
                       <span className="font-medium">{vehicle?.registrationNumber}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Year:</span>
                       <span className="font-medium">{vehicle?.year}</span>
                     </div>
@@ -447,15 +449,15 @@ const AssignmentDetails: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Name:</span>
                       <span className="font-medium">{driver?.name}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">Phone:</span>
                       <span className="font-medium">{driver?.phone}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-600">License:</span>
                       <span className="font-medium">{driver?.licenseNumber}</span>
                     </div>
@@ -488,7 +490,7 @@ const AssignmentDetails: React.FC = () => {
                 {weeklySchedule.map((week) => (
                   <div 
                     key={week.weekNumber} 
-                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 rounded-lg border gap-2 ${
                       week.isPaid 
                         ? 'bg-green-50 border-green-200' 
                         : week.isOverdue 
@@ -582,7 +584,7 @@ const AssignmentDetails: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {['Front', 'Back', 'Interior', 'Documents'].map((type) => (
                     <div key={type} className="space-y-2">
                       <Label className="text-sm font-medium text-gray-700">{type}</Label>
@@ -609,23 +611,23 @@ const AssignmentDetails: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Collection Rate</span>
                     <span className="font-bold text-green-600">
                       {((weeklySchedule.filter(w => w.isPaid).length / weeklySchedule.length) * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Average Weekly Collection</span>
                     <span className="font-bold">₹{assignment.weeklyRent.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Monthly Projection</span>
                     <span className="font-bold text-blue-600">
                       ₹{((assignment.weeklyRent * 52) / 12).toFixed(0).toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-gray-600">Yearly Projection</span>
                     <span className="font-bold text-purple-600">
                       ₹{(assignment.weeklyRent * 52).toLocaleString()}
@@ -642,14 +644,14 @@ const AssignmentDetails: React.FC = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <div className="flex justify-between text-sm mb-2">
+                    <div className="flex flex-col sm:flex-row sm:justify-between text-sm mb-2 gap-1">
                       <span>Payment Compliance</span>
                       <span>{((weeklySchedule.filter(w => w.isPaid).length / weeklySchedule.length) * 100).toFixed(1)}%</span>
                     </div>
                     <Progress value={(weeklySchedule.filter(w => w.isPaid).length / weeklySchedule.length) * 100} />
                   </div>
                   <div>
-                    <div className="flex justify-between text-sm mb-2">
+                    <div className="flex flex-col sm:flex-row sm:justify-between text-sm mb-2 gap-1">
                       <span>Assignment Progress</span>
                       <span>{Math.min(100, (weeklySchedule.length / 52) * 100).toFixed(1)}%</span>
                     </div>
@@ -827,7 +829,7 @@ const AssignmentDetails: React.FC = () => {
                   label={`${monthData.monthName} ${monthData.year}`}
                   className="mb-2"
                 />
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                   <span>{monthData.monthName} {monthData.year}</span>
                   <Badge variant={monthData.profit >= 0 ? "default" : "destructive"}>
                     {monthData.profit >= 0 ? 'Profit' : 'Loss'}
@@ -908,19 +910,19 @@ const AssignmentDetails: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 mb-2">
                 <span className="font-medium">GST Amount:</span>
                 <span className="text-lg font-bold text-purple-600">
                   ₹{selectedMonthData?.gstAmount?.toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 mb-2">
                 <span className="font-medium">Period:</span>
                 <span className="text-sm text-gray-600">
                   {selectedMonthData?.monthName}
                 </span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                 <span className="font-medium">Assignment:</span>
                 <span className="text-sm text-gray-600">
                   {assignment?.id}
