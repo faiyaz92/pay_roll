@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Ensure proper MIME types for PWA files
+    mimeTypes: {
+      'application/manifest+json': ['.webmanifest', '.json'],
+    },
   },
   plugins: [
     react(),

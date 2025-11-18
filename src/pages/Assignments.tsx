@@ -9,6 +9,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +42,8 @@ const Assignments: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [showEndAssignmentModal, setShowEndAssignmentModal] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [endAssignmentData, setEndAssignmentData] = useState({
     endDate: '',
     finalOdometer: '',
@@ -119,8 +131,23 @@ const Assignments: React.FC = () => {
     return assignmentPayments.reduce((total, payment) => total + payment.amountPaid, 0);
   };
 
-  const handleAddSuccess = () => {
-    setShowAddModal(false);
+  const handleDeleteAssignment = (assignment: Assignment) => {
+    setAssignmentToDelete(assignment);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAssignment = async () => {
+    if (!assignmentToDelete) return;
+
+    try {
+      await deleteAssignment(assignmentToDelete.id);
+      toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
+      setDeleteDialogOpen(false);
+      setAssignmentToDelete(null);
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
+    }
   };
 
   const handleEndAssignment = async () => {
@@ -199,6 +226,14 @@ const Assignments: React.FC = () => {
         variant: 'destructive'
       });
     }
+  };
+
+  const handleAddSuccess = () => {
+    setShowAddModal(false);
+    toast({
+      title: 'Assignment Created',
+      description: 'New assignment has been created successfully.',
+    });
   };
 
   if (loading) {
@@ -409,16 +444,7 @@ const Assignments: React.FC = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={async () => {
-                                if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
-                                try {
-                                  await deleteAssignment(assignment.id);
-                                  toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
-                                } catch (error) {
-                                  console.error('Error deleting assignment:', error);
-                                  toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
-                                }
-                              }}
+                              onClick={() => handleDeleteAssignment(assignment)}
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
                               Delete
@@ -844,6 +870,42 @@ const Assignments: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Assignment Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              Delete Assignment
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-gray-700">
+                  Are you sure you want to delete this assignment for <span className="font-semibold">{getVehicleName(assignmentToDelete?.vehicleId || '')}</span>?
+                </p>
+                <p className="text-sm text-gray-600">
+                  This action cannot be undone. All associated payments and rental data will be permanently removed.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteDialogOpen(false);
+              setAssignmentToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteAssignment}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Assignment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
