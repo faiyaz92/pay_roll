@@ -4042,6 +4042,112 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
 
 
+      {/* Owner Share Confirmation Dialog */}
+      <AlertDialog open={confirmOwnerShareDialog} onOpenChange={setConfirmOwnerShareDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <SectionNumberBadge id="10" label="Owner Share Dialog" className="mb-2" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-indigo-500" />
+              Confirm Owner Share Withdrawal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="text-gray-700">
+                  You are about to withdraw owner share from <span className="font-semibold">{vehicle?.registrationNumber}</span> for{' '}
+                  <span className="font-semibold">{selectedDialogPeriodLabel || 'the selected period'}</span>.
+                </p>
+
+                {isCumulativeSelection ? (
+                  <>
+                    {selectedPeriod === 'quarter' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <p className="font-semibold text-indigo-800 mb-2">Quarterly Breakdown ({selectedDialogPeriodLabel}):</p>
+                        <div className="space-y-1 text-sm">
+                          {(() => {
+                            const quarterMonths = {
+                              '1': ['January', 'February', 'March'],
+                              '2': ['April', 'May', 'June'],
+                              '3': ['July', 'August', 'September'],
+                              '4': ['October', 'November', 'December']
+                            } as const;
+                            const months = quarterMonths[selectedQuarter as keyof typeof quarterMonths] || [];
+                            return months.map((monthName, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>{monthName} {selectedYear}:</span>
+                                <span className="font-medium">₹{formatCurrency((selectedMonthData?.ownerShare ?? 0) / 3)}</span>
+                              </div>
+                            ));
+                          })()}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Owner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'year' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <p className="font-semibold text-indigo-800 mb-2">Yearly Breakdown ({selectedYear}):</p>
+                        <div className="space-y-1 text-sm">
+                          {monthlyData.map((month, idx) => (
+                            <div key={idx} className="flex justify-between">
+                              <span>{month.monthName} {month.year}:</span>
+                              <span className="font-medium">₹{formatCurrency(month.ownerShare + month.ownerFullShare)}</span>
+                            </div>
+                          ))}
+                          <div className="border-t pt-1 mt-2 flex justify-between font-bold">
+                            <span>Total Owner Share:</span>
+                            <span>₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPeriod === 'month' && (
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-indigo-800">{selectedDialogPeriodLabel} Owner Share:</span>
+                          <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-indigo-50 p-3 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-indigo-800">Owner Share Amount:</span>
+                      <span className="font-bold text-indigo-700 text-lg">₹{formatCurrency(selectedMonthData?.ownerShare)}</span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600">
+                  This action will record the owner share withdrawal and update the cash balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMonthData) {
+                  handleCumulativeOwnerPayment(selectedMonthData);
+                }
+                setConfirmOwnerShareDialog(false);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {isProcessingOwnerPayment ? 'Processing...' : `Withdraw ₹${formatCurrency(selectedMonthData?.ownerShare)}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
+
       {/* Individual Monthly GST Payment Confirmation Dialog */}
       <AlertDialog open={confirmMonthlyGstPaymentDialog} onOpenChange={(open) => {
         setConfirmMonthlyGstPaymentDialog(open);
