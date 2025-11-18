@@ -97,6 +97,7 @@ export interface Expense {
   proratedMonthly?: number;
   // Document fields
   expenseDocuments?: Record<string, string>;
+  dueDate?: string; // For linking penalties to specific EMI payments
   [key: string]: any; // Allow additional fields
 }
 
@@ -561,7 +562,7 @@ export const useExpenses = () => {
     const expenseDoc = await addDoc(expensesRef, {
       ...cleanExpenseData,
       companyId: userInfo.companyId,
-      createdAt: now,
+      createdAt: cleanExpenseData.createdAt || now,
       updatedAt: now
     });
 

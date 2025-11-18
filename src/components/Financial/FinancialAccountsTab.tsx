@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, addDoc, doc, updateDoc, setDoc, onSnapshot, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, setDoc, onSnapshot, increment, getDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
 import BulkPaymentDialog from './BulkPaymentDialog';
@@ -1966,17 +1966,24 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
       const emiAmount = latestLoanDetails.emiPerMonth || 0;
 
+      // Generate transaction timestamp for consistent createdAt across EMI and penalty
+      const transactionTimestamp = new Date().toISOString();
+
       const expenseEntries: Array<{
         amount: number;
         description: string;
-        type: 'paid' | 'general';
+        type: 'paid' | 'general' | 'penalties';
         paymentType?: 'emi';
+        dueDate?: string;
+        createdAt: string;
       }> = [
         {
           amount: emiAmount,
           description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
           type: 'paid',
-          paymentType: 'emi'
+          paymentType: 'emi',
+          dueDate: targetEMI.dueDate,
+          createdAt: transactionTimestamp
         }
       ];
 
@@ -1984,7 +1991,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(targetEMI.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          type: 'general'
+          type: 'penalties',
+          dueDate: targetEMI.dueDate, // Add dueDate for penalty linking
+          createdAt: transactionTimestamp
         });
       }
 
@@ -2003,7 +2012,9 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
               adjustmentWeeks: 0,
               type: entry.type,
               paymentType: entry.paymentType,
-              verifiedKm: 0
+              verifiedKm: 0,
+              dueDate: entry.dueDate,
+              createdAt: entry.createdAt
             })
           ),
         Promise.resolve()

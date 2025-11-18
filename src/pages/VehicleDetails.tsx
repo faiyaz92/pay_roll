@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc, updateDoc, doc, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, getDoc, query, where, getDocs, setDoc, orderBy, limit } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
@@ -991,17 +991,24 @@ const VehicleDetails: React.FC = () => {
 
       const emiAmount = latestLoanDetails.emiPerMonth || 0;
 
+      // Generate transaction timestamp for consistent createdAt across EMI and penalty
+      const transactionTimestamp = new Date().toISOString();
+
       const expenseEntries: Array<{
         amount: number;
         description: string;
-        type: 'paid' | 'general';
+        type: 'paid' | 'general' | 'penalties';
         paymentType?: 'emi';
+        dueDate?: string;
+        createdAt: string;
       }> = [
         {
           amount: emiAmount,
           description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
           type: 'paid' as const,
-          paymentType: 'emi' as const
+          paymentType: 'emi' as const,
+          dueDate: scheduleItem.dueDate,
+          createdAt: transactionTimestamp
         }
       ];
 
@@ -1009,8 +1016,10 @@ const VehicleDetails: React.FC = () => {
         expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          type: 'general' as const,
-          paymentType: undefined
+          type: 'penalties' as const,
+          paymentType: undefined,
+          dueDate: scheduleItem.dueDate, // Add dueDate for penalty linking
+          createdAt: transactionTimestamp
         });
       }
 
@@ -1031,8 +1040,9 @@ const VehicleDetails: React.FC = () => {
               paymentType: entry.paymentType,
               verifiedKm: 0,
               companyId: '',
-              createdAt: '',
-              updatedAt: ''
+              createdAt: entry.createdAt,
+              updatedAt: '',
+              dueDate: entry.dueDate
             })
           ),
         Promise.resolve()
@@ -1058,6 +1068,229 @@ const VehicleDetails: React.FC = () => {
       toast({
         title: 'Error',
         description: 'Failed to record EMI payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const reverseEMIPayment = async (monthIndex: number, scheduleItem: EMIScheduleItem) => {
+    if (!scheduleItem.isPaid || !scheduleItem.paidAt) {
+      toast({
+        title: 'Not Paid',
+        description: `EMI for month ${monthIndex + 1} has not been paid yet.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check 24-hour time restriction
+    const paidAt = new Date(scheduleItem.paidAt);
+    const now = new Date();
+    const hoursSincePayment = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSincePayment > 24) {
+      toast({
+        title: 'Cannot Reverse',
+        description: `EMI payments can only be reversed within 24 hours of payment. This payment was made ${Math.floor(hoursSincePayment)} hours ago.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Get the latest vehicle data to avoid conflicts
+      let latestLoanDetails = vehicle.loanDetails;
+      try {
+        const vehiclesPath = paths.getVehiclesPath();
+        if (vehiclesPath && vehicleId) {
+          const vehicleRef = doc(firestore, vehiclesPath, vehicleId);
+          const vehicleSnapshot = await getDoc(vehicleRef);
+          if (vehicleSnapshot.exists()) {
+            const latestData = vehicleSnapshot.data() as Vehicle;
+            if (latestData.loanDetails) {
+              latestLoanDetails = latestData.loanDetails;
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Unable to refresh vehicle data before EMI reversal:', refreshError);
+      }
+
+      if (!latestLoanDetails?.amortizationSchedule) {
+        throw new Error('Loan schedule unavailable');
+      }
+
+      const emiAmount = latestLoanDetails.emiPerMonth || 0;
+      const updatedSchedule = [...latestLoanDetails.amortizationSchedule];
+
+      if (!updatedSchedule[monthIndex]) {
+        throw new Error(`EMI at index ${monthIndex} not found`);
+      }
+
+      // Find the original EMI payment amount by looking up the expense entry
+      let originalEmiAmount = emiAmount; // fallback to emiPerMonth
+      try {
+        const expensesRef = collection(firestore, paths.getExpensesPath());
+        const emiPaymentQuery = query(
+          expensesRef,
+          where('vehicleId', '==', vehicleId),
+          where('description', '>=', `EMI Payment - Month ${monthIndex + 1}`),
+          where('description', '<', `EMI Payment - Month ${monthIndex + 1}\uffff`),
+          where('type', '==', 'paid'),
+          where('paymentType', '==', 'emi'),
+          where('status', '==', 'approved')
+        );
+
+        const emiPaymentSnapshot = await getDocs(emiPaymentQuery);
+        if (!emiPaymentSnapshot.empty) {
+          const emiPaymentData = emiPaymentSnapshot.docs[0].data() as Expense;
+          originalEmiAmount = emiPaymentData.amount;
+        }
+      } catch (error) {
+        console.warn('Could not find original EMI payment amount, using emiPerMonth:', error);
+      }
+
+      // Mark EMI as unpaid
+      const { paidAt, ...emiWithoutPaidAt } = updatedSchedule[monthIndex];
+      updatedSchedule[monthIndex] = {
+        ...emiWithoutPaidAt,
+        isPaid: false
+      };
+
+      // Update vehicle loan details
+      await updateVehicle(vehicleId, {
+        loanDetails: {
+          ...latestLoanDetails,
+          amortizationSchedule: updatedSchedule
+        }
+      });
+
+      // Update local cache for immediate UI feedback
+      if (vehicle.loanDetails) {
+        vehicle.loanDetails = {
+          ...vehicle.loanDetails,
+          amortizationSchedule: updatedSchedule
+        };
+      }
+
+      // Create reversing expense entries (negative amounts to offset original entries)
+      const reversingExpenseEntries: Array<{
+        amount: number;
+        description: string;
+        type: 'paid' | 'general' | 'penalties';
+        paymentType?: 'emi';
+      }> = [
+        {
+          amount: -originalEmiAmount, // Negative amount to offset original EMI payment
+          description: `EMI Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+          type: 'paid' as const,
+          paymentType: 'emi' as const
+        }
+      ];
+
+      // Check if there was a penalty by looking for penalty expense entries
+      // We need to find and reverse ONLY the penalty that was charged with the same transaction as the EMI
+      try {
+        const expensesRef = collection(firestore, paths.getExpensesPath());
+        
+        // Query the latest EMI record for this month
+        const latestEmiQuery = query(
+          expensesRef,
+          where('vehicleId', '==', vehicleId),
+          where('type', '==', 'paid'),
+          where('dueDate', '==', scheduleItem.dueDate),
+          where('paymentType', '==', 'emi'),
+          where('status', '==', 'approved'),
+          orderBy('updatedAt', 'desc'),
+          limit(1)
+        );
+        
+        const latestEmiSnapshot = await getDocs(latestEmiQuery);
+        if (latestEmiSnapshot.empty) {
+          console.warn('No EMI record found for reversal');
+        } else {
+          const latestEmiData = latestEmiSnapshot.docs[0].data() as Expense;
+          const emiCreatedAt = latestEmiData.createdAt;
+          
+          // Query the latest penalty record for this month
+          const latestPenaltyQuery = query(
+            expensesRef,
+            where('vehicleId', '==', vehicleId),
+            where('type', '==', 'penalties'),
+            where('dueDate', '==', scheduleItem.dueDate),
+            where('status', '==', 'approved'),
+            orderBy('updatedAt', 'desc'),
+            limit(1)
+          );
+          
+          const latestPenaltySnapshot = await getDocs(latestPenaltyQuery);
+          if (!latestPenaltySnapshot.empty) {
+            const latestPenaltyData = latestPenaltySnapshot.docs[0].data() as Expense;
+            const penaltyCreatedAt = latestPenaltyData.createdAt;
+            
+            // Compare createdAt timestamps - only reverse penalty if it was created in the same transaction
+            if (emiCreatedAt === penaltyCreatedAt) {
+              // Add reversing entry for the penalty since it was part of the same transaction
+              reversingExpenseEntries.push({
+                amount: -latestPenaltyData.amount, // Negative amount to offset penalty
+                description: `EMI Penalty Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+                type: 'penalties' as const,
+                paymentType: undefined
+              });
+            } else {
+              console.log('Penalty createdAt does not match EMI createdAt - skipping penalty reversal');
+            }
+          }
+        }
+      } catch (penaltyError) {
+        console.warn('Could not find penalty entries to reverse:', penaltyError);
+        // Continue without penalty reversal - penalty might not have been charged
+      }
+
+      // Add all reversing expense entries
+      await reversingExpenseEntries.reduce(
+        (chain, entry) =>
+          chain.then(() =>
+            addExpense({
+              vehicleId,
+              amount: entry.amount,
+              description: entry.description,
+              billUrl: '',
+              submittedBy: 'owner',
+              status: 'approved' as const,
+              approvedAt: new Date().toISOString(),
+              adjustmentWeeks: 0,
+              type: entry.type,
+              paymentType: entry.paymentType,
+              verifiedKm: 0,
+              companyId: '',
+              createdAt: '',
+              updatedAt: ''
+            })
+          ),
+        Promise.resolve()
+      );
+
+      // Calculate total reversed amount for cash balance update
+      const totalReversedAmount = reversingExpenseEntries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+
+      // Update company cash balance (vehicle cash is handled automatically by addExpense)
+      const companyCashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/companyCashInHand`, 'main');
+      await setDoc(companyCashRef, {
+        balance: increment(totalReversedAmount),
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+
+      toast({
+        title: 'EMI Payment Reversed',
+        description: `EMI for month ${monthIndex + 1} has been marked as unpaid and ₹${totalReversedAmount.toLocaleString()} has been restored to cash balance.`,
+      });
+
+    } catch (error) {
+      console.error('Error reversing EMI payment:', error);
+      toast({
+        title: 'Reversal Failed',
+        description: 'Failed to reverse EMI payment. Please try again.',
         variant: 'destructive'
       });
     }
@@ -1968,6 +2201,7 @@ const VehicleDetails: React.FC = () => {
             financialData={financialData}
             markEMIPaid={markEMIPaid}
             processEMIPayment={processEMIPayment}
+            reverseEMIPayment={reverseEMIPayment}
           />
         </TabsContent>
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, Calculator, Calendar, TrendingUp, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Vehicle, Role } from '@/types/user';
 import { VehicleFinancialData } from '@/hooks/useFirebaseData';
 import { useToast } from '@/hooks/use-toast';
@@ -28,15 +28,17 @@ interface EMITabProps {
   financialData: VehicleFinancialData;
   markEMIPaid: (index: number, emi: any) => void;
   processEMIPayment?: (monthIndex: number, scheduleItem: any, penalty?: number, suppressToast?: boolean) => void;
+  reverseEMIPayment?: (monthIndex: number, scheduleItem: any) => void;
 }
 
-export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid, processEMIPayment }) => {
+export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIPaid, processEMIPayment, reverseEMIPayment }) => {
   const { userInfo } = useAuth();
   const { toast } = useToast();
   const [bulkPaymentDialog, setBulkPaymentDialog] = useState(false);
   const [penaltyAmounts, setPenaltyAmounts] = useState<{[key: number]: string}>({});
   const [selectedEmiIndices, setSelectedEmiIndices] = useState<number[]>([]);
   const [isProcessingBulkPayment, setIsProcessingBulkPayment] = useState(false);
+  const [reverseDialog, setReverseDialog] = useState<{ open: boolean; emiIndex: number; emi: any }>({ open: false, emiIndex: -1, emi: null });
   // Calculate overdue and due EMIs
   const emiSummary = useMemo(() => {
     if (!vehicle.loanDetails?.amortizationSchedule) {
@@ -444,6 +446,27 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                           Pay Now
                         </Button>
                       )}
+                      {emi.isPaid && emi.paidAt && userInfo?.role !== Role.PARTNER && (() => {
+                        const paidAt = new Date(emi.paidAt);
+                        const now = new Date();
+                        const hoursSincePayment = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+                        const canReverse = hoursSincePayment <= 24;
+
+                        return canReverse ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs py-1 px-2 h-6 w-full mt-2 text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReverseDialog({ open: true, emiIndex: index, emi });
+                            }}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Reverse
+                          </Button>
+                        ) : null;
+                      })()}
                       {!emi.isPaid && !canPayNow && daysDiff > 3 && (
                         <div className="text-xs text-gray-400 mt-1">
                           Available in {daysDiff - 3} days
@@ -681,6 +704,51 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
               className="bg-orange-600 hover:bg-orange-700"
             >
               {isProcessingBulkPayment ? 'Processing...' : selectedCount > 0 ? `Pay ${selectedCount} EMI${selectedCount > 1 ? 's' : ''}` : 'Select EMIs to Pay'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* EMI Reverse Confirmation Dialog */}
+      <AlertDialog open={reverseDialog.open} onOpenChange={(open) => setReverseDialog({ open, emiIndex: -1, emi: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Confirm EMI Payment Reversal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to reverse the payment for <strong>EMI {reverseDialog.emi?.month}</strong>?
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm font-semibold text-red-800 mb-2">This action will:</p>
+                  <ul className="text-sm text-red-700 space-y-1">
+                    <li>• Mark EMI {reverseDialog.emi?.month} as unpaid</li>
+                    <li>• Create a negative expense entry to offset the original payment</li>
+                    <li>• Restore ₹{(vehicle.loanDetails?.emiPerMonth || 0).toLocaleString()} to cash balance</li>
+                    <li>• Reverse any penalty charges if applicable</li>
+                  </ul>
+                </div>
+                <p className="text-xs text-gray-500">
+                  <strong>Note:</strong> This action can only be performed within 24 hours of the original payment.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (reverseEMIPayment && reverseDialog.emi) {
+                  reverseEMIPayment(reverseDialog.emiIndex, reverseDialog.emi);
+                }
+                setReverseDialog({ open: false, emiIndex: -1, emi: null });
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Yes, Reverse Payment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

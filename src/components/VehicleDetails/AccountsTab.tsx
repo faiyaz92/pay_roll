@@ -679,17 +679,24 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
       const emiAmount = latestLoanDetails.emiPerMonth || 0;
 
+      // Generate transaction timestamp for consistent createdAt across EMI and penalty
+      const transactionTimestamp = new Date().toISOString();
+
       const expenseEntries: Array<{
         amount: number;
         description: string;
-        type: 'paid' | 'general';
+        type: 'paid' | 'general' | 'penalties';
         paymentType?: 'emi';
+        dueDate?: string;
+        createdAt: string;
       }> = [
         {
           amount: emiAmount,
           description: `EMI Payment - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
           type: 'paid',
-          paymentType: 'emi'
+          paymentType: 'emi',
+          dueDate: scheduleItem?.dueDate,
+          createdAt: transactionTimestamp
         }
       ];
 
@@ -697,7 +704,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
         expenseEntries.push({
           amount: penalty,
           description: `EMI penalty for month ${monthIndex + 1} (${Math.ceil((new Date().getTime() - new Date(scheduleItem?.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days late)`,
-          type: 'general'
+          type: 'penalties',
+          dueDate: scheduleItem?.dueDate, // Add dueDate for penalty linking
+          createdAt: transactionTimestamp
         });
       }
 
@@ -717,8 +726,9 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
               paymentType: entry.paymentType,
               verifiedKm: 0,
               companyId: '',
-              createdAt: '',
-              updatedAt: ''
+              createdAt: entry.createdAt,
+              updatedAt: '',
+              dueDate: entry.dueDate
             })
           ),
         Promise.resolve()
