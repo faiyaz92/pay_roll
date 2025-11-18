@@ -48,7 +48,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   return (
     <div className="space-y-4">
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
           <div>
             <SectionNumberBadge id="1" label="Expenses Overview" className="mb-2" />
             <h3 className="text-lg font-semibold">Vehicle Expenses</h3>

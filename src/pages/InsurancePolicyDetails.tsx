@@ -112,7 +112,7 @@ const InsurancePolicyDetails: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => navigate('/insurance')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -131,11 +131,13 @@ const InsurancePolicyDetails: React.FC = () => {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Policy Overview</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="history">Payment History</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-hidden">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+            <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0">Policy Overview</TabsTrigger>
+            <TabsTrigger value="documents" className="whitespace-nowrap flex-shrink-0">Documents</TabsTrigger>
+            <TabsTrigger value="history" className="whitespace-nowrap flex-shrink-0">Payment History</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Policy Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
@@ -180,7 +182,7 @@ const InsurancePolicyDetails: React.FC = () => {
                 </div>
 
                 <div className="border-t pt-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <div className="text-sm text-muted-foreground">Expiry Date</div>
                       <div className="font-medium">
@@ -449,7 +451,7 @@ const InsurancePolicyDetails: React.FC = () => {
                 <div className="space-y-4">
                   {vehicleInsuranceRecords.map((record) => (
                     <div key={record.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">

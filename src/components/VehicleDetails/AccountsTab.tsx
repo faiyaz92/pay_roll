@@ -2230,7 +2230,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 label={`${monthData.monthName} ${monthData.year}`}
                 className="mb-2"
               />
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <span>{monthData.monthName} {monthData.year}</span>
                 <Badge variant={monthData.profit >= 0 ? "default" : "destructive"}>
                   {monthData.profit >= 0 ? 'Profit' : 'Loss'}
@@ -2352,7 +2352,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                   <div className="space-y-2">
                     {/* GST Payment - Always shown */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">GST Payment</span>
                         {(() => {
                           const latestGstStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'gst_payment', monthData.monthStr);
@@ -2413,7 +2413,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Service Charge Collection - Only for partner taxis */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && vehicle?.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Service Charge</span>
                         {(() => {
                           const latestServiceChargeStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'service_charge', monthData.monthStr);
@@ -2474,7 +2474,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Partner Payment - Only for partner taxis */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && vehicle?.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Partner Payment</span>
                         {(() => {
                           const latestPartnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'partner_payment', monthData.monthStr);
@@ -2535,7 +2535,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
 
                     {/* Owner Payment - For all vehicles */}
                     {(userInfo?.role as Role) === Role.COMPANY_ADMIN && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Owner Payment</span>
                         {(() => {
                           const latestOwnerPaymentStatus = getLatestTransactionStatus(accountingTransactions, vehicleId, 'owner_payment', monthData.monthStr);

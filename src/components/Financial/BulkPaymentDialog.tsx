@@ -824,7 +824,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
           <Card>
             <CardHeader className="pb-3">
               <SectionNumberBadge id="2" label="Payment Summary" className="mb-2" />
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <CardTitle className="text-lg">Payment Summary</CardTitle>
                 <Button
                   variant="outline"
@@ -837,7 +837,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
                     {selectedVehicleCount}/{items.length}
@@ -867,7 +867,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
             {selectedItems.map(item => (
               <Card key={item.vehicleId} className={`transition-all ${item.checked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={item.checked}
@@ -915,7 +915,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
                     return (
                       <div className="mt-3 pt-3 border-t space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-gray-700">Select Months to Pay:</p>
                             <p className="text-xs text-gray-500">
@@ -942,7 +942,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                           Selecting a month allows you to pay for specific months within the period. You can select or deselect individual months for this vehicle.
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                           {item.monthBreakdown.map((month, monthIndex) => {
                             const actualMonthIndex = periodMonths[monthIndex];
                             const isDisabled = month.amount === 0;
@@ -1001,7 +1001,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                           })}
                         </div>
 
-                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t pt-2 text-sm font-medium text-gray-700 gap-2">
                           <span>Selected Total</span>
                           <span>₹{(vehicleSelectedCount === 0 ? 0 : vehicleSelectedTotal).toLocaleString()}</span>
                         </div>
@@ -1013,7 +1013,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                   {!isQuarterlyOrYearly && item.monthBreakdown && item.monthBreakdown.length > 0 && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown:</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {item.monthBreakdown.map((month, index) => (
                           <div key={index} className="text-center p-2 bg-gray-50 rounded">
                             <div className="text-xs text-gray-600">{month.month}</div>
@@ -1042,7 +1042,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
                     return (
                       <div className="mt-3 pt-3 border-t space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-gray-700">Overdue EMIs</p>
                             <p className="text-xs text-gray-500">
@@ -1126,7 +1126,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                           })}
                         </div>
 
-                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t pt-2 text-sm font-medium text-gray-700 gap-2">
                           <span>Selected Total</span>
                           <span>
                             ₹{(vehicleSelectedCount === 0 ? 0 : vehicleTotalSelectedAmount + vehicleTotalPenalty).toLocaleString()}
@@ -1148,7 +1148,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
 
                     return (
                       <div className="mt-3 pt-3 border-t space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-gray-700">Due Rent Weeks</p>
                             <p className="text-xs text-gray-500">
@@ -1213,7 +1213,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                                   className="mt-1 rounded-full border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
                                 />
                                 <div className="flex-1 space-y-1">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
                                     <span className="font-semibold text-gray-900">Week {week.weekIndex + 1}</span>
                                     <span className="text-sm font-semibold text-gray-700">
                                       ₹{week.rentAmount.toLocaleString()}
@@ -1236,7 +1236,7 @@ const BulkPaymentDialog: React.FC<BulkPaymentDialogProps> = ({
                           })}
                         </div>
 
-                        <div className="flex items-center justify-between border-t pt-2 text-sm font-medium text-gray-700">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t pt-2 text-sm font-medium text-gray-700 gap-2">
                           <span>Selected Total</span>
                           <span>₹{(vehicleSelectedCount === 0 ? 0 : vehicleSelectedTotal).toLocaleString()}</span>
                         </div>

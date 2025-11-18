@@ -104,7 +104,7 @@ const Insurance: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Shield className="h-8 w-8" />
@@ -179,9 +179,9 @@ const Insurance: React.FC = () => {
       </div>
 
       {/* Insurance Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Total Insurance Cost</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -194,7 +194,7 @@ const Insurance: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">This Month Cost</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -207,7 +207,7 @@ const Insurance: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Average Premium</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -220,7 +220,7 @@ const Insurance: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>

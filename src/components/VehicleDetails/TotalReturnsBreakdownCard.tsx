@@ -30,7 +30,7 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
       </CardHeader>
       <CardContent className="space-y-3">
         <SectionNumberBadge id="2" label="Return Components" className="mb-2" />
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Current Car Value:</span>
           <span className="font-medium text-green-600">+₹{(() => {
             const initialValue = vehicle.initialInvestment || vehicle.initialCost || 0;
@@ -46,18 +46,18 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
             return Math.round(depreciatedValue).toLocaleString();
           })()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Total Earnings:</span>
           <span className="font-medium text-green-600">+₹{financialData.totalEarnings.toLocaleString()}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Outstanding Loan:</span>
           <span className="font-medium text-red-600">-₹{financialData.outstandingLoan.toLocaleString()}</span>
         </div>
         <div className="h-6"></div>
         <div className="h-6"></div>
         <div className="h-6"></div>
-        <div className="flex justify-between border-t pt-2 font-semibold">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t pt-2 font-semibold">
           <span>Total Returns:</span>
           <span className="text-green-600">₹{financialData.totalReturn.toLocaleString()}</span>
         </div>

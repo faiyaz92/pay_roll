@@ -205,7 +205,7 @@ const Payments: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Financial Transactions</h1>
           <p className="text-gray-600">Track all payments, expenses, EMI, and rent across all vehicles</p>
@@ -388,7 +388,7 @@ const Payments: React.FC = () => {
           filteredTransactions.map((transaction) => (
             <Card key={transaction.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-2">

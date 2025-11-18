@@ -195,7 +195,7 @@ const Drivers: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Driver Management</h1>
             <p className="text-gray-600 mt-2">Manage your fleet drivers and their assignments</p>
@@ -209,7 +209,7 @@ const Drivers: React.FC = () => {
             <AddDriverForm onSuccess={handleAddSuccess} />
           </AddItemModal>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardHeader>
@@ -232,12 +232,12 @@ const Drivers: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Driver Management</h1>
           <p className="text-gray-600 mt-2">Manage your fleet drivers and their assignments</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button onClick={addTestDriver} variant="secondary">
             🧪 Add Test Driver
           </Button>
@@ -274,11 +274,11 @@ const Drivers: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedDrivers.map((driver) => (
             <Card key={driver.id} className="hover:shadow-lg transition-shadow flex flex-col">
               <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
                       {driver.documents?.photo?.url || driver.photoUrl ? (
@@ -306,7 +306,7 @@ const Drivers: React.FC = () => {
               </CardHeader>
               <CardContent className="flex flex-col flex-grow">
                 <div className="space-y-4 flex-grow">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
                       <Phone className="w-4 h-4 text-gray-400" />
                       <span>{driver.phone}</span>
@@ -318,15 +318,15 @@ const Drivers: React.FC = () => {
                   </div>
 
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-500">License:</span>
                       <span className="font-medium">{driver.licenseNumber}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-500">Email:</span>
                       <span className="font-medium">{driver.email}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-gray-500">Status:</span>
                       <span className="font-medium">{driver.isActive ? 'Active' : 'Inactive'}</span>
                     </div>
@@ -341,9 +341,9 @@ const Drivers: React.FC = () => {
 
                   {/* Document Status */}
                   {driver.documents && (
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                       <span className="text-gray-500">Documents:</span>
-                      <div className="flex space-x-1">
+                      <div className="flex flex-wrap gap-1">
                         <Badge variant={driver.documents.drivingLicense ? "default" : "secondary"} className="text-xs">
                           License
                         </Badge>
@@ -362,7 +362,7 @@ const Drivers: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-500">Weekly Rent</p>
                       <p className="font-bold text-lg">₹{getDriverWeeklyRent(driver.id).toLocaleString()}</p>

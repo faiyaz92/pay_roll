@@ -219,7 +219,7 @@ const Assignments: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Vehicle Assignments</h1>
           <p className="text-gray-600">Manage vehicle-driver assignments and rental agreements</p>
@@ -279,10 +279,12 @@ const Assignments: React.FC = () => {
 
       {/* Assignment Tabs */}
       <Tabs defaultValue="active" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="active">Active ({activeAssignments.length})</TabsTrigger>
-          <TabsTrigger value="previous">Previous ({endedAssignments.length})</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-hidden">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+            <TabsTrigger value="active" className="whitespace-nowrap flex-shrink-0">Active ({activeAssignments.length})</TabsTrigger>
+            <TabsTrigger value="previous" className="whitespace-nowrap flex-shrink-0">Previous ({endedAssignments.length})</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="active" className="space-y-4">
           {activeAssignments.length === 0 ? (
@@ -308,7 +310,7 @@ const Assignments: React.FC = () => {
                 return (
                   <Card key={assignment.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
                     <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div className="flex items-start gap-4">
                           {/* Vehicle Image */}
                           <div className="relative">
@@ -362,62 +364,66 @@ const Assignments: React.FC = () => {
                         </div>
                         
                         {/* Action Buttons */}
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => navigate(`/assignments/${assignment.id}`)}
-                            className="hover:bg-blue-50 hover:border-blue-200"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Details
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="hover:bg-gray-50"
-                            onClick={() => {
-                              setSelectedAssignment(assignment);
-                              setShowEditModal(true);
-                            }}
-                          >
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="hover:bg-orange-50 hover:border-orange-200 text-orange-700 border-orange-300"
-                            onClick={() => {
-                              setSelectedAssignment(assignment);
-                              setEndAssignmentData({
-                                endDate: new Date().toISOString().split('T')[0],
-                                finalOdometer: '',
-                                endReason: ''
-                              });
-                              setShowEndAssignmentModal(true);
-                            }}
-                          >
-                            <AlertTriangle className="w-4 h-4 mr-1" />
-                            End Assignment
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
-                              try {
-                                await deleteAssignment(assignment.id);
-                                toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
-                              } catch (error) {
-                                console.error('Error deleting assignment:', error);
-                                toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
-                          </Button>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate(`/assignments/${assignment.id}`)}
+                              className="hover:bg-blue-50 hover:border-blue-200"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Details
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="hover:bg-gray-50"
+                              onClick={() => {
+                                setSelectedAssignment(assignment);
+                                setShowEditModal(true);
+                              }}
+                            >
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="hover:bg-orange-50 hover:border-orange-200 text-orange-700 border-orange-300"
+                              onClick={() => {
+                                setSelectedAssignment(assignment);
+                                setEndAssignmentData({
+                                  endDate: new Date().toISOString().split('T')[0],
+                                  finalOdometer: '',
+                                  endReason: ''
+                                });
+                                setShowEndAssignmentModal(true);
+                              }}
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              End Assignment
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
+                                try {
+                                  await deleteAssignment(assignment.id);
+                                  toast({ title: 'Assignment Deleted', description: 'Assignment removed successfully.' });
+                                } catch (error) {
+                                  console.error('Error deleting assignment:', error);
+                                  toast({ title: 'Delete Failed', description: 'Could not delete assignment.', variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardHeader>
@@ -555,7 +561,7 @@ const Assignments: React.FC = () => {
                 return (
                   <Card key={assignment.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-gray-400">
                     <CardHeader className="pb-4">
-                      <div className="flex justify-between items-start">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div className="flex items-start gap-4">
                           {/* Vehicle Image */}
                           <div className="relative grayscale">
@@ -682,15 +688,15 @@ const Assignments: React.FC = () => {
                           <CardContent className="p-4">
                             <h4 className="font-medium text-gray-700 mb-2">Driver Details</h4>
                             <div className="space-y-2 text-sm text-gray-600">
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>Name:</span>
                                 <span className="font-medium">{driver?.name || 'Unknown'}</span>
                               </div>
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>License:</span>
                                 <span className="font-medium">{driver?.licenseNumber || 'N/A'}</span>
                               </div>
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>Collection Day:</span>
                                 <span className="font-medium">
                                   {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][assignment.collectionDay]}
@@ -704,15 +710,15 @@ const Assignments: React.FC = () => {
                           <CardContent className="p-4">
                             <h4 className="font-medium text-gray-700 mb-2">Vehicle Details</h4>
                             <div className="space-y-2 text-sm text-gray-600">
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>Make & Model:</span>
                                 <span className="font-medium">{vehicle ? `${vehicle.make} ${vehicle.model}` : 'Unknown'}</span>
                               </div>
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>Year:</span>
                                 <span className="font-medium">{vehicle?.year || 'N/A'}</span>
                               </div>
-                              <div className="flex justify-between">
+                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                                 <span>Initial Odometer:</span>
                                 <span className="font-medium">{assignment.initialOdometer.toLocaleString()} km</span>
                               </div>

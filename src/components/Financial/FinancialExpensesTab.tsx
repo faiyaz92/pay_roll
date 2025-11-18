@@ -59,7 +59,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
     <div className="space-y-6">
       {/* Expense Summary */}
       <SectionNumberBadge id="1" label="Expense Summary" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
@@ -124,9 +124,9 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
 
               return (
                 <div key={category} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                     <h4 className="font-medium capitalize">{category}</h4>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-lg font-bold text-red-600">
                         ₹{totalAmount.toLocaleString()}
                       </div>
@@ -145,7 +145,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
 
                   <div className="space-y-2">
                     {expenses.slice(0, 5).map((expense: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between text-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                         <div className="flex items-center gap-2">
                           <Car className="h-3 w-3 text-gray-400" />
                           <span className="text-gray-600">{expense.vehicleReg}</span>
@@ -182,7 +182,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
               .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
               .slice(0, 20)
               .map((expense: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                       <Receipt className="h-4 w-4 text-red-600" />
@@ -197,7 +197,7 @@ const FinancialExpensesTab: React.FC<FinancialExpensesTabProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <div className="text-lg font-bold text-red-600">
                       ₹{expense.amount.toLocaleString()}
                     </div>

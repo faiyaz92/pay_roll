@@ -401,11 +401,13 @@ const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({ onSuccess, assign
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="terms">Agreement Terms</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-hidden">
+            <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto w-full min-w-0">
+              <TabsTrigger value="basic" className="whitespace-nowrap flex-shrink-0">Basic Info</TabsTrigger>
+              <TabsTrigger value="terms" className="whitespace-nowrap flex-shrink-0">Agreement Terms</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap flex-shrink-0">Documents</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Basic Information Tab */}
           <TabsContent value="basic" className="space-y-4">

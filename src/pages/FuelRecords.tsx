@@ -83,7 +83,7 @@ const FuelRecords: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Fuel Records</h1>
           <p className="text-muted-foreground mt-2">Track fuel consumption and costs for better fleet management</p>
@@ -136,9 +136,9 @@ const FuelRecords: React.FC = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Fuel Cost</CardTitle>
             <Fuel className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -148,7 +148,7 @@ const FuelRecords: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">This Month Cost</CardTitle>
             <Fuel className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -158,7 +158,7 @@ const FuelRecords: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Cost</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -168,7 +168,7 @@ const FuelRecords: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Records</CardTitle>
             <Filter className="h-4 w-4 text-muted-foreground" />
           </CardHeader>

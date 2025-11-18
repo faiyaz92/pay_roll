@@ -231,7 +231,7 @@ const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = ({
           {documents.additional.map((doc) => (
             <Card key={doc.id}>
               <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <FileText className="w-4 h-4 text-green-500" />
                     {doc.name}
@@ -344,7 +344,7 @@ const ExpenseDocumentUploader: React.FC<ExpenseDocumentUploaderProps> = ({
       {previewUrl && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b flex justify-between items-center">
+            <div className="p-4 border-b flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <h3 className="font-medium">Expense Document Preview</h3>
               <Button
                 variant="ghost"

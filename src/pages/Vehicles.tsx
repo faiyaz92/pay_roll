@@ -167,13 +167,13 @@ const Vehicles: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Car className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <Car className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
             Fleet Management
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
             Manage your rental vehicle fleet with comprehensive financial tracking
           </p>
         </div>
@@ -192,42 +192,42 @@ const Vehicles: React.FC = () => {
       </div>
 
       {/* Fleet Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-            <div className="text-sm text-gray-600">Total Fleet</div>
+          <CardContent className="p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.total}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Total Fleet</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-            <div className="text-sm text-gray-600">Available</div>
+          <CardContent className="p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{stats.available}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Available</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.rented}</div>
-            <div className="text-sm text-gray-600">Rented</div>
+          <CardContent className="p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.rented}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Rented</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.loanActive}</div>
-            <div className="text-sm text-gray-600">Loan Active</div>
+          <CardContent className="p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.loanActive}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Loan Active</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stats.maintenance}</div>
-            <div className="text-sm text-gray-600">Maintenance</div>
+          <CardContent className="p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-red-600">{stats.maintenance}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Maintenance</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Search and Filter */}
-      <div className="flex gap-4 items-center">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search by vehicle name, registration, or make/model..."
@@ -237,14 +237,16 @@ const Vehicles: React.FC = () => {
           />
         </div>
 
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-auto">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="available">Available</TabsTrigger>
-            <TabsTrigger value="rented">Rented</TabsTrigger>
-            <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="overflow-x-auto">
+          <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-max">
+            <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-full sm:w-auto">
+              <TabsTrigger value="all" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">All</TabsTrigger>
+              <TabsTrigger value="available" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Available</TabsTrigger>
+              <TabsTrigger value="rented" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Rented</TabsTrigger>
+              <TabsTrigger value="maintenance" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Maintenance</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {/* Vehicles Grid */}
@@ -270,7 +272,7 @@ const Vehicles: React.FC = () => {
           {filteredVehicles.map((vehicle) => (
             <Card key={vehicle.id} className="hover:shadow-lg transition-shadow flex flex-col">
               <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                   <div>
                     <CardTitle className="text-lg mb-1">
                       {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
@@ -289,7 +291,7 @@ const Vehicles: React.FC = () => {
               <CardContent className="flex flex-col flex-grow">
                 <div className="space-y-4 flex-grow">
                   {/* Key Metrics */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <div className="text-sm text-gray-600">Investment</div>
                       <div className="font-semibold text-blue-600">
@@ -334,7 +336,7 @@ const Vehicles: React.FC = () => {
 
                   {/* Financial Performance */}
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-sm text-gray-600">Monthly Profit</span>
                       <span className={`font-medium ${calculateMonthlyProfit(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
@@ -344,7 +346,7 @@ const Vehicles: React.FC = () => {
                         }
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                       <span className="text-sm text-gray-600">ROI</span>
                       <span className={`font-medium ${calculateROI(vehicle) >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
@@ -352,7 +354,7 @@ const Vehicles: React.FC = () => {
                       </span>
                     </div>
                     {vehicle.financialData && (
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="text-sm text-gray-600">Total Earnings</span>
                         <span className="font-medium text-green-600">
                           ₹{vehicle.financialData.totalEarnings.toLocaleString()}
@@ -362,13 +364,13 @@ const Vehicles: React.FC = () => {
                   </div>
 
                   {/* Vehicle Details */}
-                  <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
                       <Fuel className="h-4 w-4" />
                       {vehicle.odometer?.toLocaleString() || 'N/A'} km
                     </div>
                     {vehicle.needsMaintenance && (
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="text-xs w-fit">
                         <AlertCircle className="h-3 w-3 mr-1" />
                         Maintenance Due
                       </Badge>
@@ -380,7 +382,7 @@ const Vehicles: React.FC = () => {
                 <div className="mt-4">
                   {vehicle.financingType === 'loan' && vehicle.loanDetails ? (
                     <div className="space-y-2 bg-blue-50 p-3 rounded-lg">
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="text-sm text-gray-600">EMI Progress</span>
                         <span className="text-sm font-medium">
                           {vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0} / {vehicle.loanDetails.totalInstallments}
@@ -390,14 +392,14 @@ const Vehicles: React.FC = () => {
                         value={((vehicle.loanDetails.amortizationSchedule?.filter(emi => emi.isPaid).length || 0) / vehicle.loanDetails.totalInstallments) * 100}
                         className="h-2"
                       />
-                      <div className="flex justify-between items-center text-sm">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                         <span className="text-gray-600">Outstanding:</span>
                         <span className="font-medium text-red-600">
                           ₹{(vehicle.financialData?.outstandingLoan || 0).toLocaleString()}
                         </span>
                       </div>
                       {vehicle.financialData?.nextEMIDue && (
-                        <div className="flex justify-between items-center text-xs">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs">
                           <span className="text-gray-500">Next EMI:</span>
                           <span className={`${vehicle.financialData.daysUntilEMI <= 7 ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
                             {vehicle.financialData.daysUntilEMI >= 0 ?

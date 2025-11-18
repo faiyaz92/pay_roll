@@ -41,9 +41,9 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
     <div className="space-y-6">
       {/* Financial Summary Cards */}
       <SectionNumberBadge id="1" label="Financial Summary" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
@@ -58,7 +58,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Operating Expenses</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
@@ -73,7 +73,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
@@ -88,7 +88,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2 gap-2">
             <CardTitle className="text-sm font-medium">Profit per Vehicle</CardTitle>
             <Calculator className="h-4 w-4 text-purple-600" />
           </CardHeader>
@@ -113,7 +113,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 ₹{expenseBreakdown.fuel?.toLocaleString() || '0'}
@@ -183,32 +183,32 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
             {vehicleData.map((vehicle: any) => {
               const margin = vehicle.earnings > 0 ? (vehicle.profit / vehicle.earnings) * 100 : 0;
               return (
-                <div key={vehicle.vehicle.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={vehicle.vehicle.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg gap-3">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                       <h4 className="font-medium">{vehicle.vehicle.registrationNumber}</h4>
-                      <Badge variant={vehicle.profit >= 0 ? "default" : "destructive"}>
+                      <Badge variant={vehicle.profit >= 0 ? "default" : "destructive"} className="w-fit">
                         {vehicle.profit >= 0 ? 'Profitable' : 'Loss Making'}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mt-2 text-sm">
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="text-gray-600">Earnings:</span>
-                        <span className="font-medium text-green-600 ml-1">₹{vehicle.earnings.toLocaleString()}</span>
+                        <span className="font-medium text-green-600">₹{vehicle.earnings.toLocaleString()}</span>
                       </div>
-                      <div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="text-gray-600">Expenses:</span>
-                        <span className="font-medium text-red-600 ml-1">₹{vehicle.expenses.toLocaleString()}</span>
+                        <span className="font-medium text-red-600">₹{vehicle.expenses.toLocaleString()}</span>
                       </div>
-                      <div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                         <span className="text-gray-600">Profit:</span>
-                        <span className={`font-medium ml-1 ${vehicle.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`font-medium ${vehicle.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           ₹{vehicle.profit.toLocaleString()}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <div className="text-lg font-bold text-blue-600">
                       {margin.toFixed(1)}%
                     </div>
@@ -223,7 +223,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
 
       {/* Financial Health Indicators */}
       <SectionNumberBadge id="4" label="Financial Health Indicators" className="mb-2" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
             <SectionNumberBadge id="5" label="Profitability Analysis" className="mb-2" />
@@ -231,7 +231,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                 <span>Overall Profit Margin</span>
                 <span className={`font-medium ${profitMargin >= 20 ? 'text-green-600' : profitMargin >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
                   {profitMargin.toFixed(1)}%
@@ -253,11 +253,11 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
             <div className="pt-4 border-t">
               <div className="text-sm text-gray-600 mb-2">Profit Distribution</div>
               <div className="space-y-1">
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Profitable Vehicles</span>
                   <span>{vehicleData.filter((v: any) => v.profit > 0).length} / {vehicleData.length}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Loss Making Vehicles</span>
                   <span>{vehicleData.filter((v: any) => v.profit <= 0).length} / {vehicleData.length}</span>
                 </div>
@@ -273,7 +273,7 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                 <span>Expense Ratio</span>
                 <span className={`font-medium ${totalEarnings > 0 && (totalExpenses / totalEarnings) <= 0.7 ? 'text-green-600' : 'text-red-600'}`}>
                   {totalEarnings > 0 ? ((totalExpenses / totalEarnings) * 100).toFixed(1) : '0'}%
@@ -293,15 +293,15 @@ const FinancialAnalyticsTab: React.FC<FinancialAnalyticsTabProps> = ({ companyFi
             <div className="pt-4 border-t">
               <div className="text-sm text-gray-600 mb-2">Top Expense Categories</div>
               <div className="space-y-1">
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Fuel</span>
                   <span>₹{expenseBreakdown.fuel?.toLocaleString() || '0'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Maintenance</span>
                   <span>₹{expenseBreakdown.maintenance?.toLocaleString() || '0'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Insurance</span>
                   <span>₹{expenseBreakdown.insurance?.toLocaleString() || '0'}</span>
                 </div>

@@ -189,7 +189,7 @@ const EMIPaymentSection: React.FC<EMIPaymentSectionProps> = ({
         <Button
           size="sm"
           variant="outline"
-          className={`w-full h-auto py-2 ${bgColor} ${textColor} border ${borderColor} hover:${bgColor} flex items-center justify-between`}
+          className={`w-full h-auto py-2 ${bgColor} ${textColor} border ${borderColor} hover:${bgColor} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1`}
           disabled={!canPayNow && !emi.isPaid}
           onClick={() => canPayNow && !emi.isPaid && onPayEMI(index, emi)}
         >
@@ -215,7 +215,7 @@ const EMIPaymentSection: React.FC<EMIPaymentSectionProps> = ({
   // For quarterly/yearly view - show multiple EMI badges with Pay button
   return (
     <div className="border-t pt-2">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
         <div className="text-xs font-medium text-gray-700">EMI Payments</div>
         <div className="flex items-center gap-1">
           {emiSummary.totalDue > 0 && (
@@ -3610,7 +3610,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
         {periodData.map((vehicleInfo: any) => (
           <Card key={vehicleInfo.vehicle.id} className="flex flex-col">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <div className="text-lg font-semibold">
                     {vehicleInfo.vehicle.vehicleName || `${vehicleInfo.vehicle.make} ${vehicleInfo.vehicle.model}`}
@@ -3656,7 +3656,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   <Receipt className="h-4 w-4" />
                   Expenses
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="text-lg font-semibold text-red-600">
                     ₹{vehicleInfo.expenses.toLocaleString()}
                   </div>
@@ -3671,7 +3671,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
               {/* Profit Calculation */}
               <div className="space-y-2 border-t pt-3">
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>Profit (Earnings - Expenses)</span>
                   <span className={`font-medium ${vehicleInfo.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     ₹{vehicleInfo.profit.toLocaleString()}
@@ -3679,7 +3679,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 </div>
 
                 {/* GST */}
-                <div className="flex justify-between text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                   <span>GST (4%)</span>
                   <span className="font-medium text-orange-600">
                     ₹{vehicleInfo.gstAmount.toLocaleString()}
@@ -3688,7 +3688,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                 {/* Service Charge (only for partner taxis) */}
                 {vehicleInfo.serviceCharge > 0 && (
-                  <div className="flex justify-between text-sm">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
                     <span>Service Charge (10%)</span>
                     <span className="font-medium text-blue-600">
                       ₹{vehicleInfo.serviceCharge.toLocaleString()}
@@ -3698,7 +3698,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                 {/* Partner Share (only for partner taxis) */}
                 {vehicleInfo.partnerShare > 0 && (
-                  <div className="flex justify-between text-sm border-t pt-1">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm border-t pt-1">
                     <span className="font-medium">Partner Share ({vehicleInfo.vehicle.partnershipPercentage || 50}%)</span>
                     <span className="font-bold text-purple-600">
                       ₹{vehicleInfo.partnerShare.toLocaleString()}
@@ -3708,7 +3708,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                 {/* Owner Payment (for both partner and company taxis) */}
                 {vehicleInfo.ownerPayment > 0 && (
-                  <div className="flex justify-between text-sm border-t pt-1">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm border-t pt-1">
                     <span className="font-medium">Owner Payment ({vehicleInfo.vehicle.isPartnership === true ? `${100 - (vehicleInfo.vehicle.partnershipPercentage || 50)}%` : '100%'})</span>
                     <span className="font-bold text-green-600">
                       ₹{vehicleInfo.ownerPayment.toLocaleString()}
@@ -3718,7 +3718,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                 {/* Owner's Full Share (only for company-owned taxis) - Keep for backward compatibility */}
                 {vehicleInfo.ownerFullShare > 0 && !vehicleInfo.ownerPayment && (
-                  <div className="flex justify-between text-sm border-t pt-1">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm border-t pt-1">
                     <span className="font-medium">Owner's Share (100%)</span>
                     <span className="font-bold text-green-600">
                       ₹{vehicleInfo.ownerFullShare.toLocaleString()}
@@ -3732,7 +3732,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   <div className="space-y-2">
                     {/* GST Payment - Always shown */}
                     {userInfo?.role !== Role.PARTNER && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">GST Payment</span>
                         {(() => {
                           // For monthly view, use latest transaction status logic
@@ -3820,7 +3820,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       </div>
                     )}                    {/* Service Charge Collection - Only for partner taxis */}
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Service Charge</span>
                         {(() => {
                           // For monthly view, use latest transaction status logic
@@ -3910,7 +3910,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                     {/* Partner Payment - Only for partner taxis */}
                     {userInfo?.role !== Role.PARTNER && vehicleInfo.vehicle.isPartnership === true && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Partner Payment</span>
                         {(() => {
                           // For monthly view, use latest transaction status logic
@@ -4000,7 +4000,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                     {/* Owner Payment - For all vehicles */}
                     {userInfo?.role !== Role.PARTNER && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <span className="text-sm">Owner Payment</span>
                         {(() => {
                           // For monthly view, calculate monthly owner payment
@@ -4234,7 +4234,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
 
                     return userInfo?.role !== Role.PARTNER ? (
                       <div className="border-t pt-2">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                           <div className="text-xs font-medium text-gray-700">Rent Collection</div>
                           <div className="flex gap-1">
                             {rentStatus.totalDue > 0 && (
@@ -4692,7 +4692,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
             
             {selectedCount > 0 && selectedVehicleForEMI && (
               <div className="flex flex-col gap-3 pt-4 border-t">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
                   <div>
                     <div className="font-medium">{selectedCount} EMI{selectedCount > 1 ? 's' : ''} selected</div>
                     <div className="text-sm text-gray-600">
@@ -4800,7 +4800,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                       const assignmentStartDate = new Date(selectedRentWeek.assignment.startDate);
                       const weekNumber = Math.floor((week.weekStartDate.getTime() - assignmentStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
                       return (
-                        <div key={idx} className="flex justify-between items-center text-sm">
+                        <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm">
                           <span className="font-medium text-gray-700">
                             Week {weekNumber} - {week.weekStartDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                           </span>
@@ -4810,7 +4810,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                         </div>
                       );
                     })}
-                    <div className="border-t pt-2 mt-2 flex justify-between items-center text-sm font-bold">
+                    <div className="border-t pt-2 mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm font-bold">
                       <span className="text-gray-800">Total Amount:</span>
                       <span className="text-orange-700">
                         ₹{selectedRentWeek.overdueWeeks?.reduce((sum, week) => sum + week.amount, 0).toLocaleString()}
@@ -4832,7 +4832,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                   </p>
                   {selectedRentWeek && (
                     <div className="bg-orange-50 p-3 rounded-md">
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                         <span className="text-sm font-medium text-gray-700">
                           Week {Math.floor((selectedRentWeek.weekStartDate.getTime() - new Date(selectedRentWeek.assignment.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1}
                         </span>
@@ -4878,7 +4878,7 @@ const FinancialAccountsTab: React.FC<FinancialAccountsTabProps> = ({
                 </p>
 
                 <div className="bg-blue-50 p-3 rounded-md">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="font-semibold text-blue-800">GST Amount:</span>
                     <span className="font-bold text-blue-700 text-lg">₹{formatCurrency(selectedVehicleForPayment?.gstAmount)}</span>
                   </div>

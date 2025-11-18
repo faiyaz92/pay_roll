@@ -419,7 +419,7 @@ export const RentTab: React.FC<RentTabProps> = ({
 
                   {/* Rent Collection Grid - Based on Assignment Timeline */}
                   <SectionNumberBadge id="4" label="Rent Collection Timeline" className="mb-2" />
-                  <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                     {Array.from({ length: Math.min(totalWeeks, 52) }, (_, weekIndex) => {
                       // Calculate this week's dates based on assignment start date
                       const weekStartDate = new Date(assignmentStartDate);

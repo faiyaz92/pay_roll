@@ -2193,20 +2193,20 @@ const VehicleDetails: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="space-y-2">
         <SectionNumberBadge id="1" label="Vehicle Header" className="mb-1" />
         {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Car className="h-8 w-8" />
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+              <Car className="h-6 w-6 md:h-8 md:w-8" />
               {vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`}
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1 text-sm md:text-base">
               {vehicle.make} {vehicle.model} ({vehicle.year}) • {vehicle.registrationNumber}
             </p>
-            <div className="flex gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-2">
               {getStatusBadge(vehicle.status)}
               {getFinancialStatusBadge(vehicle.financialStatus || 'cash')}
               <Badge variant="outline">
@@ -2221,7 +2221,7 @@ const VehicleDetails: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {userInfo?.role !== Role.PARTNER && (
               <>
                 <Button variant="outline" onClick={exportToExcel}>
@@ -2248,18 +2248,20 @@ const VehicleDetails: React.FC = () => {
       <div className="space-y-2">
         <SectionNumberBadge id="2" label="Vehicle Detail Tabs" className="mb-1" />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-10">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="emi">EMI Tracking</TabsTrigger>
-          <TabsTrigger value="rent">Rent Collection</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="payments">Payment History</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="assignments">Assignments</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-        </TabsList>
+          <div className="overflow-x-auto pb-2">
+            <TabsList className="inline-flex h-auto min-h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground w-full sm:w-auto flex-nowrap">
+              <TabsTrigger value="overview" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Overview</TabsTrigger>
+              <TabsTrigger value="financials" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Financials</TabsTrigger>
+              <TabsTrigger value="emi" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">EMI Tracking</TabsTrigger>
+              <TabsTrigger value="rent" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Rent Collection</TabsTrigger>
+              <TabsTrigger value="expenses" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Expenses</TabsTrigger>
+              <TabsTrigger value="payments" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Payment History</TabsTrigger>
+              <TabsTrigger value="analytics" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Analytics</TabsTrigger>
+              <TabsTrigger value="documents" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Documents</TabsTrigger>
+              <TabsTrigger value="assignments" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Assignments</TabsTrigger>
+              <TabsTrigger value="accounts" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">Accounts</TabsTrigger>
+            </TabsList>
+          </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
