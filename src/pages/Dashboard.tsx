@@ -24,6 +24,7 @@ import {
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import PWAInstallButton from '@/components/PWAInstallButton';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -310,6 +311,7 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <PWAInstallButton variant="default" size="sm" className="w-full sm:w-auto" />
           <Button variant="outline" onClick={() => navigate('/vehicles')} className="w-full sm:w-auto">
             <Car className="w-4 h-4 mr-2" />
             View Fleet
