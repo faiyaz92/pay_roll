@@ -79,7 +79,7 @@ export interface Expense {
   status: 'pending' | 'approved' | 'rejected';
   approvedAt: string | null;
   adjustmentWeeks: number; // Weeks to deduct from rent
-  type: 'general' | 'maintenance' | 'insurance' | 'penalties' | 'emi' | 'prepayment' | 'fuel';
+  type: 'general' | 'maintenance' | 'insurance' | 'penalties' | 'emi' | 'prepayment' | 'fuel' | 'paid';
   verifiedKm: number; // Owner-entered km from bill
   companyId: string;
   createdAt: string;
@@ -557,14 +557,27 @@ export const useExpenses = () => {
       Object.entries(expenseData).filter(([_, value]) => value !== undefined)
     );
 
-    console.log('Sending to Firebase:', JSON.stringify(cleanExpenseData, null, 2));
+    console.log('Original expenseData:', JSON.stringify(expenseData, null, 2));
+    console.log('Clean expenseData:', JSON.stringify(cleanExpenseData, null, 2));
+    console.log('createdAt in cleanExpenseData:', cleanExpenseData.createdAt);
 
-    const expenseDoc = await addDoc(expensesRef, {
+    // Create final expense data, ensuring createdAt is preserved
+    const finalExpenseData = {
       ...cleanExpenseData,
       companyId: userInfo.companyId,
-      createdAt: cleanExpenseData.createdAt || now,
       updatedAt: now
-    });
+    };
+
+    // Explicitly set createdAt to preserve the original value
+    if (expenseData.createdAt) {
+      finalExpenseData.createdAt = expenseData.createdAt;
+    } else {
+      finalExpenseData.createdAt = now;
+    }
+
+    console.log('Final expenseData being sent to Firebase:', JSON.stringify(finalExpenseData, null, 2));
+
+    const expenseDoc = await addDoc(expensesRef, finalExpenseData);
 
     // Update cash in hand - DECREASE when expense is approved
     if (expenseData.status === 'approved' && expenseData.vehicleId) {

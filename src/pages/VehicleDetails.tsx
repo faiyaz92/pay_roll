@@ -1131,20 +1131,24 @@ const VehicleDetails: React.FC = () => {
       let originalEmiAmount = emiAmount; // fallback to emiPerMonth
       try {
         const expensesRef = collection(firestore, paths.getExpensesPath());
-        const emiPaymentQuery = query(
+        // Simplified query - get all expenses for this vehicle and filter in code
+        const allExpensesQuery = query(
           expensesRef,
           where('vehicleId', '==', vehicleId),
-          where('description', '>=', `EMI Payment - Month ${monthIndex + 1}`),
-          where('description', '<', `EMI Payment - Month ${monthIndex + 1}\uffff`),
-          where('type', '==', 'paid'),
-          where('paymentType', '==', 'emi'),
-          where('status', '==', 'approved')
+          where('status', '==', 'approved'),
+          orderBy('updatedAt', 'desc')
         );
 
-        const emiPaymentSnapshot = await getDocs(emiPaymentQuery);
-        if (!emiPaymentSnapshot.empty) {
-          const emiPaymentData = emiPaymentSnapshot.docs[0].data() as Expense;
-          originalEmiAmount = emiPaymentData.amount;
+        const allExpensesSnapshot = await getDocs(allExpensesQuery);
+        const emiExpense = allExpensesSnapshot.docs.find(doc => {
+          const data = doc.data() as Expense;
+          return data.type === 'paid' &&
+                 data.paymentType === 'emi' &&
+                 data.dueDate === scheduleItem.dueDate;
+        });
+
+        if (emiExpense) {
+          originalEmiAmount = emiExpense.data().amount;
         }
       } catch (error) {
         console.warn('Could not find original EMI payment amount, using emiPerMonth:', error);
@@ -1212,34 +1216,59 @@ const VehicleDetails: React.FC = () => {
           const latestEmiData = latestEmiSnapshot.docs[0].data() as Expense;
           const emiCreatedAt = latestEmiData.createdAt;
           
-          // Query the latest penalty record for this month
-          const latestPenaltyQuery = query(
+          console.log('EMI record found for reversal:', {
+            emiId: latestEmiSnapshot.docs[0].id,
+            emiCreatedAt,
+            emiDueDate: latestEmiData.dueDate,
+            emiType: latestEmiData.type,
+            emiPaymentType: latestEmiData.paymentType
+          });
+          
+          // Query penalty records that were created at the same time as the EMI (same transaction)
+          const penaltyQuery = query(
             expensesRef,
             where('vehicleId', '==', vehicleId),
             where('type', '==', 'penalties'),
             where('dueDate', '==', scheduleItem.dueDate),
-            where('status', '==', 'approved'),
-            orderBy('updatedAt', 'desc'),
-            limit(1)
+            where('createdAt', '==', emiCreatedAt), // Match the exact transaction timestamp
+            where('status', '==', 'approved')
           );
           
-          const latestPenaltySnapshot = await getDocs(latestPenaltyQuery);
-          if (!latestPenaltySnapshot.empty) {
-            const latestPenaltyData = latestPenaltySnapshot.docs[0].data() as Expense;
-            const penaltyCreatedAt = latestPenaltyData.createdAt;
-            
-            // Compare createdAt timestamps - only reverse penalty if it was created in the same transaction
-            if (emiCreatedAt === penaltyCreatedAt) {
-              // Add reversing entry for the penalty since it was part of the same transaction
-              reversingExpenseEntries.push({
-                amount: -latestPenaltyData.amount, // Negative amount to offset penalty
-                description: `EMI Penalty Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
-                type: 'penalties' as const,
-                paymentType: undefined
-              });
-            } else {
-              console.log('Penalty createdAt does not match EMI createdAt - skipping penalty reversal');
+          const penaltySnapshot = await getDocs(penaltyQuery);
+          console.log('Penalty query result:', {
+            penaltyCount: penaltySnapshot.size,
+            vehicleId,
+            dueDate: scheduleItem.dueDate,
+            emiCreatedAt,
+            queryParams: {
+              vehicleId,
+              type: 'penalties',
+              dueDate: scheduleItem.dueDate,
+              createdAt: emiCreatedAt,
+              status: 'approved'
             }
+          });
+          
+          if (!penaltySnapshot.empty) {
+            // There should be only one penalty per transaction, but get the first one
+            const penaltyData = penaltySnapshot.docs[0].data() as Expense;
+            console.log('Penalty found for reversal:', {
+              penaltyId: penaltySnapshot.docs[0].id,
+              penaltyAmount: penaltyData.amount,
+              penaltyCreatedAt: penaltyData.createdAt,
+              penaltyDueDate: penaltyData.dueDate,
+              penaltyType: penaltyData.type
+            });
+            
+            // Add reversing entry for the penalty since it was part of the same transaction
+            reversingExpenseEntries.push({
+              amount: -penaltyData.amount, // Negative amount to offset penalty
+              description: `EMI Penalty Reversal - Month ${monthIndex + 1} (${new Date().toLocaleDateString()})`,
+              type: 'penalties' as const,
+              paymentType: undefined
+            });
+          } else {
+            console.log('No penalty found with matching createdAt');
           }
         }
       } catch (penaltyError) {
