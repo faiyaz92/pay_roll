@@ -8,6 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Plus,
   Car,
   Search,
@@ -35,16 +45,26 @@ const Vehicles: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState(null);
 
   const { vehicles, vehiclesWithFinancials, loading, deleteVehicle } = useFirebaseData();
   const handleDeleteVehicle = async (vehicleId: string) => {
-    if (window.confirm('Are you sure you want to delete this vehicle?')) {
-      try {
-        await deleteVehicle(vehicleId);
-        toast({ title: 'Vehicle Deleted', description: 'Vehicle has been deleted successfully.' });
-      } catch (error: any) {
-        toast({ title: 'Error', description: error.message || 'Failed to delete vehicle', variant: 'destructive' });
-      }
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    setVehicleToDelete(vehicle);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteVehicle = async () => {
+    if (!vehicleToDelete) return;
+
+    try {
+      await deleteVehicle(vehicleToDelete.id);
+      toast({ title: 'Vehicle Deleted', description: 'Vehicle has been deleted successfully.' });
+      setDeleteDialogOpen(false);
+      setVehicleToDelete(null);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to delete vehicle', variant: 'destructive' });
     }
   };
 
@@ -475,6 +495,42 @@ const Vehicles: React.FC = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete Vehicle Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              Delete Vehicle
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-gray-700">
+                  Are you sure you want to delete <span className="font-semibold">{vehicleToDelete?.vehicleName || vehicleToDelete?.make + ' ' + vehicleToDelete?.model}</span>?
+                </p>
+                <p className="text-sm text-gray-600">
+                  This action cannot be undone. All associated data including assignments, payments, and financial records will be permanently removed.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteDialogOpen(false);
+              setVehicleToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteVehicle}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Vehicle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

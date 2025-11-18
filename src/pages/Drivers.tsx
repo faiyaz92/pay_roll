@@ -4,6 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye } from 'lucide-react';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddDriverForm from '@/components/Forms/AddDriverForm';
@@ -20,15 +30,25 @@ const Drivers: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editDriver, setEditDriver] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState(null);
+
   // Delete driver handler
   const handleDeleteDriver = async (driverId: string) => {
-    if (window.confirm('Are you sure you want to delete this driver?')) {
-      try {
-        await deleteDriver(driverId);
-        // Optionally show toast
-      } catch (error) {
-        // Optionally show error toast
-      }
+    const driver = drivers.find(d => d.id === driverId);
+    setDriverToDelete(driver);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteDriver = async () => {
+    if (!driverToDelete) return;
+
+    try {
+      await deleteDriver(driverToDelete.id);
+      setDeleteDialogOpen(false);
+      setDriverToDelete(null);
+    } catch (error) {
+      console.error('Error deleting driver:', error);
     }
   };
 
@@ -441,6 +461,42 @@ const Drivers: React.FC = () => {
         </DialogContent>
       </Dialog>
     )}
+
+    {/* Delete Driver Confirmation Dialog */}
+    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5 text-red-500" />
+            Delete Driver
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3">
+              <p className="text-gray-700">
+                Are you sure you want to delete <span className="font-semibold">{driverToDelete?.name}</span>?
+              </p>
+              <p className="text-sm text-gray-600">
+                This action cannot be undone. All associated assignments and data will be permanently removed.
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => {
+            setDeleteDialogOpen(false);
+            setDriverToDelete(null);
+          }}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmDeleteDriver}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            Delete Driver
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 };

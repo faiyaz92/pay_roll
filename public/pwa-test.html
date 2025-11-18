@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Test - Route Glide</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        img { max-width: 100px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Route Glide PWA Test</h1>
+
+    <div id="pwa-status" class="status info">Checking PWA status...</div>
+    <div id="install-status" class="status info">Checking install capability...</div>
+
+    <h2>App Icons</h2>
+    <div>
+        <img src="/icon-192.svg" alt="192x192 icon">
+        <img src="/icon-512.svg" alt="512x512 icon">
+    </div>
+
+    <h2>Manifest Test</h2>
+    <button onclick="testManifest()">Test Manifest</button>
+    <div id="manifest-result"></div>
+
+    <h2>Service Worker Test</h2>
+    <button onclick="testServiceWorker()">Test Service Worker</button>
+    <div id="sw-result"></div>
+
+    <h2>Install Test</h2>
+    <button onclick="testInstall()">Test Install Prompt</button>
+    <div id="install-result"></div>
+
+    <script>
+        // PWA Status Check
+        function checkPWAStatus() {
+            const status = document.getElementById('pwa-status');
+
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                               window.matchMedia('(display-mode: fullscreen)').matches ||
+                               (window.navigator.standalone === true);
+
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isChrome = /Chrome/.test(navigator.userAgent);
+
+            let statusText = `Display Mode: ${isStandalone ? 'Standalone' : 'Browser'}<br>`;
+            statusText += `Platform: ${isIOS ? 'iOS' : isAndroid ? 'Android' : 'Other'}<br>`;
+            statusText += `Browser: ${isChrome ? 'Chrome' : 'Other'}`;
+
+            status.innerHTML = statusText;
+            status.className = `status ${isStandalone ? 'success' : 'info'}`;
+        }
+
+        // Install Capability Check
+        function checkInstallCapability() {
+            const status = document.getElementById('install-status');
+
+            if ('serviceWorker' in navigator) {
+                status.innerHTML = '✅ Service Worker supported';
+                status.className = 'status success';
+            } else {
+                status.innerHTML = '❌ Service Worker not supported';
+                status.className = 'status error';
+                return;
+            }
+
+            // Check for beforeinstallprompt
+            window.addEventListener('beforeinstallprompt', (e) => {
+                status.innerHTML = '✅ Install prompt available (beforeinstallprompt fired)';
+                status.className = 'status success';
+                e.preventDefault();
+                window.deferredPrompt = e;
+            });
+
+            // Check for appinstalled
+            window.addEventListener('appinstalled', () => {
+                status.innerHTML = '✅ App installed successfully';
+                status.className = 'status success';
+            });
+        }
+
+        // Test Manifest
+        async function testManifest() {
+            const result = document.getElementById('manifest-result');
+            try {
+                const response = await fetch('/manifest.json');
+                if (response.ok) {
+                    const manifest = await response.json();
+                    result.innerHTML = `<pre>${JSON.stringify(manifest, null, 2)}</pre>`;
+                    result.className = 'status success';
+                } else {
+                    result.innerHTML = `❌ Manifest fetch failed: ${response.status}`;
+                    result.className = 'status error';
+                }
+            } catch (error) {
+                result.innerHTML = `❌ Manifest error: ${error.message}`;
+                result.className = 'status error';
+            }
+        }
+
+        // Test Service Worker
+        function testServiceWorker() {
+            const result = document.getElementById('sw-result');
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        result.innerHTML = `✅ Service Worker registered: ${registration.scope}`;
+                        result.className = 'status success';
+                    })
+                    .catch((error) => {
+                        result.innerHTML = `❌ Service Worker registration failed: ${error.message}`;
+                        result.className = 'status error';
+                    });
+            } else {
+                result.innerHTML = '❌ Service Worker not supported';
+                result.className = 'status error';
+            }
+        }
+
+        // Test Install
+        function testInstall() {
+            const result = document.getElementById('install-result');
+
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        result.innerHTML = '✅ User accepted install prompt';
+                        result.className = 'status success';
+                    } else {
+                        result.innerHTML = '❌ User dismissed install prompt';
+                        result.className = 'status error';
+                    }
+                    window.deferredPrompt = null;
+                });
+            } else {
+                result.innerHTML = '❌ No install prompt available (try refreshing page or check manifest)';
+                result.className = 'status error';
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            checkPWAStatus();
+            checkInstallCapability();
+        });
+    </script>
+</body>
+</html>
+                    e.userChoice.then(choice => {
+                        addStatus(choice.outcome === 'accepted' ? '✅ PWA installed!' : '❌ PWA install dismissed',
+                                choice.outcome === 'accepted' ? 'success' : 'error');
+                    });
+                }, 2000);
+            });
+        } else {
+            addStatus('✗ PWA install not supported', 'error');
+        }
+
+        // Check manifest
+        fetch('/manifest.json')
+            .then(res => res.json())
+            .then(manifest => {
+                addStatus('✓ Manifest loaded: ' + manifest.name);
+                if (manifest.icons && manifest.icons.length > 0) {
+                    addStatus('✓ Manifest has ' + manifest.icons.length + ' icons');
+                }
+            })
+            .catch(err => addStatus('✗ Manifest failed: ' + err.message, 'error'));
+
+        addStatus('Waiting for install prompt... (interact with page)');
+    </script>
+</body>
+</html>

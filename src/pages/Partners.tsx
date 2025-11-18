@@ -4,6 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Plus, User, Phone, MapPin, Truck, Clock, FileText, Eye, UserPlus } from 'lucide-react';
 import AddPartnerForm from '@/components/Forms/AddPartnerForm';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
@@ -22,6 +32,8 @@ const Partners: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editPartner, setEditPartner] = useState<UserInfo | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [partnerToDelete, setPartnerToDelete] = useState<UserInfo | null>(null);
 
   // Load partners
   useEffect(() => {
@@ -117,24 +129,31 @@ const Partners: React.FC = () => {
 
   // Delete partner handler
   const handleDeletePartner = async (partnerId: string) => {
-    if (window.confirm('Are you sure you want to delete this partner? This action cannot be undone.')) {
-      try {
-        if (!userInfo?.companyId) return;
+    const partner = partners.find(p => p.userId === partnerId);
+    setPartnerToDelete(partner || null);
+    setDeleteDialogOpen(true);
+  };
 
-        const partnerRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/users`, partnerId);
-        await deleteDoc(partnerRef);
+  const confirmDeletePartner = async () => {
+    if (!partnerToDelete || !userInfo?.companyId) return;
 
-        toast({
-          title: 'Partner Deleted',
-          description: 'Partner has been removed from the system.',
-        });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to delete partner',
-          variant: 'destructive'
-        });
-      }
+    try {
+      const partnerRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/users`, partnerToDelete.userId);
+      await deleteDoc(partnerRef);
+
+      toast({
+        title: 'Partner Deleted',
+        description: 'Partner has been removed from the system.',
+      });
+
+      setDeleteDialogOpen(false);
+      setPartnerToDelete(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete partner',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -271,6 +290,42 @@ const Partners: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Partner Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-red-500" />
+              Delete Partner
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-gray-700">
+                  Are you sure you want to delete <span className="font-semibold">{partnerToDelete?.name}</span>?
+                </p>
+                <p className="text-sm text-gray-600">
+                  This action cannot be undone. All associated vehicles, assignments, and financial data will be permanently removed.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteDialogOpen(false);
+              setPartnerToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePartner}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Partner
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
