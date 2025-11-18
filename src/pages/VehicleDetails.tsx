@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseData, useAssignments } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFirestorePaths } from '@/hooks/useFirestorePaths';
-import { collection, addDoc, updateDoc, doc, increment, getDoc, query, where, getDocs, setDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, getDoc, query, where, getDocs, setDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 
@@ -1637,6 +1637,78 @@ const VehicleDetails: React.FC = () => {
     window.location.reload();
   };
 
+  const reverseRentPayment = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
+    // Find the payment record
+    const weekRentPayment = firebasePayments.find(payment => {
+      if (payment.vehicleId !== vehicleId || payment.status !== 'paid') return false;
+      const paymentWeekStart = new Date(payment.weekStart);
+      return Math.abs(paymentWeekStart.getTime() - weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+    });
+
+    if (!weekRentPayment) {
+      toast({
+        title: 'Payment Not Found',
+        description: `No payment record found for week ${weekIndex + 1}.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check 24-hour time restriction
+    const paidAt = new Date(weekRentPayment.paidAt || weekRentPayment.createdAt);
+    const now = new Date();
+    const hoursSincePayment = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSincePayment > 24) {
+      toast({
+        title: 'Cannot Reverse',
+        description: `Rent payments can only be reversed within 24 hours of collection. This payment was made ${Math.floor(hoursSincePayment)} hours ago.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Update the payment status to 'reversed' instead of deleting
+      const paymentsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/payments`);
+      const paymentQuery = query(
+        paymentsRef,
+        where('vehicleId', '==', vehicleId),
+        where('weekStart', '==', weekRentPayment.weekStart),
+        where('status', '==', 'paid')
+      );
+      const paymentSnapshot = await getDocs(paymentQuery);
+      if (!paymentSnapshot.empty) {
+        const paymentDocRef = paymentSnapshot.docs[0].ref;
+        await updateDoc(paymentDocRef, {
+          status: 'reversed',
+          reversedAt: new Date().toISOString(),
+          reversedBy: userInfo?.email || 'system'
+        });
+      }
+
+      // Decrease cash in hand by the rent amount (reverse of markRentCollected)
+      const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo?.companyId}/cashInHand`, vehicleId);
+      await updateDoc(cashRef, {
+        balance: increment(-weekRentPayment.amountPaid), // Negative increment = decrement
+        updatedAt: new Date().toISOString()
+      });
+
+      toast({
+        title: 'Rent Payment Reversed',
+        description: `Rent collection for week ${weekIndex + 1} has been reversed and ₹${weekRentPayment.amountPaid.toLocaleString()} has been deducted from cash balance.`,
+      });
+
+    } catch (error) {
+      console.error('Error reversing rent payment:', error);
+      toast({
+        title: 'Reversal Failed',
+        description: 'Failed to reverse rent payment. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const markRentCollected = async (weekIndex: number, assignment: Assignment, weekStartDate: Date) => {
     // Prevent double-click processing
     if (isProcessingRentPayment === weekIndex) return;
@@ -2243,6 +2315,7 @@ const VehicleDetails: React.FC = () => {
             financialData={financialData}
             getCurrentAssignmentDetails={getCurrentAssignmentDetails}
             markRentCollected={markRentCollected}
+            reverseRentPayment={reverseRentPayment}
             isProcessingRentPayment={isProcessingRentPayment}
           />
         </TabsContent>

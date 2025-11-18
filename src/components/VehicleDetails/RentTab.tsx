@@ -27,6 +27,7 @@ interface RentTabProps {
   financialData: VehicleFinancialData;
   getCurrentAssignmentDetails: () => any;
   markRentCollected: (weekIndex: number, assignment: any, weekStartDate: Date) => void;
+  reverseRentPayment: (weekIndex: number, assignment: any, weekStartDate: Date) => void;
   isProcessingRentPayment: number | null;
 }
 
@@ -37,6 +38,7 @@ export const RentTab: React.FC<RentTabProps> = ({
   financialData,
   getCurrentAssignmentDetails,
   markRentCollected,
+  reverseRentPayment,
   isProcessingRentPayment
 }) => {
   const { userInfo } = useAuth();
@@ -48,6 +50,8 @@ export const RentTab: React.FC<RentTabProps> = ({
     willSettleWeek?: number;
   } | null>(null);
   const [selectedWeekIndices, setSelectedWeekIndices] = React.useState<number[]>([]);
+
+  const [reverseDialog, setReverseDialog] = React.useState<{ open: boolean; weekIndex: number; assignment: any; weekStartDate: Date }>({ open: false, weekIndex: -1, assignment: null, weekStartDate: new Date() });
 
   // Calculate overdue and due amounts
   const rentSummary = useMemo(() => {
@@ -501,8 +505,28 @@ export const RentTab: React.FC<RentTabProps> = ({
                               </div>
                             )}
                             {weekRentPayment ? (
-                              <div className={`text-xs ${textColor} mt-1 font-semibold`}>
-                                ₹{weekRentPayment.amountPaid.toLocaleString()}
+                              <div className="mt-1">
+                                <div className={`text-xs ${textColor} font-semibold`}>
+                                  ₹{weekRentPayment.amountPaid.toLocaleString()}
+                                </div>
+                                {(() => {
+                                  const paidAt = new Date(weekRentPayment.paidAt || weekRentPayment.createdAt);
+                                  const hoursSincePayment = (new Date().getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+                                  const canReverse = hoursSincePayment <= 24 && userInfo?.role !== Role.PARTNER;
+                                  return canReverse ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs py-1 px-2 h-6 w-full mt-1 text-red-600 border-red-300 hover:bg-red-50"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setReverseDialog({ open: true, weekIndex, assignment: currentAssignment, weekStartDate });
+                                      }}
+                                    >
+                                      Reverse
+                                    </Button>
+                                  ) : null;
+                                })()}
                               </div>
                             ) : canMarkPaid && userInfo?.role !== Role.PARTNER ? (
                               <Button
@@ -703,6 +727,59 @@ export const RentTab: React.FC<RentTabProps> = ({
               {selectedPaymentWeek?.weekIndex === -1 && selectedWeekCount > 0
                 ? `Collect ${selectedWeekCount} Week${selectedWeekCount > 1 ? 's' : ''}`
                 : 'Confirm Payment'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rent Reverse Confirmation Dialog */}
+      <AlertDialog open={reverseDialog.open} onOpenChange={(open) => setReverseDialog({ open, weekIndex: -1, assignment: null, weekStartDate: new Date() })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Confirm Rent Payment Reversal
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to reverse the rent collection for <strong>Week {reverseDialog.weekIndex + 1}</strong>?
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm text-red-700">
+                    <strong>Warning:</strong> This action will:
+                  </p>
+                  <ul className="text-sm text-red-700 mt-2 space-y-1">
+                    <li>• Mark the rent as unpaid</li>
+                    <li>• Mark the payment record as reversed</li>
+                    <li>• Decrease cash in hand by ₹{(() => {
+                      const payment = firebasePayments.find(p => {
+                        if (p.vehicleId !== vehicleId || p.status !== 'paid') return false;
+                        const paymentWeekStart = new Date(p.weekStart);
+                        return Math.abs(paymentWeekStart.getTime() - reverseDialog.weekStartDate.getTime()) < (24 * 60 * 60 * 1000);
+                      });
+                      return payment ? payment.amountPaid.toLocaleString() : '0';
+                    })()}</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-gray-600">
+                  This action can only be performed within 24 hours of the original payment.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (reverseDialog.assignment && reverseDialog.weekStartDate) {
+                  reverseRentPayment(reverseDialog.weekIndex, reverseDialog.assignment, reverseDialog.weekStartDate);
+                }
+                setReverseDialog({ open: false, weekIndex: -1, assignment: null, weekStartDate: new Date() });
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Yes, Reverse Payment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
