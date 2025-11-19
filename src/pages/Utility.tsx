@@ -52,51 +52,51 @@ const Utility: React.FC = () => {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
           <Card
-            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square flex flex-col"
+            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square md:aspect-auto flex flex-col"
             onClick={() => handleCardClick('emi')}
           >
-            <CardHeader className="pb-2 flex-shrink-0">
-              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base">
-                <CreditCard className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+            <CardHeader className="pb-2 flex-shrink-0 md:pb-3">
+              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base md:text-lg">
+                <CreditCard className="h-6 w-6 sm:h-8 sm:w-8 md:h-6 md:w-6 text-blue-600" />
                 <span className="text-center">EMI Management</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 flex-1 flex items-center">
-              <p className="text-xs sm:text-sm text-gray-600 text-center leading-tight">
+              <p className="text-xs sm:text-sm md:text-base text-gray-600 text-center leading-tight">
                 Track and manage vehicle loan EMI payments, schedules, and overdue amounts.
               </p>
             </CardContent>
           </Card>
 
           <Card
-            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square flex flex-col"
+            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square md:aspect-auto flex flex-col"
             onClick={() => handleCardClick('rent')}
           >
-            <CardHeader className="pb-2 flex-shrink-0">
-              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base">
-                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+            <CardHeader className="pb-2 flex-shrink-0 md:pb-3">
+              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base md:text-lg">
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 md:h-6 md:w-6 text-green-600" />
                 <span className="text-center">Rent Collection</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 flex-1 flex items-center">
-              <p className="text-xs sm:text-sm text-gray-600 text-center leading-tight">
+              <p className="text-xs sm:text-sm md:text-base text-gray-600 text-center leading-tight">
                 Monitor weekly rent payments, track overdue amounts, and manage driver assignments.
               </p>
             </CardContent>
           </Card>
 
           <Card
-            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square flex flex-col"
+            className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] aspect-square md:aspect-auto flex flex-col"
             onClick={() => handleCardClick('expenses')}
           >
-            <CardHeader className="pb-2 flex-shrink-0">
-              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base">
-                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
+            <CardHeader className="pb-2 flex-shrink-0 md:pb-3">
+              <CardTitle className="flex flex-col items-center gap-2 text-sm sm:text-base md:text-lg">
+                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 md:h-6 md:w-6 text-orange-600" />
                 <span className="text-center">Expense Tracking</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 flex-1 flex items-center">
-              <p className="text-xs sm:text-sm text-gray-600 text-center leading-tight">
+              <p className="text-xs sm:text-sm md:text-base text-gray-600 text-center leading-tight">
                 View and analyze vehicle expenses including fuel, maintenance, insurance, and more.
               </p>
             </CardContent>
