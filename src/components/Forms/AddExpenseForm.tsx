@@ -20,7 +20,7 @@ import { addDoc, collection } from 'firebase/firestore';
 // Define schema outside component to avoid recreation on every render
 const createExpenseRecordSchema = (editingRecord: Expense | undefined, isCorrection: boolean) => z.object({
   vehicleId: z.string().optional(), // Made optional since vehicle is pre-selected
-  expenseType: editingRecord ? z.string().optional() : z.enum(['fuel', 'maintenance', 'insurance', 'penalties', 'general']),
+  expenseType: editingRecord ? z.string().optional() : z.enum(['fuel', 'maintenance', 'penalties', 'general']),
   description: editingRecord ? z.string().optional() : z.string().optional(),
   amount: editingRecord ? z.string().optional() : z.string().min(1, 'Amount is required'),
   vendor: editingRecord ? z.string().optional() : z.string().optional(),
@@ -249,7 +249,7 @@ const [expenseDocuments, setExpenseDocuments] = useState<{
           description: isCorrection
             ? `Expense correction - Ref: ${data.originalTransactionRef} - ${data.description}`
             : data.description,
-          expenseType: data.expenseType as 'maintenance' | 'insurance' | 'fuel' | 'penalties' | 'general',
+          expenseType: data.expenseType as 'maintenance' | 'fuel' | 'penalties' | 'general',
           vendor: data.vendor,
           expenseDate: new Date(data.expenseDate).toISOString(),
           updatedAt: new Date().toISOString(),
@@ -405,7 +405,6 @@ const [expenseDocuments, setExpenseDocuments] = useState<{
                     <SelectContent>
                       <SelectItem value="fuel">Fuel</SelectItem>
                       <SelectItem value="maintenance">Maintenance</SelectItem>
-                      <SelectItem value="insurance">Insurance</SelectItem>
                       <SelectItem value="penalties">Penalties</SelectItem>
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>

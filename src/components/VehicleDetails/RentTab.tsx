@@ -279,7 +279,7 @@ export const RentTab: React.FC<RentTabProps> = ({
         {vehicle.assignedDriverId && (
           <div className="mb-6">
             <SectionNumberBadge id="2" label="Rent Collection Summary" className="mb-2" />
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card className="bg-green-50">
                 <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
@@ -311,8 +311,8 @@ export const RentTab: React.FC<RentTabProps> = ({
               </Card>
               <Card className={`${rentSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
                 <CardContent className="p-4">
-                <div className="flex items-center justify-between h-full">
-                  <div className="text-center flex-1">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between h-full space-y-2 md:space-y-0">
+                  <div className="text-center md:text-left md:flex-1">
                     <div className={`text-2xl font-bold ${rentSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
                       ₹{rentSummary.totalDue.toLocaleString()}
                     </div>
@@ -321,15 +321,15 @@ export const RentTab: React.FC<RentTabProps> = ({
                     </div>
                   </div>
                   {rentSummary.totalDue > 0 && (
-                    <div 
-                      className="flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors h-full px-3 rounded-md ml-2"
+                    <div
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors px-4 py-2 md:px-3 md:py-0 md:h-full md:ml-2 rounded-md w-full md:w-auto text-center md:text-left flex items-center justify-center"
                       onClick={() => {
                         // Prepare all weeks to pay (overdue + current week due)
                         const weeksToPay = [...rentSummary.overdueWeeks];
                         if (rentSummary.currentWeekDue) {
                           weeksToPay.push(rentSummary.currentWeekDue);
                         }
-                        
+
                         setSelectedPaymentWeek({
                           weekIndex: -1, // Special flag for bulk payment
                           assignment: financialData.currentAssignment,

@@ -285,7 +285,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
           {/* EMI Summary Cards */}
           <div className="mb-6">
             <SectionNumberBadge id="2" label="EMI Summary" className="mb-2" />
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">
@@ -314,7 +314,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
             </Card>
             <Card className={`${emiSummary.totalDue > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between h-full">
+                <div className="flex flex-col md:flex-row items-center justify-between h-full">
                   <div className="text-center flex-1">
                     <div className={`text-2xl font-bold ${emiSummary.totalDue > 0 ? 'text-orange-600' : 'text-gray-600'}`}>
                       ₹{emiSummary.totalDue.toLocaleString()}
@@ -325,7 +325,7 @@ export const EMITab: React.FC<EMITabProps> = ({ vehicle, financialData, markEMIP
                   </div>
                   {emiSummary.totalDue > 0 && (
                     <div 
-                      className="flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors h-full px-3 rounded-md ml-2"
+                      className="flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm cursor-pointer transition-colors h-full px-3 rounded-md mt-2 md:mt-0 md:ml-2"
                       onClick={() => setBulkPaymentDialog(true)}
                     >
                       Pay
