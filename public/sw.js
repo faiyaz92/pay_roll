@@ -1,5 +1,5 @@
 // Service Worker for Route Glide Transportation Hub PWA
-const CACHE_NAME = 'route-glide-v1';
+const CACHE_NAME = 'route-glide-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -51,11 +51,18 @@ self.addEventListener('fetch', (event) => {
         // Return cached version or fetch from network
         return response || fetch(event.request);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.log('❌ Fetch failed:', event.request.url, error);
         // Return offline page for navigation requests
         if (event.request.mode === 'navigate') {
           return caches.match('/offline.html');
         }
+        // For other requests, return a basic error response
+        return new Response('Network error', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain' }
+        });
       })
   );
 });

@@ -320,6 +320,10 @@ const Dashboard: React.FC = () => {
             <Users className="w-4 h-4 mr-2" />
             Assignments
           </Button>
+          <Button variant="outline" onClick={() => navigate('/utility')} className="w-full sm:w-auto">
+            <Settings className="w-4 h-4 mr-2" />
+            Utility
+          </Button>
         </div>
       </div>
 
