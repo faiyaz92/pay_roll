@@ -35,8 +35,6 @@ const createFinancialData = (overrides?: Partial<VehicleFinancialData>): Vehicle
   outstandingLoan: 0,
   totalEarnings: 0,
   totalExpenses: 0,
-  netProfit: 0,
-  currentAssignment: null,
   totalInvestment: 0,
   monthlyRent: 0,
   monthlyExpenses: 0,
