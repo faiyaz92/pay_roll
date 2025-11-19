@@ -22,6 +22,30 @@ const StandaloneRentTab: React.FC = () => {
   const { userInfo } = useAuth();
   const { toast } = useToast();
   const [isProcessingRentPayment, setIsProcessingRentPayment] = useState<number | null>(null);
+  const [cashInHand, setCashInHand] = useState(0);
+
+  // Calculate cash in hand - same as AccountsTab.tsx
+  useEffect(() => {
+    const calculateCashInHand = async () => {
+      if (!userInfo?.companyId || !vehicleId) return;
+      
+      try {
+        const cashRef = doc(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/cashInHand`, vehicleId);
+        const cashDoc = await getDoc(cashRef);
+        
+        if (cashDoc.exists()) {
+          setCashInHand(cashDoc.data().balance || 0);
+        } else {
+          setCashInHand(0);
+        }
+      } catch (error) {
+        console.error('Error calculating cash in hand:', error);
+        setCashInHand(0);
+      }
+    };
+    
+    calculateCashInHand();
+  }, [userInfo?.companyId, vehicleId]);
 
   const vehicle = vehicles.find(v => v.id === vehicleId);
 
@@ -264,6 +288,20 @@ const StandaloneRentTab: React.FC = () => {
         </div>
       </div>
       <div className="p-6">
+        {/* Cash in Hand Display */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Cash in Hand</h3>
+              <p className="text-2xl font-bold text-green-600">₹{cashInHand.toLocaleString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Real-time balance</p>
+              <p className="text-xs text-gray-400">Updated automatically</p>
+            </div>
+          </div>
+        </div>
+
         <RentTab
           vehicle={vehicle}
           vehicleId={vehicleId || ''}
