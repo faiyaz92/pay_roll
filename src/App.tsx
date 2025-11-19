@@ -25,6 +25,11 @@ import Reports from "./pages/Reports";
 import FinancialPage from "./pages/FinancialPage";
 import PartnerDetails from "./pages/PartnerDetails";
 import ExpenseDetails from "./pages/ExpenseDetails";
+import FullScreenLayout from "@/components/Layout/FullScreenLayout";
+import Utility from "@/pages/Utility";
+import StandaloneEMITab from "@/pages/StandaloneEMITab";
+import StandaloneRentTab from "@/pages/StandaloneRentTab";
+import StandaloneExpensesTab from "@/pages/StandaloneExpensesTab";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -59,11 +64,17 @@ const App = () => (
               <Route path="maintenance-records" element={<MaintenanceRecords/>} />
               <Route path="fuel-records" element={<FuelRecords/>} />
               <Route path="fuel-prices" element={<FuelPrices/>} />
-              <Route path="expenses" element={<div className="p-6"><h1 className="text-3xl font-bold">Expense Management</h1><p className="text-gray-600 mt-2">Track and manage car rental expenses</p></div>} />
               <Route path="reports" element={<Reports />} />
               <Route path="bookings" element={<div className="p-6"><h1 className="text-3xl font-bold">Booking Management</h1><p className="text-gray-600 mt-2">Manage customer car rental bookings</p></div>} />
               <Route path="notifications" element={<div className="p-6"><h1 className="text-3xl font-bold">Notifications</h1><p className="text-gray-600 mt-2">View and manage system notifications</p></div>} />
               <Route path="settings" element={<div className="p-6"><h1 className="text-3xl font-bold">Settings</h1><p className="text-gray-600 mt-2">Configure system settings and preferences</p></div>} />
+            </Route>
+            
+            <Route path="/" element={<FullScreenLayout />}>
+              <Route path="utility" element={<Utility />} />
+              <Route path="emi" element={<StandaloneEMITab />} />
+              <Route path="rent" element={<StandaloneRentTab />} />
+              <Route path="expenses" element={<StandaloneExpensesTab />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />
