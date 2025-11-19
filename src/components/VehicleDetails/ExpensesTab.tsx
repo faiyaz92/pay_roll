@@ -83,7 +83,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         {/* Expense Summary Cards */}
         <div className="mb-6">
           <SectionNumberBadge id="2" label="Expense Summary Cards" className="mb-2" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="bg-red-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-red-600">
@@ -122,7 +122,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         {/* Expense Categories */}
         <div className="mb-6">
           <SectionNumberBadge id="3" label="Expense Categories" className="mb-2" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
