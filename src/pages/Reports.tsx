@@ -276,33 +276,429 @@ const Reports: React.FC = () => {
     }).format(amount);
   };
 
-  const exportToExcel = () => {
-    // Create Excel export data
-    const exportData = {
-      summary: {
-        totalRevenue: analytics.financial.totalRevenue,
-        totalExpenses: analytics.financial.totalExpenses,
-        netProfit: analytics.financial.netProfit,
-        profitMargin: analytics.financial.profitMargin
-      },
-      expenseBreakdown: analytics.financial.expenseBreakdown,
-      vehiclePerformance: analytics.performance.vehiclePerformance,
-      driverPerformance: analytics.performance.driverPerformance,
-      monthlyTrends: analytics.trends
-    };
+  const exportToExcel = async () => {
+    try {
+      // Dynamic import for ExcelJS
+      const ExcelJS = await import('exceljs');
 
-    // Convert to CSV format for Excel
-    const csvContent = generateCSV(exportData);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `fleet-analytics-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Route Glide Transpo Hub';
+      workbook.created = new Date();
 
-    toast({
-      title: "Export Successful",
-      description: "Analytics data exported to Excel successfully",
-    });
+      // Helper function to format currency
+      const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(amount);
+      };
+
+      // Helper function to format date
+      const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('en-IN');
+      };
+
+      // ===== EXECUTIVE SUMMARY SHEET =====
+      const summarySheet = workbook.addWorksheet('Executive Summary');
+      summarySheet.getColumn('A').width = 30;
+      summarySheet.getColumn('B').width = 20;
+      summarySheet.getColumn('C').width = 20;
+      summarySheet.getColumn('D').width = 15;
+
+      // Title
+      const titleRow = summarySheet.addRow(['Fleet Analytics Report']);
+      titleRow.font = { size: 16, bold: true };
+      titleRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      summarySheet.addRow(['Generated On:', new Date().toLocaleDateString('en-IN')]);
+      summarySheet.addRow(['Report Period:', `${dateRange} days`]);
+      summarySheet.addRow(['Selected Vehicle:', selectedVehicle === 'all' ? 'All Vehicles' : filteredDataSources.vehicles.find(v => v.id === selectedVehicle)?.registrationNumber || 'N/A']);
+      summarySheet.addRow(['Selected Driver:', selectedDriver === 'all' ? 'All Drivers' : availableDrivers.find(d => d.id === selectedDriver)?.name || 'N/A']);
+      summarySheet.addRow([]);
+
+      // Key Metrics
+      const metricsHeader = summarySheet.addRow(['Key Performance Indicators', '', '', '']);
+      metricsHeader.font = { bold: true };
+      metricsHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      summarySheet.addRow(['Total Revenue', formatCurrency(analytics.financial.totalRevenue), '', '']);
+      summarySheet.addRow(['Total Expenses', formatCurrency(analytics.financial.totalExpenses), '', '']);
+      summarySheet.addRow(['Net Profit', formatCurrency(analytics.financial.netProfit), '', '']);
+      summarySheet.addRow(['Profit Margin', `${analytics.financial.profitMargin.toFixed(2)}%`, '', '']);
+
+      summarySheet.addRow([]);
+      summarySheet.addRow(['Operational Metrics', '', '', '']);
+      summarySheet.addRow(['Total Assignments', analytics.operational.totalAssignments, '', '']);
+      summarySheet.addRow(['Completed Assignments', analytics.operational.completedAssignments, '', '']);
+      summarySheet.addRow(['Active Assignments', analytics.operational.activeAssignments, '', '']);
+      summarySheet.addRow(['Completion Rate', `${analytics.operational.completionRate.toFixed(1)}%`, '', '']);
+
+      // ===== FINANCIAL ANALYSIS SHEET =====
+      const financialSheet = workbook.addWorksheet('Financial Analysis');
+      financialSheet.getColumn('A').width = 25;
+      financialSheet.getColumn('B').width = 15;
+      financialSheet.getColumn('C').width = 15;
+      financialSheet.getColumn('D').width = 15;
+      financialSheet.getColumn('E').width = 15;
+      financialSheet.getColumn('F').width = 15;
+
+      const finHeader = financialSheet.addRow(['Financial Analysis - Last 6 Months']);
+      finHeader.font = { size: 14, bold: true };
+      finHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      financialSheet.addRow(['Month', 'Revenue', 'Expenses', 'Profit', 'Profit Margin', 'Growth %']);
+      const headerRow = financialSheet.getRow(financialSheet.rowCount);
+      headerRow.font = { bold: true };
+      headerRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      analytics.trends.forEach((trend, index) => {
+        const prevProfit = index > 0 ? analytics.trends[index - 1].profit : 0;
+        const growth = prevProfit !== 0 ? ((trend.profit - prevProfit) / Math.abs(prevProfit)) * 100 : 0;
+
+        const row = financialSheet.addRow([
+          trend.month,
+          trend.revenue,
+          trend.expenses,
+          trend.profit,
+          trend.revenue > 0 ? ((trend.profit / trend.revenue) * 100).toFixed(2) + '%' : '0.00%',
+          index > 0 ? growth.toFixed(2) + '%' : 'N/A'
+        ]);
+
+        // Color coding for profit/loss
+        if (trend.profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        } else if (trend.profit < 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' }
+          };
+        }
+      });
+
+      // ===== VEHICLE PERFORMANCE SHEET =====
+      const vehicleSheet = workbook.addWorksheet('Vehicle Performance');
+      vehicleSheet.getColumn('A').width = 30;
+      vehicleSheet.getColumn('B').width = 15;
+      vehicleSheet.getColumn('C').width = 15;
+      vehicleSheet.getColumn('D').width = 15;
+      vehicleSheet.getColumn('E').width = 12;
+      vehicleSheet.getColumn('F').width = 12;
+      vehicleSheet.getColumn('G').width = 15;
+      vehicleSheet.getColumn('H').width = 15;
+      vehicleSheet.getColumn('I').width = 15;
+
+      const vehHeader = vehicleSheet.addRow(['Vehicle Performance Analysis']);
+      vehHeader.font = { size: 14, bold: true };
+      vehHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      vehicleSheet.addRow(['Vehicle', 'Revenue', 'Expenses', 'Profit', 'Trips', 'Completed', 'Utilization', 'ROI %', 'Status']);
+      const vehDataHeader = vehicleSheet.getRow(vehicleSheet.rowCount);
+      vehDataHeader.font = { bold: true };
+      vehDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      analytics.performance.vehiclePerformance.forEach(vehicle => {
+        const vehicleData = filteredDataSources.vehicles.find(v => v.id === vehicle.id);
+        const roi = vehicleData ? ((vehicle.profit / (vehicleData.initialInvestment || vehicleData.initialCost || 0)) * 100) : 0;
+
+        const row = vehicleSheet.addRow([
+          vehicle.name,
+          vehicle.revenue,
+          vehicle.expenses,
+          vehicle.profit,
+          vehicle.totalTrips,
+          vehicle.completedTrips,
+          `${vehicle.utilization.toFixed(1)}%`,
+          roi.toFixed(2) + '%',
+          vehicleData?.status || 'N/A'
+        ]);
+
+        // Color coding
+        if (vehicle.profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        } else {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' }
+          };
+        }
+
+        if (vehicle.utilization > 80) {
+          row.getCell(7).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        }
+      });
+
+      // ===== DRIVER PERFORMANCE SHEET =====
+      const driverSheet = workbook.addWorksheet('Driver Performance');
+      driverSheet.getColumn('A').width = 25;
+      driverSheet.getColumn('B').width = 15;
+      driverSheet.getColumn('C').width = 12;
+      driverSheet.getColumn('D').width = 12;
+      driverSheet.getColumn('E').width = 15;
+      driverSheet.getColumn('F').width = 15;
+      driverSheet.getColumn('G').width = 15;
+
+      const drvHeader = driverSheet.addRow(['Driver Performance Analysis']);
+      drvHeader.font = { size: 14, bold: true };
+      drvHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      driverSheet.addRow(['Driver', 'Earnings', 'Trips', 'Completed', 'Completion Rate', 'Avg/Trip', 'Status']);
+      const drvDataHeader = driverSheet.getRow(driverSheet.rowCount);
+      drvDataHeader.font = { bold: true };
+      drvDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      analytics.performance.driverPerformance.forEach(driver => {
+        const driverData = availableDrivers.find(d => d.id === driver.id);
+        const avgPerTrip = driver.totalTrips > 0 ? driver.totalEarnings / driver.totalTrips : 0;
+
+        const row = driverSheet.addRow([
+          driver.name,
+          driver.totalEarnings,
+          driver.totalTrips,
+          driver.completedTrips,
+          `${driver.completionRate.toFixed(1)}%`,
+          avgPerTrip.toFixed(0),
+          driverData?.isActive ? 'Active' : 'Inactive'
+        ]);
+
+        if (driver.completionRate > 90) {
+          row.getCell(5).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        }
+      });
+
+      // ===== TRANSACTION HISTORY SHEET =====
+      const transactionSheet = workbook.addWorksheet('Transaction History');
+      transactionSheet.getColumn('A').width = 12;
+      transactionSheet.getColumn('B').width = 20;
+      transactionSheet.getColumn('C').width = 25;
+      transactionSheet.getColumn('D').width = 15;
+      transactionSheet.getColumn('E').width = 15;
+      transactionSheet.getColumn('F').width = 20;
+      transactionSheet.getColumn('G').width = 15;
+      transactionSheet.getColumn('H').width = 15;
+
+      const transHeader = transactionSheet.addRow(['Transaction History']);
+      transHeader.font = { size: 14, bold: true };
+      transHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      transactionSheet.addRow(['Date', 'Type', 'Description', 'Vehicle', 'Driver', 'Amount', 'Status', 'Category']);
+      const transDataHeader = transactionSheet.getRow(transactionSheet.rowCount);
+      transDataHeader.font = { bold: true };
+      transDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      // Add payment transactions
+      filteredData.filteredPayments.forEach(payment => {
+        const vehicle = filteredDataSources.vehicles.find(v => v.id === payment.vehicleId);
+        const driver = availableDrivers.find(d => d.id === payment.driverId);
+
+        transactionSheet.addRow([
+          formatDate(payment.paidAt || payment.collectionDate || payment.createdAt),
+          'Payment',
+          `Rent Collection - ${payment.weekStart ? `Week of ${formatDate(payment.weekStart)}` : 'N/A'}`,
+          vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : 'N/A',
+          driver ? driver.name : 'N/A',
+          payment.amountPaid,
+          payment.status,
+          'Revenue'
+        ]);
+      });
+
+      // Add expense transactions
+      filteredData.filteredExpenses.forEach(expense => {
+        const vehicle = filteredDataSources.vehicles.find(v => v.id === expense.vehicleId);
+
+        transactionSheet.addRow([
+          formatDate(expense.createdAt),
+          'Expense',
+          expense.description,
+          vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : 'N/A',
+          'N/A',
+          expense.amount,
+          expense.status,
+          expense.expenseType || expense.type || 'Other'
+        ]);
+      });
+
+      // ===== ASSIGNMENT HISTORY SHEET =====
+      const assignmentSheet = workbook.addWorksheet('Assignment History');
+      assignmentSheet.getColumn('A').width = 12;
+      assignmentSheet.getColumn('B').width = 25;
+      assignmentSheet.getColumn('C').width = 20;
+      assignmentSheet.getColumn('D').width = 12;
+      assignmentSheet.getColumn('E').width = 12;
+      assignmentSheet.getColumn('F').width = 15;
+      assignmentSheet.getColumn('G').width = 15;
+      assignmentSheet.getColumn('H').width = 15;
+
+      const assignHeader = assignmentSheet.addRow(['Assignment History']);
+      assignHeader.font = { size: 14, bold: true };
+      assignHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      assignmentSheet.addRow(['Start Date', 'Vehicle', 'Driver', 'Weekly Rent', 'Daily Rent', 'Status', 'Duration', 'Collection Day']);
+      const assignDataHeader = assignmentSheet.getRow(assignmentSheet.rowCount);
+      assignDataHeader.font = { bold: true };
+      assignDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      filteredData.filteredAssignments.forEach(assignment => {
+        const vehicle = filteredDataSources.vehicles.find(v => v.id === assignment.vehicleId);
+        const driver = availableDrivers.find(d => d.id === assignment.driverId);
+
+        const startDate = new Date(assignment.startDate);
+        const endDate = assignment.endDate ? new Date(assignment.endDate) : new Date();
+        const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        assignmentSheet.addRow([
+          formatDate(assignment.startDate),
+          vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : 'N/A',
+          driver ? driver.name : 'N/A',
+          assignment.weeklyRent,
+          assignment.dailyRent,
+          assignment.status,
+          `${duration} days`,
+          assignment.collectionDay || 'N/A'
+        ]);
+      });
+
+      // ===== EXPENSE ANALYSIS SHEET =====
+      const expenseAnalysisSheet = workbook.addWorksheet('Expense Analysis');
+      expenseAnalysisSheet.getColumn('A').width = 20;
+      expenseAnalysisSheet.getColumn('B').width = 15;
+      expenseAnalysisSheet.getColumn('C').width = 15;
+      expenseAnalysisSheet.getColumn('D').width = 15;
+      expenseAnalysisSheet.getColumn('E').width = 20;
+
+      const expHeader = expenseAnalysisSheet.addRow(['Expense Analysis']);
+      expHeader.font = { size: 14, bold: true };
+      expHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      expenseAnalysisSheet.addRow(['Category', 'Total Amount', '% of Total', 'Transaction Count', 'Avg per Transaction']);
+      const expDataHeader = expenseAnalysisSheet.getRow(expenseAnalysisSheet.rowCount);
+      expDataHeader.font = { bold: true };
+      expDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      const expenseCategories = [
+        { name: 'Fuel', amount: analytics.financial.expenseBreakdown.fuel },
+        { name: 'Maintenance', amount: analytics.financial.expenseBreakdown.maintenance },
+        { name: 'Insurance', amount: analytics.financial.expenseBreakdown.insurance },
+        { name: 'Other', amount: analytics.financial.expenseBreakdown.other }
+      ];
+
+      expenseCategories.forEach(category => {
+        const categoryExpenses = filteredData.filteredExpenses.filter(e =>
+          (e.expenseType === category.name.toLowerCase()) ||
+          (e.type === category.name.toLowerCase()) ||
+          (category.name === 'Fuel' && e.description?.toLowerCase().includes('fuel')) ||
+          (category.name === 'Maintenance' && (e.expenseType === 'maintenance' || e.type === 'maintenance')) ||
+          (category.name === 'Insurance' && (e.expenseType === 'insurance' || e.type === 'insurance'))
+        );
+
+        const percentage = analytics.financial.totalExpenses > 0 ? (category.amount / analytics.financial.totalExpenses) * 100 : 0;
+        const avgAmount = categoryExpenses.length > 0 ? category.amount / categoryExpenses.length : 0;
+
+        expenseAnalysisSheet.addRow([
+          category.name,
+          category.amount,
+          `${percentage.toFixed(1)}%`,
+          categoryExpenses.length,
+          avgAmount.toFixed(0)
+        ]);
+      });
+
+      // Generate and download the file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `fleet-analytics-comprehensive-${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+
+      toast({
+        title: "Export Successful",
+        description: "Comprehensive analytics data exported to Excel successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export analytics data. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const exportToPDF = () => {
@@ -313,37 +709,7 @@ const Reports: React.FC = () => {
     });
   };
 
-  const generateCSV = (data: any) => {
-    let csv = 'Category,Metric,Value\n';
 
-    // Summary
-    csv += `Financial,Total Revenue,${data.summary.totalRevenue}\n`;
-    csv += `Financial,Total Expenses,${data.summary.totalExpenses}\n`;
-    csv += `Financial,Net Profit,${data.summary.netProfit}\n`;
-    csv += `Financial,Profit Margin,${data.summary.profitMargin.toFixed(2)}%\n\n`;
-
-    // Expense Breakdown
-    csv += 'Expense Breakdown,Type,Amount\n';
-    Object.entries(data.expenseBreakdown).forEach(([type, amount]) => {
-      csv += `Expense Breakdown,${type.charAt(0).toUpperCase() + type.slice(1)},${amount}\n`;
-    });
-    csv += '\n';
-
-    // Vehicle Performance
-    csv += 'Vehicle Performance,Vehicle,Revenue,Expenses,Profit,Trips,Utilization\n';
-    data.vehiclePerformance.forEach((vehicle: any) => {
-      csv += `Vehicle Performance,"${vehicle.name}",${vehicle.revenue},${vehicle.expenses},${vehicle.profit},${vehicle.totalTrips},${vehicle.utilization.toFixed(1)}%\n`;
-    });
-    csv += '\n';
-
-    // Driver Performance
-    csv += 'Driver Performance,Driver,Earnings,Trips,Completion Rate\n';
-    data.driverPerformance.forEach((driver: any) => {
-      csv += `Driver Performance,"${driver.name}",${driver.totalEarnings},${driver.totalTrips},${driver.completionRate.toFixed(1)}%\n`;
-    });
-
-    return csv;
-  };
 
   if (loading) {
     return (
