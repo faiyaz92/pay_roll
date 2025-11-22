@@ -34,13 +34,29 @@ import {
 } from 'lucide-react';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import { useAuth } from '@/contexts/AuthContext';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { firestore } from '@/config/firebase';
 import { toast } from '@/hooks/use-toast';
+
+interface AccountingTransaction {
+  id: string;
+  vehicleId: string;
+  type: 'gst_payment' | 'service_charge' | 'partner_payment' | 'owner_payment';
+  amount: number;
+  month: string;
+  description: string;
+  status: 'pending' | 'completed' | 'reversed';
+  createdAt: string;
+  completedAt?: string;
+  reversedAt?: string;
+}
 
 const Reports: React.FC = () => {
   const [dateRange, setDateRange] = useState('30');
   const [selectedVehicle, setSelectedVehicle] = useState('all');
   const [selectedDriver, setSelectedDriver] = useState('all');
   const [reportType, setReportType] = useState('summary');
+  const [accountingTransactions, setAccountingTransactions] = useState<AccountingTransaction[]>([]);
 
   const {
     vehicles,
@@ -129,6 +145,37 @@ const Reports: React.FC = () => {
 
     return { filteredPayments, filteredExpenses, filteredAssignments };
   }, [filteredDataSources, dateRange, selectedVehicle, selectedDriver]);
+
+  // Load accounting transactions
+  React.useEffect(() => {
+    if (!userInfo?.companyId) return;
+
+    const transactionsRef = collection(firestore, `Easy2Solutions/companyDirectory/tenantCompanies/${userInfo.companyId}/accountingTransactions`);
+    const q = query(transactionsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const transactions = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as AccountingTransaction[];
+      setAccountingTransactions(transactions);
+    }, (error) => {
+      console.error('Error loading accounting transactions:', error);
+    });
+
+    return () => unsubscribe();
+  }, [userInfo]);
+
+  // Filter accounting transactions by date range and vehicle
+  const filteredAccountingTransactions = React.useMemo(() => {
+    const { startDate, endDate } = getDateRange();
+
+    return accountingTransactions.filter(transaction => {
+      const transactionDate = new Date(transaction.createdAt);
+      const vehicleMatch = selectedVehicle === 'all' || transaction.vehicleId === selectedVehicle;
+      return transactionDate >= startDate && transactionDate <= endDate && vehicleMatch;
+    });
+  }, [accountingTransactions, dateRange, selectedVehicle]);
 
   // Calculate comprehensive analytics
   const analytics = useMemo(() => {
@@ -626,57 +673,194 @@ const Reports: React.FC = () => {
         ]);
       });
 
-      // ===== EXPENSE ANALYSIS SHEET =====
-      const expenseAnalysisSheet = workbook.addWorksheet('Expense Analysis');
-      expenseAnalysisSheet.getColumn('A').width = 20;
-      expenseAnalysisSheet.getColumn('B').width = 15;
-      expenseAnalysisSheet.getColumn('C').width = 15;
-      expenseAnalysisSheet.getColumn('D').width = 15;
-      expenseAnalysisSheet.getColumn('E').width = 20;
+      // ===== ACCOUNTING TRANSACTIONS SHEET =====
+      const accountingSheet = workbook.addWorksheet('Accounting Transactions');
+      accountingSheet.getColumn('A').width = 12;
+      accountingSheet.getColumn('B').width = 25;
+      accountingSheet.getColumn('C').width = 15;
+      accountingSheet.getColumn('D').width = 12;
+      accountingSheet.getColumn('E').width = 15;
+      accountingSheet.getColumn('F').width = 30;
+      accountingSheet.getColumn('G').width = 12;
+      accountingSheet.getColumn('H').width = 15;
+      accountingSheet.getColumn('I').width = 15;
+      accountingSheet.getColumn('J').width = 15;
 
-      const expHeader = expenseAnalysisSheet.addRow(['Expense Analysis']);
-      expHeader.font = { size: 14, bold: true };
-      expHeader.getCell(1).fill = {
+      const acctHeader = accountingSheet.addRow(['Accounting Transactions - Profit Distribution']);
+      acctHeader.font = { size: 14, bold: true };
+      acctHeader.getCell(1).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFE6F3FF' }
       };
 
-      expenseAnalysisSheet.addRow(['Category', 'Total Amount', '% of Total', 'Transaction Count', 'Avg per Transaction']);
-      const expDataHeader = expenseAnalysisSheet.getRow(expenseAnalysisSheet.rowCount);
-      expDataHeader.font = { bold: true };
-      expDataHeader.getCell(1).fill = {
+      accountingSheet.addRow(['Date', 'Vehicle', 'Type', 'Month', 'Amount', 'Description', 'Status', 'Completed At', 'Reversed At', 'Category']);
+      const acctDataHeader = accountingSheet.getRow(accountingSheet.rowCount);
+      acctDataHeader.font = { bold: true };
+      acctDataHeader.getCell(1).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFCCE5FF' }
       };
 
-      const expenseCategories = [
-        { name: 'Fuel', amount: analytics.financial.expenseBreakdown.fuel },
-        { name: 'Maintenance', amount: analytics.financial.expenseBreakdown.maintenance },
-        { name: 'Insurance', amount: analytics.financial.expenseBreakdown.insurance },
-        { name: 'Other', amount: analytics.financial.expenseBreakdown.other }
-      ];
+      // Add accounting transactions
+      filteredAccountingTransactions.forEach(transaction => {
+        const vehicle = filteredDataSources.vehicles.find(v => v.id === transaction.vehicleId);
 
-      expenseCategories.forEach(category => {
-        const categoryExpenses = filteredData.filteredExpenses.filter(e =>
-          (e.expenseType === category.name.toLowerCase()) ||
-          (e.type === category.name.toLowerCase()) ||
-          (category.name === 'Fuel' && e.description?.toLowerCase().includes('fuel')) ||
-          (category.name === 'Maintenance' && (e.expenseType === 'maintenance' || e.type === 'maintenance')) ||
-          (category.name === 'Insurance' && (e.expenseType === 'insurance' || e.type === 'insurance'))
-        );
+        let category = '';
+        switch (transaction.type) {
+          case 'gst_payment':
+            category = 'GST Collection';
+            break;
+          case 'service_charge':
+            category = 'Service Charge';
+            break;
+          case 'partner_payment':
+            category = 'Partner Share';
+            break;
+          case 'owner_payment':
+            category = 'Owner Share';
+            break;
+          default:
+            category = 'Other';
+        }
 
-        const percentage = analytics.financial.totalExpenses > 0 ? (category.amount / analytics.financial.totalExpenses) * 100 : 0;
-        const avgAmount = categoryExpenses.length > 0 ? category.amount / categoryExpenses.length : 0;
-
-        expenseAnalysisSheet.addRow([
-          category.name,
-          category.amount,
-          `${percentage.toFixed(1)}%`,
-          categoryExpenses.length,
-          avgAmount.toFixed(0)
+        const row = accountingSheet.addRow([
+          formatDate(transaction.createdAt),
+          vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : 'N/A',
+          transaction.type.replace('_', ' ').toUpperCase(),
+          transaction.month,
+          transaction.amount,
+          transaction.description,
+          transaction.status,
+          transaction.completedAt ? formatDate(transaction.completedAt) : '',
+          transaction.reversedAt ? formatDate(transaction.reversedAt) : '',
+          category
         ]);
+
+        // Color coding based on status
+        if (transaction.status === 'completed') {
+          row.getCell(7).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        } else if (transaction.status === 'pending') {
+          row.getCell(7).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFF3CD' }
+          };
+        } else if (transaction.status === 'reversed') {
+          row.getCell(7).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' }
+          };
+        }
+      });
+
+      // Add summary section for accounting transactions
+      accountingSheet.addRow([]);
+      accountingSheet.addRow(['Accounting Transactions Summary', '', '', '', '', '', '', '', '', '']);
+      const summaryHeader = accountingSheet.getRow(accountingSheet.rowCount);
+      summaryHeader.font = { bold: true };
+      summaryHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      // Calculate summary by type
+      const gstTotal = filteredAccountingTransactions
+        .filter(t => t.type === 'gst_payment' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const serviceChargeTotal = filteredAccountingTransactions
+        .filter(t => t.type === 'service_charge' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const partnerTotal = filteredAccountingTransactions
+        .filter(t => t.type === 'partner_payment' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const ownerTotal = filteredAccountingTransactions
+        .filter(t => t.type === 'owner_payment' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      accountingSheet.addRow(['GST Payments', '', '', '', gstTotal, 'Total GST collected and paid', '', '', '', 'GST Collection']);
+      accountingSheet.addRow(['Service Charges', '', '', '', serviceChargeTotal, 'Total service charges collected', '', '', '', 'Service Charge']);
+      accountingSheet.addRow(['Partner Shares', '', '', '', partnerTotal, 'Total partner shares distributed', '', '', '', 'Partner Share']);
+      accountingSheet.addRow(['Owner Shares', '', '', '', ownerTotal, 'Total owner shares distributed', '', '', '', 'Owner Share']);
+      accountingSheet.addRow(['Grand Total', '', '', '', gstTotal + serviceChargeTotal + partnerTotal + ownerTotal, 'Total profit distribution', '', '', '', 'All Categories']);
+
+      // ===== CASH FLOW ANALYSIS SHEET =====
+      const cashFlowSheet = workbook.addWorksheet('Cash Flow Analysis');
+      cashFlowSheet.getColumn('A').width = 20;
+      cashFlowSheet.getColumn('B').width = 15;
+      cashFlowSheet.getColumn('C').width = 15;
+      cashFlowSheet.getColumn('D').width = 15;
+      cashFlowSheet.getColumn('E').width = 15;
+      cashFlowSheet.getColumn('F').width = 15;
+
+      const cfHeader = cashFlowSheet.addRow(['Cash Flow Analysis']);
+      cfHeader.font = { size: 14, bold: true };
+      cfHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6F3FF' }
+      };
+
+      cashFlowSheet.addRow(['Month', 'Revenue Inflow', 'Expense Outflow', 'Net Cash Flow', 'Cumulative Cash', 'Cash Flow Trend']);
+      const cfDataHeader = cashFlowSheet.getRow(cashFlowSheet.rowCount);
+      cfDataHeader.font = { bold: true };
+      cfDataHeader.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFCCE5FF' }
+      };
+
+      let cumulativeCash = 0;
+      analytics.trends.forEach((trend, index) => {
+        cumulativeCash += trend.profit;
+
+        const row = cashFlowSheet.addRow([
+          trend.month,
+          trend.revenue,
+          trend.expenses,
+          trend.profit,
+          cumulativeCash,
+          index > 0 ? (trend.profit > analytics.trends[index - 1].profit ? 'Increasing' : 'Decreasing') : 'Baseline'
+        ]);
+
+        // Color coding for cash flow
+        if (trend.profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        } else {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' }
+          };
+        }
+
+        if (cumulativeCash > 0) {
+          row.getCell(5).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' }
+          };
+        } else {
+          row.getCell(5).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' }
+          };
+        }
       });
 
       // Generate and download the file
@@ -689,7 +873,7 @@ const Reports: React.FC = () => {
 
       toast({
         title: "Export Successful",
-        description: "Comprehensive analytics data exported to Excel successfully",
+        description: "Comprehensive analytics with accounting transactions exported to Excel successfully",
       });
     } catch (error) {
       console.error('Export error:', error);
@@ -699,9 +883,7 @@ const Reports: React.FC = () => {
         variant: "destructive"
       });
     }
-  };
-
-  const exportToPDF = () => {
+  };  const exportToPDF = () => {
     // PDF export functionality would require a library like jsPDF
     toast({
       title: "PDF Export",
