@@ -35,7 +35,8 @@ import {
   CheckCircle,
   Clock,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { SectionNumberBadge } from './SectionNumberBadge';
 
@@ -110,6 +111,7 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
   const [selectedServiceChargeMonthIndices, setSelectedServiceChargeMonthIndices] = useState<number[]>([]);
   const [selectedPartnerMonthIndices, setSelectedPartnerMonthIndices] = useState<number[]>([]);
   const [selectedOwnerShareMonthIndices, setSelectedOwnerShareMonthIndices] = useState<number[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Confirmation dialogs for individual monthly payments
   const [confirmMonthlyGstPaymentDialog, setConfirmMonthlyGstPaymentDialog] = useState(false);
@@ -1847,6 +1849,253 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
     }
   };
 
+  // Export function for Accounts Tab
+  const exportAccountsToExcel = async () => {
+    setIsExporting(true);
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Summary Sheet
+      const summarySheet = workbook.addWorksheet('Summary');
+      summarySheet.addRow(['Accounts Export Summary']);
+      summarySheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      summarySheet.addRow(['Registration', vehicle.registrationNumber]);
+      summarySheet.addRow(['Period', selectedPeriod === 'month' ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}` : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `Full Year ${selectedYear}`]);
+      summarySheet.addRow(['Export Date', new Date().toLocaleDateString()]);
+      summarySheet.addRow(['']);
+      summarySheet.addRow(['Key Metrics:']);
+      summarySheet.addRow(['Cash in Hand', cashInHand]);
+      summarySheet.addRow(['Total Earnings', cumulativeData.totalEarnings]);
+      summarySheet.addRow(['Total Expenses', cumulativeData.totalExpenses]);
+      summarySheet.addRow(['Net Profit', cumulativeData.totalProfit]);
+      summarySheet.addRow(['GST Payable', cumulativeData.totalGst]);
+      summarySheet.addRow(['Service Charges', cumulativeData.totalServiceCharge]);
+      summarySheet.addRow(['Partner Share', cumulativeData.totalPartnerShare]);
+      summarySheet.addRow(['Owner Share', cumulativeData.totalOwnerShare + cumulativeData.totalOwnerWithdrawal]);
+
+      // Monthly Breakdown Sheet
+      const monthlySheet = workbook.addWorksheet('Monthly Breakdown');
+      monthlySheet.addRow(['Monthly Financial Breakdown']);
+      monthlySheet.addRow(['Period', selectedPeriod === 'month' ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}` : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `Full Year ${selectedYear}`]);
+      monthlySheet.addRow(['']);
+
+      // Headers
+      monthlySheet.addRow(['Month', 'Earnings (₹)', 'Expenses (₹)', 'Profit (₹)', 'GST (₹)', 'Service Charge (₹)', 'Partner Share (₹)', 'Owner Share (₹)', 'GST Paid', 'Service Charge Paid', 'Partner Paid', 'Owner Paid']);
+
+      // Style headers
+      const monthlyHeaderRow = monthlySheet.getRow(4);
+      monthlyHeaderRow.font = { bold: true };
+      monthlyHeaderRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Add monthly data
+      monthlyData.forEach((month) => {
+        const row = monthlySheet.addRow([
+          month.monthName,
+          month.earnings,
+          month.totalExpenses,
+          month.profit,
+          month.gstAmount,
+          month.serviceCharge,
+          month.partnerShare,
+          month.ownerShare + month.ownerFullShare,
+          month.gstPaid ? 'Yes' : 'No',
+          month.serviceChargeCollected ? 'Yes' : 'No',
+          month.partnerPaid ? 'Yes' : 'No',
+          month.ownerPaid ? 'Yes' : 'No'
+        ]);
+
+        // Color code profit/loss
+        if (month.profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF90EE90' } // Light green
+          };
+        } else if (month.profit < 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFB6C1' } // Light red
+          };
+        }
+
+        // Color code payment status
+        if (month.gstPaid) row.getCell(9).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+        if (month.serviceChargeCollected) row.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+        if (month.partnerPaid) row.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+        if (month.ownerPaid) row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+      });
+
+      // Add totals
+      monthlySheet.addRow(['']);
+      const monthlyTotalRow = monthlySheet.addRow([
+        'TOTAL',
+        monthlyData.reduce((sum, m) => sum + m.earnings, 0),
+        monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0),
+        monthlyData.reduce((sum, m) => sum + m.profit, 0),
+        monthlyData.reduce((sum, m) => sum + m.gstAmount, 0),
+        monthlyData.reduce((sum, m) => sum + m.serviceCharge, 0),
+        monthlyData.reduce((sum, m) => sum + m.partnerShare, 0),
+        monthlyData.reduce((sum, m) => sum + (m.ownerShare + m.ownerFullShare), 0),
+        '',
+        '',
+        '',
+        ''
+      ]);
+      monthlyTotalRow.font = { bold: true };
+      monthlyTotalRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFD700' }
+      };
+
+      // Expenses Detail Sheet
+      const expensesSheet = workbook.addWorksheet('Expenses Detail');
+      expensesSheet.addRow(['Detailed Expenses Breakdown']);
+      expensesSheet.addRow(['Period', selectedPeriod === 'month' ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}` : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `Full Year ${selectedYear}`]);
+      expensesSheet.addRow(['']);
+
+      expensesSheet.addRow(['Month', 'Date', 'Type', 'Category', 'Amount (₹)', 'Description', 'Status']);
+
+      const expensesHeaderRow = expensesSheet.getRow(4);
+      expensesHeaderRow.font = { bold: true };
+      expensesHeaderRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Add expense details
+      monthlyData.forEach((month) => {
+        month.expenses.forEach((expense) => {
+          expensesSheet.addRow([
+            month.monthName,
+            new Date(expense.createdAt).toLocaleDateString(),
+            expense.expenseType || expense.type || 'General',
+            expense.expenseType || expense.type || 'General',
+            expense.amount,
+            expense.description || 'N/A',
+            expense.status
+          ]);
+        });
+      });
+
+      // Profit Distribution Sheet
+      const distributionSheet = workbook.addWorksheet('Profit Distribution');
+      distributionSheet.addRow(['Profit Distribution Analysis']);
+      distributionSheet.addRow(['Period', selectedPeriod === 'month' ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}` : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `Full Year ${selectedYear}`]);
+      distributionSheet.addRow(['Vehicle Type', vehicle.isPartnership ? 'Partner Taxi' : 'Company Owned']);
+      distributionSheet.addRow(['']);
+
+      distributionSheet.addRow(['Month', 'Gross Profit (₹)', 'GST (4%) (₹)', 'Service Charge (₹)', 'Net Profit (₹)', 'Partner Share (₹)', 'Owner Share (₹)', 'GST Status', 'Service Charge Status', 'Partner Payment Status', 'Owner Payment Status']);
+
+      const distributionHeaderRow = distributionSheet.getRow(6);
+      distributionHeaderRow.font = { bold: true };
+      distributionHeaderRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      monthlyData.forEach((month) => {
+        const netProfit = month.profit - month.gstAmount - month.serviceCharge;
+        distributionSheet.addRow([
+          month.monthName,
+          month.profit,
+          month.gstAmount,
+          month.serviceCharge,
+          netProfit,
+          month.partnerShare,
+          month.ownerShare + month.ownerFullShare,
+          month.gstPaid ? 'Paid' : 'Pending',
+          month.serviceChargeCollected ? 'Collected' : 'Pending',
+          month.partnerPaid ? 'Paid' : 'Pending',
+          month.ownerPaid ? 'Paid' : 'Pending'
+        ]);
+      });
+
+      // Accounting Transactions Sheet
+      const transactionsSheet = workbook.addWorksheet('Accounting Transactions');
+      transactionsSheet.addRow(['Accounting Transactions History']);
+      transactionsSheet.addRow(['Period', selectedPeriod === 'month' ? `${new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'long' })} ${selectedYear}` : selectedPeriod === 'quarter' ? `Q${selectedQuarter} ${selectedYear}` : `Full Year ${selectedYear}`]);
+      transactionsSheet.addRow(['']);
+
+      transactionsSheet.addRow(['Date', 'Type', 'Month', 'Amount (₹)', 'Description', 'Status']);
+
+      const transactionsHeaderRow = transactionsSheet.getRow(4);
+      transactionsHeaderRow.font = { bold: true };
+      transactionsHeaderRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Filter transactions for the selected period
+      const periodTransactions = accountingTransactions.filter(t => {
+        if (t.vehicleId !== vehicleId) return false;
+        const [year, month] = t.month.split('-').map(Number);
+        if (selectedPeriod === 'month') {
+          return year === parseInt(selectedYear) && month === parseInt(selectedMonth);
+        } else if (selectedPeriod === 'quarter') {
+          const quarter = parseInt(selectedQuarter);
+          const startMonth = (quarter - 1) * 3 + 1;
+          const endMonth = quarter * 3;
+          return year === parseInt(selectedYear) && month >= startMonth && month <= endMonth;
+        } else {
+          return year === parseInt(selectedYear);
+        }
+      });
+
+      periodTransactions.forEach((transaction) => {
+        transactionsSheet.addRow([
+          new Date(transaction.createdAt).toLocaleDateString(),
+          transaction.type.replace('_', ' ').toUpperCase(),
+          transaction.month,
+          transaction.amount,
+          transaction.description,
+          transaction.status
+        ]);
+      });
+
+      // Auto-fit columns for all sheets
+      [summarySheet, monthlySheet, expensesSheet, distributionSheet, transactionsSheet].forEach(sheet => {
+        sheet.columns.forEach(column => {
+          column.width = 15;
+        });
+      });
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Accounts_${selectedPeriod}_${selectedYear}${selectedPeriod === 'quarter' ? `Q${selectedQuarter}` : selectedPeriod === 'month' ? `M${selectedMonth}` : ''}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Accounts data exported to Excel successfully",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export accounts data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Cash in Hand Display */}
@@ -1944,6 +2193,18 @@ const AccountsTab: React.FC<AccountsTabProps> = ({ vehicle, vehicleId }) => {
                 </Select>
               </div>
             )}
+          </div>
+
+          {/* Export Button */}
+          <div className="flex justify-end mt-4 pt-4 border-t">
+            <Button
+              onClick={exportAccountsToExcel}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+              disabled={isExporting}
+            >
+              <Download className="h-4 w-4" />
+              {isExporting ? 'Exporting...' : 'Export to Excel'}
+            </Button>
           </div>
         </CardContent>
       </Card>

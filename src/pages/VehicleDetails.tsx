@@ -2013,7 +2013,7 @@ const VehicleDetails: React.FC = () => {
     const currentTotalEmiPaid = financialData.totalEmiPaid;
 
     // Calculate current depreciated car value (yearly depreciation)
-    const initialCarValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+    const initialCarValue = vehicle.initialCost || vehicle.initialInvestment || 0;
     const depreciationRate = vehicle.depreciationRate ?? 10;
     const depreciationPerYear = depreciationRate / 100;
 

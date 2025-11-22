@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
-import { BarChart3, PieChart as PieChartIcon, TrendingUp, DollarSign, CreditCard } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, TrendingUp, DollarSign, CreditCard, Download } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 import InvestmentReturnsCard from './InvestmentReturnsCard';
 import TotalReturnsBreakdownCard from './TotalReturnsBreakdownCard';
 import TotalExpensesBreakdownCard from './TotalExpensesBreakdownCard';
@@ -63,6 +64,8 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
   // Separate state for loan projection year
   const [loanProjectionYear, setLoanProjectionYear] = React.useState<number>(1);
+
+  const { toast } = useToast();
 
   // Prepare chart data
   const earningsVsExpensesData = React.useMemo(() => {
@@ -414,8 +417,571 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       { name: 'Gross Profit', value: grossProfit, color: '#3b82f6' }
     ].filter(item => item.value > 0);
   }, [firebasePayments, vehicleExpenses, vehicleId, timePeriod, selectedYear, selectedQuarter, selectedMonth]);
+
+  // Export functions
+  const exportSection1ToExcel = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Earnings vs Expenses Sheet
+      const earningsSheet = workbook.addWorksheet('Earnings vs Expenses');
+      earningsSheet.addRow(['Earnings vs Expenses Analysis']);
+      earningsSheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      earningsSheet.addRow(['Registration', vehicle.registrationNumber]);
+      earningsSheet.addRow(['Period', timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`]);
+      earningsSheet.addRow(['']);
+
+      // Add headers
+      earningsSheet.addRow(['Period', 'Earnings (₹)', 'Expenses (₹)', 'Profit/Loss (₹)']);
+
+      // Style headers
+      const headerRow = earningsSheet.getRow(6);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Add data
+      earningsVsExpensesData.forEach((item, index) => {
+        const profit = item.earnings - item.expenses;
+        const row = earningsSheet.addRow([
+          item.period,
+          item.earnings,
+          item.expenses,
+          profit
+        ]);
+
+        // Color code profit/loss
+        if (profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF90EE90' } // Light green
+          };
+        } else if (profit < 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFB6C1' } // Light red
+          };
+        }
+      });
+
+      // Add totals
+      earningsSheet.addRow(['']);
+      const totalRow = earningsSheet.addRow([
+        'TOTAL',
+        earningsVsExpensesData.reduce((sum, item) => sum + item.earnings, 0),
+        earningsVsExpensesData.reduce((sum, item) => sum + item.expenses, 0),
+        earningsVsExpensesData.reduce((sum, item) => sum + (item.earnings - item.expenses), 0)
+      ]);
+      totalRow.font = { bold: true };
+      totalRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFD700' } // Gold
+      };
+
+      // Auto-fit columns
+      earningsSheet.columns.forEach(column => {
+        column.width = 15;
+      });
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Earnings_vs_Expenses_${timePeriod}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Earnings vs Expenses data exported to Excel",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportSection2ToExcel = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Expense Breakdown Sheet
+      const breakdownSheet = workbook.addWorksheet('Expense Breakdown');
+      breakdownSheet.addRow(['Expense Breakdown Analysis']);
+      breakdownSheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      breakdownSheet.addRow(['Registration', vehicle.registrationNumber]);
+      breakdownSheet.addRow(['Period', timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`]);
+      breakdownSheet.addRow(['']);
+
+      // Add headers
+      breakdownSheet.addRow(['Category', 'Amount (₹)', 'Percentage (%)']);
+
+      // Style headers
+      const headerRow = breakdownSheet.getRow(6);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Add data
+      expenseBreakdownData.forEach((item, index) => {
+        const row = breakdownSheet.addRow([
+          item.name,
+          item.value,
+          expenseBreakdownData.reduce((sum, i) => sum + i.value, 0) > 0 ?
+            ((item.value / expenseBreakdownData.reduce((sum, i) => sum + i.value, 0)) * 100).toFixed(2) : '0.00'
+        ]);
+
+        // Color code based on category
+        const colorMap: { [key: string]: string } = {
+          'Fuel': 'FFFFE4B5',
+          'Maintenance': 'FFE6E6FA',
+          'Insurance': 'FFFFB6C1',
+          'Penalties': 'FFFFDAB9',
+          'EMI': 'FFE0FFFF',
+          'Prepayment': 'FF98FB98',
+          'General': 'FFF0F8FF'
+        };
+
+        if (colorMap[item.name]) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: colorMap[item.name] }
+          };
+        }
+      });
+
+      // Add totals
+      breakdownSheet.addRow(['']);
+      const totalRow = breakdownSheet.addRow([
+        'TOTAL',
+        expenseBreakdownData.reduce((sum, item) => sum + item.value, 0),
+        '100.00'
+      ]);
+      totalRow.font = { bold: true };
+      totalRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFD700' }
+      };
+
+      // Auto-fit columns
+      breakdownSheet.columns.forEach(column => {
+        column.width = 15;
+      });
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Expense_Breakdown_${timePeriod}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Expense breakdown data exported to Excel",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportSection4ToExcel = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Investment & Returns Sheet
+      const investmentSheet = workbook.addWorksheet('Investment & Returns');
+      investmentSheet.addRow(['Investment & Returns Analysis']);
+      investmentSheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      investmentSheet.addRow(['Registration', vehicle.registrationNumber]);
+      investmentSheet.addRow(['']);
+
+      // Investment Breakdown
+      investmentSheet.addRow(['Investment Breakdown']);
+      investmentSheet.addRow(['Component', 'Amount (₹)']);
+
+      const headerRow1 = investmentSheet.getRow(6);
+      headerRow1.font = { bold: true };
+      headerRow1.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      investmentSheet.addRow(['Initial Investment', vehicle.initialInvestment || vehicle.initialCost || 0]);
+      investmentSheet.addRow(['Prepayments', expenseData.prepayments]);
+      investmentSheet.addRow(['Total Expenses', expenseData.totalExpenses]);
+
+      const totalInvestmentRow = investmentSheet.addRow(['Total Investment', getTotalInvestment()]);
+      totalInvestmentRow.font = { bold: true };
+      totalInvestmentRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFD700' }
+      };
+
+      investmentSheet.addRow(['']);
+
+      // Returns & Performance
+      investmentSheet.addRow(['Returns & Performance']);
+      investmentSheet.addRow(['Metric', 'Amount (₹)']);
+
+      const headerRow2 = investmentSheet.getRow(13);
+      headerRow2.font = { bold: true };
+      headerRow2.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      investmentSheet.addRow(['Total Earnings', financialData.totalEarnings]);
+      investmentSheet.addRow(['Current Vehicle Value', vehicle.residualValue || 0]);
+      investmentSheet.addRow(['Outstanding Loan', financialData.outstandingLoan]);
+
+      const totalReturnRow = investmentSheet.addRow([
+        'Total Return (Earnings + Current Value - Loan)',
+        financialData.totalEarnings + (vehicle.residualValue || 0) - financialData.outstandingLoan
+      ]);
+
+      investmentSheet.addRow(['ROI (%)', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(2)}%`]);
+      investmentSheet.addRow(['Net Cash Flow', financialData.totalEarnings - financialData.totalExpenses]);
+
+      // Profit/Loss
+      investmentSheet.addRow(['']);
+      investmentSheet.addRow(['Profit & Loss Summary']);
+      investmentSheet.addRow(['Metric', 'Amount (₹)', 'Percentage (%)']);
+
+      const headerRow3 = investmentSheet.getRow(21);
+      headerRow3.font = { bold: true };
+      headerRow3.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      const totalReturn = financialData.totalEarnings + (vehicle.residualValue || 0) - financialData.outstandingLoan;
+      const profitLoss = totalReturn - getTotalInvestment();
+      const profitLossPercentage = getTotalInvestment() > 0 ? ((profitLoss / getTotalInvestment()) * 100) : 0;
+
+      const profitLossRow = investmentSheet.addRow([
+        'Profit/Loss',
+        profitLoss,
+        `${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%`
+      ]);
+
+      // Color code profit/loss
+      if (profitLoss >= 0) {
+        profitLossRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF90EE90' } // Light green
+        };
+      } else {
+        profitLossRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFB6C1' } // Light red
+        };
+      }
+
+      // Auto-fit columns
+      investmentSheet.columns.forEach(column => {
+        column.width = 25;
+      });
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Investment_Returns_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Investment & Returns data exported to Excel",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportSection8ToExcel = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Financial Projections Sheet
+      const projectionsSheet = workbook.addWorksheet('Financial Projections');
+      projectionsSheet.addRow(['Financial Projections Analysis']);
+      projectionsSheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      projectionsSheet.addRow(['Registration', vehicle.registrationNumber]);
+      projectionsSheet.addRow(['Projection Years', projectionYear]);
+      projectionsSheet.addRow(['Projection Mode', projectionMode === 'current' ? 'Current Trends' : 'Assumed Values']);
+      if (projectionMode === 'assumed') {
+        projectionsSheet.addRow(['Assumed Monthly Rent', assumedMonthlyRent ? `₹${assumedMonthlyRent}` : 'N/A']);
+        projectionsSheet.addRow(['Increased EMI', increasedEMI ? `₹${increasedEMI}` : 'N/A']);
+      }
+      projectionsSheet.addRow(['Net Cash Flow Mode', netCashFlowMode ? 'Enabled' : 'Disabled']);
+      projectionsSheet.addRow(['']);
+
+      // Add headers
+      projectionsSheet.addRow(['Year', 'Projected Earnings (₹)', 'Projected Expenses (₹)', 'Projected Profit (₹)', 'Partner Share (₹)', 'Owner Share (₹)', 'Projected Car Value (₹)', 'Outstanding Loan (₹)']);
+
+      // Style headers
+      const headerRow = projectionsSheet.getRow(10);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6FA' }
+      };
+
+      // Add projection data
+      for (let year = 1; year <= projectionYear; year++) {
+        const projection = calculateProjection(year, projectionMode === 'assumed' && assumedMonthlyRent ? parseFloat(assumedMonthlyRent) : undefined, increasedEMI ? parseFloat(increasedEMI) : undefined, netCashFlowMode);
+
+        const row = projectionsSheet.addRow([
+          `Year ${year}`,
+          projection.projectedEarnings || 0,
+          projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0,
+          (projection.projectedEarnings || 0) - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0),
+          vehicle.ownershipType === 'partner' ? projection.partnerEarnings || 0 : 0,
+          vehicle.ownershipType === 'partner' ? projection.ownerEarnings || 0 : (projection.projectedEarnings || 0) - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0),
+          projection.projectedDepreciatedCarValue || 0,
+          projection.projectedOutstandingLoan || 0
+        ]);
+
+        // Color code profits
+        const profit = (projection.projectedEarnings || 0) - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0);
+        if (profit > 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF90EE90' } // Light green
+          };
+        } else if (profit < 0) {
+          row.getCell(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFB6C1' } // Light red
+          };
+        }
+      }
+
+      // Add summary
+      projectionsSheet.addRow(['']);
+      projectionsSheet.addRow(['Projection Summary']);
+      const finalProjection = calculateProjection(projectionYear, projectionMode === 'assumed' && assumedMonthlyRent ? parseFloat(assumedMonthlyRent) : undefined, increasedEMI ? parseFloat(increasedEMI) : undefined, netCashFlowMode);
+
+      projectionsSheet.addRow(['Total Projected Earnings', finalProjection.projectedEarnings || 0]);
+      projectionsSheet.addRow(['Total Projected Expenses', finalProjection.projectedTotalExpenses || finalProjection.projectedOperatingExpenses || 0]);
+      projectionsSheet.addRow(['Total Projected Profit', (finalProjection.projectedEarnings || 0) - (finalProjection.projectedTotalExpenses || finalProjection.projectedOperatingExpenses || 0)]);
+      projectionsSheet.addRow(['Final Car Value', finalProjection.projectedDepreciatedCarValue || 0]);
+      projectionsSheet.addRow(['Final Outstanding Loan', finalProjection.projectedOutstandingLoan || 0]);
+      projectionsSheet.addRow(['Break-even Months', finalProjection.breakEvenMonths || 'N/A']);
+      projectionsSheet.addRow(['Loan Clearance Months', finalProjection.loanClearanceMonths || 'N/A']);
+
+      // Auto-fit columns
+      projectionsSheet.columns.forEach(column => {
+        column.width = 20;
+      });
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Financial_Projections_${projectionYear}years_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Financial projections data exported to Excel",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportAllSectionsToExcel = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+
+      // Summary Sheet
+      const summarySheet = workbook.addWorksheet('Summary');
+      summarySheet.addRow(['Analytics Export Summary']);
+      summarySheet.addRow(['Vehicle', vehicle.vehicleName || `${vehicle.make} ${vehicle.model}`]);
+      summarySheet.addRow(['Registration', vehicle.registrationNumber]);
+      summarySheet.addRow(['Export Date', new Date().toLocaleDateString()]);
+      summarySheet.addRow(['']);
+      summarySheet.addRow(['Exported Sections:']);
+      summarySheet.addRow(['1. Earnings vs Expenses']);
+      summarySheet.addRow(['2. Expense Breakdown']);
+      summarySheet.addRow(['4. Investment & Returns']);
+      summarySheet.addRow(['8. Financial Projections']);
+      summarySheet.addRow(['']);
+      summarySheet.addRow(['Key Metrics:']);
+      summarySheet.addRow(['Total Earnings', financialData.totalEarnings]);
+      summarySheet.addRow(['Total Expenses', expenseData.totalExpenses]);
+      summarySheet.addRow(['Net Profit', financialData.totalEarnings - expenseData.totalExpenses]);
+      summarySheet.addRow(['ROI', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(2)}%`]);
+
+      // Call individual export functions to add sheets
+      await addEarningsVsExpensesSheet(workbook);
+      await addExpenseBreakdownSheet(workbook);
+      await addInvestmentReturnsSheet(workbook);
+      await addFinancialProjectionsSheet(workbook);
+
+      // Generate and download file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${vehicle.registrationNumber}_Complete_Analytics_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Complete Export Successful",
+        description: "All analytics data exported to Excel",
+      });
+
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data to Excel. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Helper functions for combined export
+  const addEarningsVsExpensesSheet = async (workbook: any) => {
+    const earningsSheet = workbook.addWorksheet('Earnings vs Expenses');
+    earningsSheet.addRow(['Earnings vs Expenses Analysis']);
+    earningsSheet.addRow(['Period', timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`]);
+    earningsSheet.addRow(['']);
+    earningsSheet.addRow(['Period', 'Earnings (₹)', 'Expenses (₹)', 'Profit/Loss (₹)']);
+
+    earningsVsExpensesData.forEach((item) => {
+      const profit = item.earnings - item.expenses;
+      earningsSheet.addRow([item.period, item.earnings, item.expenses, profit]);
+    });
+  };
+
+  const addExpenseBreakdownSheet = async (workbook: any) => {
+    const breakdownSheet = workbook.addWorksheet('Expense Breakdown');
+    breakdownSheet.addRow(['Expense Breakdown Analysis']);
+    breakdownSheet.addRow(['Period', timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`]);
+    breakdownSheet.addRow(['']);
+    breakdownSheet.addRow(['Category', 'Amount (₹)', 'Percentage (%)']);
+
+    expenseBreakdownData.forEach((item) => {
+      breakdownSheet.addRow([
+        item.name,
+        item.value,
+        expenseBreakdownData.reduce((sum, i) => sum + i.value, 0) > 0 ?
+          ((item.value / expenseBreakdownData.reduce((sum, i) => sum + i.value, 0)) * 100).toFixed(2) : '0.00'
+      ]);
+    });
+  };
+
+  const addInvestmentReturnsSheet = async (workbook: any) => {
+    const investmentSheet = workbook.addWorksheet('Investment & Returns');
+    investmentSheet.addRow(['Investment Breakdown']);
+    investmentSheet.addRow(['Initial Investment', vehicle.initialInvestment || vehicle.initialCost || 0]);
+    investmentSheet.addRow(['Prepayments', expenseData.prepayments]);
+    investmentSheet.addRow(['Total Expenses', expenseData.totalExpenses]);
+    investmentSheet.addRow(['Total Investment', getTotalInvestment()]);
+    investmentSheet.addRow(['']);
+    investmentSheet.addRow(['Returns & Performance']);
+    investmentSheet.addRow(['Total Earnings', financialData.totalEarnings]);
+    investmentSheet.addRow(['Current Vehicle Value', vehicle.residualValue || 0]);
+    investmentSheet.addRow(['Outstanding Loan', financialData.outstandingLoan]);
+    investmentSheet.addRow(['Total Return', financialData.totalEarnings + (vehicle.residualValue || 0) - financialData.outstandingLoan]);
+    investmentSheet.addRow(['ROI (%)', `${financialData.roiPercentage >= 0 ? '+' : ''}${financialData.roiPercentage.toFixed(2)}%`]);
+  };
+
+  const addFinancialProjectionsSheet = async (workbook: any) => {
+    const projectionsSheet = workbook.addWorksheet('Financial Projections');
+    projectionsSheet.addRow(['Financial Projections']);
+    projectionsSheet.addRow(['Projection Years', projectionYear]);
+    projectionsSheet.addRow(['Projection Mode', projectionMode]);
+    projectionsSheet.addRow(['']);
+    projectionsSheet.addRow(['Year', 'Projected Earnings (₹)', 'Projected Expenses (₹)', 'Projected Profit (₹)', 'Partner Share (₹)', 'Owner Share (₹)']);
+
+    for (let year = 1; year <= projectionYear; year++) {
+      const projection = calculateProjection(year, projectionMode === 'assumed' && assumedMonthlyRent ? parseFloat(assumedMonthlyRent) : undefined, increasedEMI ? parseFloat(increasedEMI) : undefined, netCashFlowMode);
+      projectionsSheet.addRow([
+        `Year ${year}`,
+        projection.projectedEarnings || 0,
+        projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0,
+        (projection.projectedEarnings || 0) - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0),
+        vehicle.ownershipType === 'partner' ? projection.partnerEarnings || 0 : 0,
+        vehicle.ownershipType === 'partner' ? projection.ownerEarnings || 0 : (projection.projectedEarnings || 0) - (projection.projectedTotalExpenses || projection.projectedOperatingExpenses || 0)
+      ]);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Main Export Button */}
+      <div className="flex justify-end">
+        <Button variant="default" onClick={exportAllSectionsToExcel}>
+          <Download className="h-4 w-4 mr-2" />
+          Export All Analytics to Excel
+        </Button>
+      </div>
+
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Earnings vs Expenses Chart */}
@@ -428,6 +994,10 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                   <BarChart3 className="h-5 w-5" />
                   Earnings vs Expenses ({timePeriod === 'yearly' ? `${selectedYear}` : timePeriod === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} ${selectedYear}`})
                 </CardTitle>
+                <Button variant="outline" size="sm" onClick={exportSection1ToExcel}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
               </div>
               <div className="flex items-center justify-between">
                 <CardDescription>
@@ -526,11 +1096,19 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         <Card className="col-span-1">
           <CardHeader>
             <SectionNumberBadge id="2" label="Expense Breakdown Chart" className="mb-2" />
-            <CardTitle className="flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
-              Expense Breakdown
-            </CardTitle>
-            <CardDescription>Distribution of expenses by category</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <PieChartIcon className="h-5 w-5" />
+                  Expense Breakdown
+                </CardTitle>
+                <CardDescription>Distribution of expenses by category</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportSection2ToExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -591,7 +1169,13 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Financial Performance - Dynamic Data */}
         <div className="space-y-2">
-          <SectionNumberBadge id="4" label="Investment & Returns Snapshot" className="mb-2" />
+          <div className="flex items-center justify-between">
+            <SectionNumberBadge id="4" label="Investment & Returns Snapshot" className="mb-2" />
+            <Button variant="outline" size="sm" onClick={exportSection4ToExcel}>
+              <Download className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
           <InvestmentReturnsCard
             vehicle={vehicle}
             financialData={financialData}
@@ -695,7 +1279,13 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         {/* Financial Projections Card - Shows all metrics like Financial Performance */}
         <Card className="flex flex-col h-full">
           <CardHeader className="flex-shrink-0">
-            <SectionNumberBadge id="8" label="Financial Projections" className="mb-2" />
+            <div className="flex items-center justify-between">
+              <SectionNumberBadge id="8" label="Financial Projections" className="mb-2" />
+              <Button variant="outline" size="sm" onClick={exportSection8ToExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
+            </div>
             <CardTitle>Financial Projections ({projectionYear} Year{projectionYear > 1 ? 's' : ''})</CardTitle>
             <CardDescription>
               {projectionMode === 'current' ? 'Based on current trends' : 'Based on assumed rent amount'}

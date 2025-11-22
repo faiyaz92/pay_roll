@@ -33,7 +33,7 @@ const TotalReturnsBreakdownCard: React.FC<TotalReturnsBreakdownCardProps> = ({
         <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
           <span className="text-gray-600">Current Car Value:</span>
           <span className="font-medium text-green-600">+₹{(() => {
-            const initialValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+            const initialValue = vehicle.initialCost || vehicle.initialInvestment || 0;
             const depreciationRate = vehicle.depreciationRate ?? 10;
             const depreciationPerYear = depreciationRate / 100;
 
