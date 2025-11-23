@@ -404,7 +404,7 @@ const Assignments: React.FC = () => {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => navigate(`/assignments/${assignment.id}`)}
+                              onClick={() => navigate(`/assignment-details/${assignment.id}`)}
                               className="hover:bg-blue-50 hover:border-blue-200"
                             >
                               <Eye className="w-4 h-4 mr-1" />
@@ -654,7 +654,7 @@ const Assignments: React.FC = () => {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => navigate(`/assignments/${assignment.id}`)}
+                            onClick={() => navigate(`/assignment-details/${assignment.id}`)}
                             className="hover:bg-gray-50"
                           >
                             <Eye className="w-4 h-4 mr-1" />

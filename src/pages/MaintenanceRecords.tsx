@@ -3,17 +3,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Wrench, AlertTriangle, Calendar, TrendingUp, DollarSign } from 'lucide-react';
+import { Plus, Wrench, AlertTriangle, Calendar, TrendingUp, DollarSign, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useFirebaseData } from '@/hooks/useFirebaseData';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddMaintenanceRecordForm from '@/components/Forms/AddMaintenanceRecordForm';
 import { toast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const MaintenanceRecords: React.FC = () => {
   const { vehicles, drivers, expenses, loading, addExpense } = useFirebaseData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Filter maintenance expenses from the expenses collection using new hierarchical structure
   const maintenanceRecords = expenses.filter(expense => 
@@ -204,6 +206,7 @@ const MaintenanceRecords: React.FC = () => {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Submitted By</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -256,6 +259,17 @@ const MaintenanceRecords: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       {getDriverName(record.submittedBy)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/maintenance-details/${record.id}`)}
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Details
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
