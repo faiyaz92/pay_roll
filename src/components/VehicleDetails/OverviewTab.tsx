@@ -45,7 +45,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="flex justify-between">
             <span className="text-gray-600">Current Value:</span>
             <span className="font-medium">₹{(() => {
-              const initialValue = vehicle.initialInvestment || vehicle.initialCost || 0;
+              const initialValue = vehicle.initialCost || 0;
               const depreciationRate = vehicle.depreciationRate ?? 10;
               const depreciationPerYear = depreciationRate / 100;
 

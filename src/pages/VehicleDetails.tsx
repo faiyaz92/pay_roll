@@ -18,6 +18,7 @@ import { useFirestorePaths } from '@/hooks/useFirestorePaths';
 import { collection, addDoc, updateDoc, doc, increment, getDoc, query, where, getDocs, setDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { firestore } from '@/config/firebase';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { Car, Download, FileText, Settings, AlertCircle } from 'lucide-react';
 
 // Import types
 import { Vehicle, Assignment, Role } from '@/types/user';
@@ -80,29 +81,24 @@ type FuelRecordData = {
   originalTransactionRef?: string | null;
 };
 import { 
-  Car, 
   CreditCard, 
   Banknote,
   TrendingUp, 
   TrendingDown,
   Calendar, 
-  AlertCircle, 
   CheckCircle, 
   Clock, 
   DollarSign,
   CircleDollarSign,
   Calculator,
-  Settings,
   Plus,
   Fuel,
   History,
   Camera,
   Eye,
-  FileText,
   ImageIcon,
   Shield,
-  AlertTriangle,
-  Download
+  AlertTriangle
 } from 'lucide-react';
 
 // Define InsuranceDocument type
@@ -117,7 +113,8 @@ type InsuranceDocument = {
 };
 
 const VehicleDetails: React.FC = () => {
-  const { vehicleId } = useParams();
+  const { vehicleId: encodedVehicleId } = useParams();
+  const vehicleId = encodedVehicleId ? decodeURIComponent(encodedVehicleId) : '';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -2222,6 +2219,34 @@ const VehicleDetails: React.FC = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2">
+            {/* Vehicle Selector Dropdown */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="vehicle-select" className="text-sm font-medium whitespace-nowrap">
+                Switch Vehicle:
+              </Label>
+              <Select
+                value={vehicleId || ''}
+                onValueChange={(value) => {
+                  if (value && value !== vehicleId) {
+                    navigate(`/vehicles/${encodeURIComponent(value)}?tab=${activeTab}`);
+                  }
+                }}
+              >
+                <SelectTrigger id="vehicle-select" className="w-48">
+                  <SelectValue placeholder="Select vehicle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicles
+                    .filter(v => v.status !== 'inactive') // Only show active vehicles
+                    .map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.vehicleName || `${v.make} ${v.model}`} ({v.registrationNumber})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {userInfo?.role !== Role.PARTNER && (
               <>
                 <Button variant="outline" onClick={exportToExcel}>
