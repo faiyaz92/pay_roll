@@ -28,7 +28,8 @@ import {
   AlertCircle,
   CreditCard,
   Calendar,
-  Fuel
+  Fuel,
+  X
 } from 'lucide-react';
 import AddItemModal from '@/components/Modals/AddItemModal';
 import AddVehicleForm from '@/components/Forms/AddVehicleForm';
@@ -84,6 +85,11 @@ const Vehicles: React.FC = () => {
         color: 'bg-red-500 hover:bg-red-600',
         text: 'Maintenance',
         icon: <AlertCircle className="h-4 w-4" />
+      },
+      inactive: {
+        color: 'bg-gray-500 hover:bg-gray-600',
+        text: 'Inactive',
+        icon: <X className="h-4 w-4" />
       },
     };
 
@@ -264,6 +270,7 @@ const Vehicles: React.FC = () => {
               <TabsTrigger value="available" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Available</TabsTrigger>
               <TabsTrigger value="rented" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Rented</TabsTrigger>
               <TabsTrigger value="maintenance" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Maintenance</TabsTrigger>
+              <TabsTrigger value="inactive" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Inactive</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>

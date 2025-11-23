@@ -109,7 +109,7 @@ export interface Vehicle {
   partnerShare?: number; // Partner share percentage (e.g., 50 for 50-50 partnership)
   serviceChargeRate?: number; // Service charge rate for partner taxis (default 10%)
   odometer: number;
-  status: 'available' | 'rented' | 'maintenance'; // Operational status
+  status: 'available' | 'rented' | 'maintenance' | 'inactive'; // Operational status
   financialStatus: 'cash' | 'loan_active' | 'loan_cleared'; // Financial/loan status
   assignedDriverId?: string;
   loanDetails: LoanDetails;

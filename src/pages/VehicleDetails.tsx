@@ -603,6 +603,7 @@ const VehicleDetails: React.FC = () => {
       available: { color: 'bg-green-500', text: 'Available' },
       rented: { color: 'bg-blue-500', text: 'Rented' },
       maintenance: { color: 'bg-red-500', text: 'Maintenance' },
+      inactive: { color: 'bg-gray-500', text: 'Inactive' },
     };
     
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
