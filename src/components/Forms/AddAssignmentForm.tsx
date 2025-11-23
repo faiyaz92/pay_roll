@@ -21,7 +21,7 @@ const assignmentSchema = z.object({
   vehicleId: z.string().min(1, 'Please select a vehicle'),
   driverId: z.string().min(1, 'Please select a driver'),
   startDate: z.string().min(1, 'Start date is required'),
-  dailyRent: z.number().min(100, 'Daily rent must be at least ₹100'),
+  dailyRent: z.number().min(1, 'Daily rent must be greater than 0'),
   collectionDay: z.number().min(0).max(6, 'Invalid collection day'),
   initialOdometer: z.number().min(0, 'Initial odometer reading is required'),
   securityDeposit: z.number().min(0, 'Security deposit is required'),

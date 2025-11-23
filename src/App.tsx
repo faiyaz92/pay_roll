@@ -25,6 +25,8 @@ import Reports from "./pages/Reports";
 import FinancialPage from "./pages/FinancialPage";
 import PartnerDetails from "./pages/PartnerDetails";
 import ExpenseDetails from "./pages/ExpenseDetails";
+import MaintenanceDetails from "./pages/MaintenanceDetails";
+import AssignmentDetails from "./pages/AssignmentDetails";
 import FullScreenLayout from "@/components/Layout/FullScreenLayout";
 import Utility from "@/pages/Utility";
 import StandaloneEMITab from "@/pages/StandaloneEMITab";
@@ -56,6 +58,8 @@ const App = () => (
               <Route path="partners" element={<Partners />} />
               <Route path="partners/:partnerId" element={<PartnerDetails />} />
               <Route path="expense-details/:expenseId" element={<ExpenseDetails />} />
+              <Route path="maintenance-details/:expenseId" element={<MaintenanceDetails />} />
+              <Route path="assignment-details/:assignmentId" element={<AssignmentDetails />} />
               <Route path="drivers/:driverId" element={<DriverDetails />} />
               <Route path="assignments" element={<Assignments />} />
               <Route path="insurance" element={<Insurance />} />

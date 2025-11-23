@@ -38,7 +38,8 @@ import {
   Car,
   CheckCircle as CheckCircleIcon,
   AlertCircle as AlertCircleIcon,
-  DollarSign as DollarSignIcon
+  DollarSign as DollarSignIcon,
+  Download
 } from 'lucide-react';
 import { Role } from '@/types/user';
 

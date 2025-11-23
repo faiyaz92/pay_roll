@@ -443,7 +443,7 @@ const Vehicles: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                    onClick={() => navigate(`/vehicles/${encodeURIComponent(vehicle.id)}`)}
                     className="flex-1"
                   >
                     <Eye className="w-4 h-4 mr-1" />
