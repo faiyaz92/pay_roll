@@ -44,8 +44,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    // Clear all caches and stored data
     localStorage.removeItem('userInfo');
     setUserInfo(null);
+    
+    // Clear any service worker caches if PWA is active
+    if ('serviceWorker' in navigator && 'caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames.map(cacheName => caches.delete(cacheName))
+        );
+        console.log('Service worker caches cleared');
+      } catch (error) {
+        console.error('Error clearing service worker caches:', error);
+      }
+    }
+    
     return signOut(auth);
   };
 
@@ -107,18 +122,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserInfo = async (user: User) => {
     try {
-      console.log('Fetching user info for:', user.uid);
-      
-      // Check localStorage first
+      console.log('Fetching user info for:', user.uid, 'email:', user.email);
+
+      // Check localStorage first - but only if it matches the current user
       const storedUserInfo = localStorage.getItem('userInfo');
       if (storedUserInfo) {
         const userData = JSON.parse(storedUserInfo);
-        console.log('Found stored user info:', userData);
-        setUserInfo(userData);
-        return;
-      }
-
-      // Check superAdmin path first
+        if (userData.userId === user.uid) {
+          console.log('Found matching stored user info:', userData);
+          setUserInfo(userData);
+          return;
+        } else {
+          console.log('Stored user info is for different user, clearing cache. Stored userId:', userData.userId, 'Current userId:', user.uid);
+          localStorage.removeItem('userInfo');
+        }
+      }      // Check superAdmin path first
       const superAdminDocRef = doc(db, `Easy2Solutions/companyDirectory/superAdmins/${user.uid}`);
       const superAdminSnapshot = await getDoc(superAdminDocRef);
 
@@ -203,38 +221,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('Setting up auth state listener');
-    
-    // Check if we have stored user info first
-    const storedUserInfo = localStorage.getItem('userInfo');
-    if (storedUserInfo) {
-      console.log('Found stored user info:', JSON.parse(storedUserInfo));
-      setUserInfo(JSON.parse(storedUserInfo));
-    }
-    
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('Auth state changed:', user?.uid || 'null');
-      
+
       if (user) {
         await fetchUserInfo(user);
       } else {
         console.log('No authenticated user found');
-        // If no stored user info and no authenticated user, create test data
-        if (!storedUserInfo) {
-          console.log('Creating test user for development');
-          const testUserInfo: UserInfo = {
-            userId: 'test-user-123',
-            companyId: 'test-company-123',
-            role: Role.COMPANY_ADMIN,
-            userName: 'Test User',
-            email: 'test@company.com',
-            name: 'Test User'
-          };
-          setUserInfo(testUserInfo);
-          localStorage.setItem('userInfo', JSON.stringify(testUserInfo));
-        } else {
-          setUserInfo(null);
-          localStorage.removeItem('userInfo');
-        }
+        // Clear user info when logged out
+        setUserInfo(null);
+        localStorage.removeItem('userInfo');
       }
       setCurrentUser(user);
       setLoading(false);
