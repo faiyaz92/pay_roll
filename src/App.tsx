@@ -5,33 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
-import Layout from "@/components/Layout/Layout";
-import VehicleDetails from "@/pages/VehicleDetails";
-import InsurancePolicyDetails from "@/pages/InsurancePolicyDetails";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
-import Vehicles from "@/pages/Vehicles";
-import Drivers from "@/pages/Drivers";
-import DriverDetails from "@/pages/DriverDetails";
-import Assignments from "@/pages/Assignments";
-import Insurance from "@/pages/Insurance";
-import Payments from "@/pages/Payments";
-import FuelRecords from "@/pages/FuelRecords";
-import MaintenanceRecords from "@/pages/MaintenanceRecords";
-import FuelPrices from "@/pages/FuelPrices";
-import NotFound from "@/pages/NotFound";
-import Partners from "@/pages/Partners";
-import Reports from "./pages/Reports";
-import FinancialPage from "./pages/FinancialPage";
-import PartnerDetails from "./pages/PartnerDetails";
-import ExpenseDetails from "./pages/ExpenseDetails";
-import MaintenanceDetails from "./pages/MaintenanceDetails";
-import AssignmentDetails from "./pages/AssignmentDetails";
-import FullScreenLayout from "@/components/Layout/FullScreenLayout";
-import Utility from "@/pages/Utility";
-import StandaloneEMITab from "@/pages/StandaloneEMITab";
-import StandaloneRentTab from "@/pages/StandaloneRentTab";
-import StandaloneExpensesTab from "@/pages/StandaloneExpensesTab";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -44,44 +20,12 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            <Route path="/" element={
+            <Route path="/dashboard" element={
               <ProtectedRoute>
-                <Layout />
+                <Dashboard />
               </ProtectedRoute>
-            }>
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="vehicles" element={<Vehicles />} />
-              <Route path="vehicles/:vehicleId" element={<VehicleDetails />} />
-              <Route path="financial" element={<FinancialPage />} />
-              <Route path="drivers" element={<Drivers />} />
-              <Route path="partners" element={<Partners />} />
-              <Route path="partners/:partnerId" element={<PartnerDetails />} />
-              <Route path="expense-details/:expenseId" element={<ExpenseDetails />} />
-              <Route path="maintenance-details/:expenseId" element={<MaintenanceDetails />} />
-              <Route path="assignment-details/:assignmentId" element={<AssignmentDetails />} />
-              <Route path="drivers/:driverId" element={<DriverDetails />} />
-              <Route path="assignments" element={<Assignments />} />
-              <Route path="insurance" element={<Insurance />} />
-              <Route path="insurance/:vehicleId" element={<InsurancePolicyDetails />} />
-              <Route path="payments" element={<Payments />} />
-              <Route path="maintenance-records" element={<MaintenanceRecords/>} />
-              <Route path="fuel-records" element={<FuelRecords/>} />
-              <Route path="fuel-prices" element={<FuelPrices/>} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="bookings" element={<div className="p-6"><h1 className="text-3xl font-bold">Booking Management</h1><p className="text-gray-600 mt-2">Manage customer car rental bookings</p></div>} />
-              <Route path="notifications" element={<div className="p-6"><h1 className="text-3xl font-bold">Notifications</h1><p className="text-gray-600 mt-2">View and manage system notifications</p></div>} />
-              <Route path="settings" element={<div className="p-6"><h1 className="text-3xl font-bold">Settings</h1><p className="text-gray-600 mt-2">Configure system settings and preferences</p></div>} />
-            </Route>
-            
-            <Route path="/" element={<FullScreenLayout />}>
-              <Route path="utility" element={<Utility />} />
-              <Route path="emi" element={<StandaloneEMITab />} />
-              <Route path="rent" element={<StandaloneRentTab />} />
-              <Route path="expenses" element={<StandaloneExpensesTab />} />
-            </Route>
-            
-            <Route path="*" element={<NotFound />} />
+            } />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>

@@ -1,30 +1,15 @@
 
-import React, { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import {
-  Car,
-  Users,
-  DollarSign,
-  TrendingUp,
-  AlertTriangle,
-  Calendar,
-  Shield,
-  Wrench,
-  ArrowUpRight,
-  ArrowDownRight,
-  Activity,
-  CreditCard,
-  Fuel,
-  Settings,
-  Eye
-} from 'lucide-react';
-import { useFirebaseData } from '@/hooks/useFirebaseData';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import PWAInstallButton from '@/components/PWAInstallButton';
+import React from 'react';
+
+const Dashboard: React.FC = () => {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <h1 className="text-4xl font-bold text-gray-900">Welcome to Payrole</h1>
+    </div>
+  );
+};
+
+export default Dashboard;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
