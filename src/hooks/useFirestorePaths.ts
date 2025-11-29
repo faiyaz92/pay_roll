@@ -25,23 +25,15 @@ export const useFirestorePaths = (companyId?: string) => {
     getTenantUserPath: (companyId: string, userId: string) => 
       `${tenantCompaniesPath}/${companyId}/${usersCollection}/${userId}`,
     
-    // Car Rental specific paths for current company (following BRD structure)
+    // HR/Payroll specific paths for current company
     getUsersPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/users` : '',
-    getVehiclesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/vehicles` : '',
-    getAssignmentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/assignments` : '',
-    getExpensesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/expenses` : '',
-    getPaymentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/payments` : '',
-    getReportsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/reports` : '',
-    getSettingsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/settings` : '',
+    getEmployeesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/employees` : '',
+    getPayrollPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/payroll` : '',
+    getAttendancePath: () => companyId ? `${tenantCompaniesPath}/${companyId}/attendance` : '',
+    getLeavePath: () => companyId ? `${tenantCompaniesPath}/${companyId}/leave` : '',
+    getDepartmentsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/departments` : '',
+    getNotificationsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/notifications` : '',
     getAuditLogsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/auditLogs` : '',
-    getFuelRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelRecords` : '',
-    getFuelPricesPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/fuelPrices` : '',
-    getMaintenanceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/maintenanceRecords` : '',
-    getInsuranceRecordsPath: () => companyId ? `${tenantCompaniesPath}/${companyId}/insuranceRecords` : '',
-    
-    // Vehicle subcollection paths
-    getOdometerHistoryPath: (vehicleId: string) => 
-      companyId ? `${tenantCompaniesPath}/${companyId}/vehicles/${vehicleId}/odometerHistory` : '',
     
   }), [companyId, basePath, tenantCompaniesPath]);
 };

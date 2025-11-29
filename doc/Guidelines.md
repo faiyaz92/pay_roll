@@ -79,15 +79,30 @@ Each version documents the evolution of features from v1 to current version.
 
 ### Future Development Path
 
-**Planned Versions:**
-- **v2.0:** Employee CRUD operations
-- **v3.0:** Payroll calculation engine
-- **v4.0:** Reporting and analytics
-- **v5.0:** Advanced HR features
+**Current Version (v1.0):** Complete GCC payroll platform with multi-role onboarding, employee master data, attendance tracking, leave policy automation, monthly payroll calculation linked to attendance, gratuity tracking, salary slip generation, and Wage Protection System (WPS) file export.
 
-Each version will have corresponding BRD, Technical Doc, and Checklist updates.
+**Planned Versions:**  
+- **v2.0:** Performance reviews and training records  
+- **v3.0:** Advanced analytics and reporting  
+- **v4.0:** Advanced HR features (recruitment, expense management)  
+- **v5.0:** Enterprise-level capabilities
 
-## AI Navigation Guidelines
+Each version will have corresponding BRD, Technical Doc, and Checklist updates.### GCC Payroll Expansion (v1.0 - Complete)
+
+**Documents Updated (2025-11-29)**  
+- `BRD-v1.md` – GCC payroll requirements (roles, attendance, leave, payroll, gratuity, WPS) and screen inventory.
+- `Technical-Doc-v1.md` – architecture deltas, Cloud Functions plan, module/component design.
+- `Database-Info-v1.md` – Firestore schemas for employees, attendance, leave policies, payroll cycles, WPS batches, salary slips.
+- `Checklist-v1.md` – task breakdown covering onboarding, employee master data, attendance, leave, payroll, WPS, QA, deployment.
+
+**Implementation Principles**  
+1. **Role Provisioning:** Company Admin invokes a callable function (`createHrUser`) to register HR users in Firebase Auth. HR uses similar flow (`createEmployeeUser`) to onboard employees so they can sign in through the existing login page.  
+2. **Employee Completeness:** Onboarding must capture GCC payroll essentials (basic salary ≥60% total, allowances, banking/IBAN, labour card, gratuity eligibility) to avoid WPS rejections/fines.  
+3. **Attendance → Leave → Payroll:** Attendance feeds leave balances; unpaid leave automatically deducts from payroll. Half-day and absent statuses must translate into fractional payable days.  
+4. **Leave Policy Automation:** HR defines PL/SL/CL entitlements and can run a quarterly accrual action that updates every employee with one click.  
+5. **Payroll Review & WPS:** Payroll cycles support previews, manual bonuses/deductions, gratuity accrual, and produce WPS files only after validation passes. HR reviews before export; employees receive salary slips post-lock.
+
+**Screen Coverage Reminder:** BRD-v1 Section 5 enumerates all UI flows (HR Management, Employee Directory, Attendance Calendar, Leave Management, Policy Builder, Payroll Wizard, WPS Preview, Salary Slip Center, Employee Self-Service, etc.). Every feature/task should map to at least one documented screen.## AI Navigation Guidelines
 
 ### How to Use This Documentation
 
@@ -152,10 +167,8 @@ For questions about this documentation or development approach:
 
 ---
 
-**Related Documents:**
-- BRD-v1.md
-- Technical-Doc-v1.md
-- Database-Info-v1.md
-- Checklist-v1.md
-
-**Next Update:** Guidelines-v2.md (Employee Management Features)
+**Related Documents:**  
+- BRD-v1.md  
+- Technical-Doc-v1.md  
+- Database-Info-v1.md  
+- Checklist-v1.md**Next Update:** Guidelines-v2.md (Employee Management Features)

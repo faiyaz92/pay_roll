@@ -3,202 +3,120 @@
 **Version:** 1.0  
 **Date:** November 29, 2025  
 **Author:** Payrole Development Team  
-**Status:** Active  
+**Status:** Planned - GCC Payroll Expansion
 
 ## Table of Contents
-1. [Authentication System](#1-authentication-system)
-2. [Dashboard Implementation](#2-dashboard-implementation)
-3. [PWA Features](#3-pwa-features)
-4. [Testing & Quality Assurance](#4-testing--quality-assurance)
-5. [Deployment](#5-deployment)
+1. [User & Role Management](#1-user--role-management)
+2. [Employee Master Data](#2-employee-master-data)
+3. [Attendance Module](#3-attendance-module)
+4. [Leave Management & Policies](#4-leave-management--policies)
+5. [Payroll & Gratuity Engine](#5-payroll--gratuity-engine)
+6. [WPS & Salary Slips](#6-wps--salary-slips)
+7. [Testing & Compliance QA](#7-testing--compliance-qa)
+8. [Deployment & Change Management](#8-deployment--change-management)
+9. [Version History](#9-version-history)
 
-## 1. Authentication System
-
-**Related BRD:** BRD-v1.md Section 3.1  
-**Related Technical Doc:** Technical-Doc-v1.md Section 4  
-**Priority:** High | **Status:** In Progress
-
-### 1.1 Firebase Auth Setup
-- [x] Create Firebase project
-- [x] Enable Authentication service
-- [x] Configure Firestore database
-- [x] Set up environment variables
-- [x] Initialize Firebase in app
-
-**Assignee:** Development Team  
-**Estimated Time:** 2 hours  
-**Actual Time:** 1.5 hours  
-**Completion Date:** 2025-11-29
-
-### 1.2 AuthContext Implementation
-- [x] Create AuthContext with TypeScript interfaces
-- [x] Implement login/logout functions
-- [x] Add role-based state management
-- [x] Handle loading and error states
-- [x] Integrate with React Router
-
-**Assignee:** Development Team  
-**Estimated Time:** 3 hours  
-**Actual Time:** 2.5 hours  
-**Completion Date:** 2025-11-29
-
-### 1.3 Login Component
-- [x] Create login form with validation
-- [x] Implement error handling
-- [x] Add loading states
-- [x] Style with Tailwind CSS
-- [x] Test authentication flow
-
-**Assignee:** Development Team  
-**Estimated Time:** 4 hours  
-**Actual Time:** 3 hours  
-**Completion Date:** 2025-11-29
-
-## 2. Dashboard Implementation
-
-**Related BRD:** BRD-v1.md Section 4.2, 7  
-**Related Technical Doc:** Technical-Doc-v1.md Section 3  
-**Related Database Info:** Database-Info-v1.md Section 1, 2  
-**Priority:** High | **Status:** Completed
-
-### 2.1 Basic Dashboard Component
-- [x] Create Dashboard.tsx component
-- [x] Implement welcome message
-- [x] Add responsive design
-- [x] Integrate with routing
-- [x] Test component rendering
-
-**Assignee:** Development Team  
-**Estimated Time:** 2 hours  
-**Actual Time:** 1 hour  
-**Completion Date:** 2025-11-29
-
-### 2.2 Navigation Setup
-- [x] Configure React Router
-- [x] Set up protected routes
-- [x] Add route guards
-- [x] Test navigation flow
-
-**Assignee:** Development Team  
-**Estimated Time:** 1.5 hours  
-**Actual Time:** 1 hour  
-**Completion Date:** 2025-11-29
-
-## 3. PWA Features
-
-**Related BRD:** BRD-v1.md Section 3.3  
-**Related Technical Doc:** Technical-Doc-v1.md Section 2  
-**Priority:** Medium | **Status:** Completed
-
-### 3.1 Service Worker
-- [x] Create service worker file
-- [x] Implement caching strategy
-- [x] Add offline functionality
-- [x] Register service worker in app
-
-**Assignee:** Development Team  
-**Estimated Time:** 3 hours  
-**Actual Time:** 2 hours  
-**Completion Date:** 2025-11-29
-
-### 3.2 Web App Manifest
-- [x] Create manifest.json
-- [x] Configure app metadata
-- [x] Add icon references
-- [x] Set display preferences
-
-**Assignee:** Development Team  
-**Estimated Time:** 1 hour  
-**Actual Time:** 0.5 hours  
-**Completion Date:** 2025-11-29
-
-### 3.3 Install Button
-- [x] Create PWAInstallButton component
-- [x] Detect installation capability
-- [x] Handle install prompt
-- [x] Add to dashboard
-
-**Assignee:** Development Team  
-**Estimated Time:** 2 hours  
-**Actual Time:** 1.5 hours  
-**Completion Date:** 2025-11-29
-
-## 4. Testing & Quality Assurance
-
-**Related BRD:** BRD-v1.md Section 8  
-**Priority:** High | **Status:** Pending
-
-### 4.1 Unit Testing
-- [ ] Write tests for AuthContext
-- [ ] Test authentication functions
-- [ ] Component testing with React Testing Library
-- [ ] Mock Firebase services
-
-**Assignee:** QA Team  
-**Estimated Time:** 4 hours  
-**Status:** Pending
-
-### 4.2 Integration Testing
-- [ ] Test login flow end-to-end
-- [ ] Verify PWA functionality
-- [ ] Cross-browser testing
-- [ ] Mobile responsiveness testing
-
-**Assignee:** QA Team  
-**Estimated Time:** 3 hours  
-**Status:** Pending
-
-### 4.3 Performance Testing
-- [ ] Lighthouse audit
-- [ ] Load time optimization
-- [ ] Bundle size analysis
-- [ ] Memory leak testing
-
-**Assignee:** QA Team  
-**Estimated Time:** 2 hours  
-**Status:** Pending
-
-## 5. Deployment
-
-**Related BRD:** BRD-v1.md Section 7  
-**Priority:** High | **Status:** Pending
-
-### 5.1 Vercel Deployment
-- [ ] Set up Vercel project
-- [ ] Configure build settings
-- [ ] Add environment variables
-- [ ] Deploy to production
-
-**Assignee:** DevOps Team  
-**Estimated Time:** 1 hour  
-**Status:** Pending
-
-### 5.2 Domain Configuration
-- [ ] Purchase domain (if needed)
-- [ ] Configure DNS settings
-- [ ] SSL certificate setup
-- [ ] Custom domain deployment
-
-**Assignee:** DevOps Team  
-**Estimated Time:** 2 hours  
-**Status:** Pending
+Legend: ☐ Not Started | ☐⚙ In Progress | ☑ Done
 
 ---
 
-## Summary
+## 1. User & Role Management
+**Related BRD:** BRD-v1 Section 4.1  
+**Related Technical Doc:** Technical-Doc-v1 Section 2  
+**Priority:** High
 
-**Total Tasks:** 13  
-**Completed:** 10 (77%)  
-**In Progress:** 0 (0%)  
-**Pending:** 3 (23%)  
+| Task ID | Task | Status | Notes |
+|---------|------|--------|-------|
+| 1.1 | Design Cloud Function `createHrUser` (Admin SDK) | ☐ | Callable + security rules |
+| 1.2 | Build Admin UI to invite HR users | ☐ | Modal form + validation |
+| 1.3 | Implement `createEmployeeUser` callable for onboarding | ☐ | Returns login instructions |
+| 1.4 | Update AuthContext to map new roles & claims | ☐ | Ensure routing guards |
+| 1.5 | Audit logging for user creation actions | ☐ | Write entries to `/auditLogs` |
 
-**Overall Status:** Ready for Testing  
-**Next Milestone:** QA Testing Phase  
+## 2. Employee Master Data
+**Related BRD:** Section 4.2  
+**Related Technical Doc:** Section 3  
+**Related Database Info:** Section 3
 
-**Related Documents:**  
-- BRD-v1.md  
-- Technical-Doc-v1.md  
-- Database-Info-v1.md  
+| Task ID | Task | Status | Notes |
+| 2.1 | Create Employee Directory screen with filters | ☐ | Table + stats |
+| 2.2 | Build multi-step Employee form (personal → payroll → banking) | ☐ | Reusable components |
+| 2.3 | Integrate Firebase Auth creation within onboarding flow | ☐ | Use callable function |
+| 2.4 | Store full payroll breakdown (basic, HRA, allowances, deductions) | ☐ | Data validation for percentages |
+| 2.5 | Capture banking + WPS fields with validation (IBAN, bank code) | ☐ | Mask sensitive data in UI |
+| 2.6 | Implement duplication/import (CSV) utility (optional) | ☐ | Stretch goal |
 
-**Version History:**  
-- v1.0 (2025-11-29): Initial checklist creation
+## 3. Attendance Module
+**Related BRD:** Section 4.3  
+**Related Technical Doc:** Section 4
+
+| Task ID | Task | Status | Notes |
+| 3.1 | Create attendance calendar/table view | ☐ | Day cards + filters |
+| 3.2 | Build attendance editor modal (status, times, notes) | ☐ | Support half-day |
+| 3.3 | Implement bulk CSV import | ☐ | Validate duplicates |
+| 3.4 | Write Firestore hooks (`useAttendance`) | ☐ | Query by month |
+| 3.5 | Add holiday/calendar settings | ☐ | Stored in company settings |
+
+## 4. Leave Management & Policies
+**Related BRD:** Section 4.4  
+**Related Technical Doc:** Section 5
+
+| Task ID | Task | Status | Notes |
+| 4.1 | Create leave policy builder UI | ☐ | Define entitlements, frequency |
+| 4.2 | Implement leave request workflow (submit, approve, reject) | ☐ | Status transitions |
+| 4.3 | Build quarterly accrual callable + scheduler | ☐ | Cloud Function |
+| 4.4 | Auto-deduct leave balances & convert to unpaid when insufficient | ☐ | Payroll integration |
+| 4.5 | Dashboard cards for leave balances & pending approvals | ☐ | Summary widgets |
+
+## 5. Payroll & Gratuity Engine
+**Related BRD:** Sections 4.5-4.6  
+**Related Technical Doc:** Section 6  
+**Database Info:** Section 6
+
+| Task ID | Task | Status | Notes |
+| 5.1 | Design payroll cycle wizard UI | ☐ | Stepper with review screens |
+| 5.2 | Build `generatePayrollDraft` Cloud Function | ☐ | Aggregates attendance & leaves |
+| 5.3 | Implement manual adjustments table (bonus, deductions) | ☐ | Inline editing |
+| 5.4 | Calculate gratuity accrual per cycle | ☐ | Configurable formula |
+| 5.5 | "Lock payroll" function to persist final figures & trigger slips | ☐ | Audit log |
+| 5.6 | Attendance-payroll validation errors (missing data) | ☐ | Pre-lock check list |
+
+## 6. WPS & Salary Slips
+**Related BRD:** Sections 4.6-4.7  
+**Related Technical Doc:** Sections 7-8
+
+| Task ID | Task | Status | Notes |
+| 6.1 | Company settings screen for WPS credentials | ☐ | Validate routing/bank codes |
+| 6.2 | Build WPS preview screen with validation summary | ☐ | Show missing bank info |
+| 6.3 | Implement `generateWpsBatch` Cloud Function (SIF file) | ☐ | Store file in Storage |
+| 6.4 | Integrate manual adjustments from WPS preview | ☐ | Linked to payroll adjustments |
+| 6.5 | Generate salary slip PDFs per employee | ☐ | Template + Storage upload |
+| 6.6 | Employee self-service portal (view slips, attendance summary) | ☐ | Role-based route |
+
+## 7. Testing & Compliance QA
+**Related BRD:** Section 9  
+**Technical Doc:** Sections 2-8
+
+| Task ID | Task | Status | Notes |
+| 7.1 | Unit tests for Auth creation functions | ☐ | Mock Admin SDK |
+| 7.2 | Integration tests: Employee onboarding → payroll | ☐ | Cypress/Playwright |
+| 7.3 | Attendance → payroll reconciliation test cases | ☐ | Edge cases (half-days) |
+| 7.4 | Leave accrual simulation tests | ☐ | Quarter boundary |
+| 7.5 | WPS file validation against sample regulator tool | ☐ | UAE SIF 2.0 |
+| 7.6 | Salary slip rendering snapshot tests | ☐ | PDF diff |
+
+## 8. Deployment & Change Management
+| Task ID | Task | Status | Notes |
+| 8.1 | Update Firestore security rules for new collections | ☐ | Role-based restrictions |
+| 8.2 | Configure Firebase indexes (attendance, leaves, payroll) | ☐ | Deploy via rules/indexes file |
+| 8.3 | Deploy Cloud Functions suite | ☐ | Ensure env vars set |
+| 8.4 | Update documentation (Guidelines, README) | ☐ | Link new modules |
+| 8.5 | Training materials for HR/Admin users | ☐ | Video or PDF |
+
+## 9. Version History
+| Version | Date | Notes |
+|---------|------|-------|
+| 1.0 | 2025-11-29 | GCC payroll checklist created |
+
+---
+**Next Actions:** Prioritize Section 1-3 tasks to unlock downstream payroll work. Update statuses as implementation progresses.
