@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <rect width="512" height="512" rx="64" fill="#2563eb"/>
-  <path d="M128 213.333h256v85.334H128z" fill="#ffffff"/>
-  <circle cx="170.667" cy="298.667" r="21.333" fill="#1e40af"/>
-  <circle cx="341.333" cy="298.667" r="21.333" fill="#1e40af"/>
-  <path d="M149.333 256h42.667v42.667H149.333zM320 256h42.667v42.667H320z" fill="#3b82f6"/>
-  <path d="M106.667 192h21.333v21.333h-21.333zM384 192h21.333v21.333H384z" fill="#60a5fa"/>
-  <path d="M192 149.333h128v42.667H192z" fill="#93c5fd"/>
-  <text x="256" y="373.333" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="32" font-weight="bold">RG</text>
+  <circle cx="256" cy="213.333" r="64" fill="#ffffff"/>
+  <path d="M192 277.333h128v85.334H192z" fill="#ffffff"/>
+  <circle cx="224" cy="320" r="16" fill="#2563eb"/>
+  <circle cx="288" cy="320" r="16" fill="#2563eb"/>
+  <path d="M224 352h64v21.333H224z" fill="#2563eb"/>
+  <text x="256" y="453.333" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="32" font-weight="bold">HR</text>
 </svg>
