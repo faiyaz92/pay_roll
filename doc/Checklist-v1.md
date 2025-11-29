@@ -56,8 +56,9 @@
 
 ## 2. Dashboard Implementation
 
-**Related BRD:** BRD-v1.md Section 3.2  
-**Related Technical Doc:** Technical-Doc-v1.md Section 5  
+**Related BRD:** BRD-v1.md Section 4.2, 7  
+**Related Technical Doc:** Technical-Doc-v1.md Section 3  
+**Related Database Info:** Database-Info-v1.md Section 1, 2  
 **Priority:** High | **Status:** Completed
 
 ### 2.1 Basic Dashboard Component
@@ -197,6 +198,7 @@
 **Related Documents:**  
 - BRD-v1.md  
 - Technical-Doc-v1.md  
+- Database-Info-v1.md  
 
 **Version History:**  
 - v1.0 (2025-11-29): Initial checklist creation

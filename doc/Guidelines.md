@@ -9,11 +9,12 @@
 
 ### Document-Driven Development Approach
 
-Payrole follows a structured document-driven development methodology where three interconnected documents maintain the project knowledge:
+Payrole follows a structured document-driven development methodology where four interconnected documents maintain the project knowledge:
 
 1. **BRD (Business Requirements Document)** - Business requirements and features
 2. **Technical Documentation** - Implementation details, architecture, and code explanations
-3. **Checklist** - Task tracking and implementation status
+3. **Database Information** - Collection/document schemas, relationships, and query patterns
+4. **Checklist** - Task tracking and implementation status
 
 ### Cross-Reference System
 
@@ -154,6 +155,7 @@ For questions about this documentation or development approach:
 **Related Documents:**
 - BRD-v1.md
 - Technical-Doc-v1.md
+- Database-Info-v1.md
 - Checklist-v1.md
 
 **Next Update:** Guidelines-v2.md (Employee Management Features)

@@ -115,7 +115,8 @@ self.addEventListener('fetch', (event) => {
 
 ## 3. Firebase Integration
 
-**Related BRD:** BRD-v1.md Section 4.2  
+**Related BRD:** BRD-v1.md Section 4.2, 7  
+**Related Database Info:** Database-Info-v1.md Section 2  
 **Related Checklist:** Checklist-v1.md Task 1.2
 
 ### 3.1 Configuration

@@ -12,8 +12,9 @@
 4. [Non-Functional Requirements](#4-non-functional-requirements)
 5. [User Roles and Permissions](#5-user-roles-and-permissions)
 6. [System Architecture Overview](#6-system-architecture-overview)
-7. [Implementation Timeline](#7-implementation-timeline)
-8. [Success Criteria](#8-success-criteria)
+7. [Database Schema Overview](#7-database-schema-overview)
+8. [Implementation Timeline](#8-implementation-timeline)
+9. [Success Criteria](#9-success-criteria)
 
 ## 1. Executive Summary
 
@@ -93,7 +94,27 @@ Payrole is a comprehensive HR and payroll management system designed to streamli
 
 **Detailed Architecture:** Technical-Doc-v1.md Section 1
 
-## 7. Implementation Timeline
+## 7. Database Schema Overview
+
+**Related Technical Doc:** Technical-Doc-v1.md Section 3  
+**Related Database Info:** Database-Info-v1.md  
+**Related Checklist:** Checklist-v1.md Task 1.2
+
+### Core Collections (v1.0)
+- **Users Collection:** Authentication and user profile data
+- **Employees Collection:** Employee master data (planned for v2.0)
+- **Payroll Collection:** Payroll calculations and records (planned for v3.0)
+- **Attendance Collection:** Daily attendance tracking (planned for v2.0)
+
+### Data Relationships
+- Users ↔ Employees (1:1 relationship)
+- Employees ↔ Departments (Many:1 relationship)
+- Employees ↔ Payroll (1:Many relationship)
+- Employees ↔ Attendance (1:Many relationship)
+
+**Complete Schema:** Database-Info-v1.md
+
+## 8. Implementation Timeline
 
 - **Phase 1 (Week 1-2):** Authentication system
 - **Phase 2 (Week 3):** Dashboard implementation
