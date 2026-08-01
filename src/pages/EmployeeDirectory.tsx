@@ -32,6 +32,7 @@ export default function EmployeeDirectory() {
   const {
     employees,
     loading,
+    error,
     searchTerm,
     setSearchTerm,
     fetchEmployees,
@@ -95,6 +96,11 @@ export default function EmployeeDirectory() {
         </CardHeader>
 
         <CardContent>
+          {error && (
+            <div className="mb-4 bg-destructive/10 border border-destructive/30 text-destructive rounded-md p-3 text-sm">
+              Failed to load employees: {error}
+            </div>
+          )}
           {/* Search and Filters */}
           <div className="mb-6 flex gap-4">
             <div className="flex-1 relative">
