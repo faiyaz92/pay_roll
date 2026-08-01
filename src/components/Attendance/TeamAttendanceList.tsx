@@ -8,10 +8,13 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { RotateCcw } from 'lucide-react';
 import { getEmployeesByCompany } from '@/useCases/employeeUseCases';
-import { getEmployeeAttendance } from '@/useCases/attendanceUseCases';
+import { getEmployeeAttendance, deleteTodayAttendance } from '@/useCases/attendanceUseCases';
 import type { Employee } from '@/types/employee';
 import type { AttendanceRecord } from '@/types/attendance';
 
@@ -51,30 +54,42 @@ export const TeamAttendanceList = ({ companyId }: TeamAttendanceListProps) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const isToday = date === todayISO();
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadData = () => {
     setLoading(true);
-
     const selectedDate = new Date(`${date}T00:00:00`);
 
-    Promise.all([
+    return Promise.all([
       getEmployeesByCompany(companyId),
       getEmployeeAttendance({ companyId, dateFrom: selectedDate, dateTo: selectedDate }),
     ])
       .then(([emps, recs]) => {
-        if (cancelled) return;
         setEmployees(emps.filter((e) => e.status === 'active'));
         setRecords(recs);
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .finally(() => setLoading(false));
+  };
 
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, date]);
+
+  const handleReset = async (employeeId: string) => {
+    setResettingId(employeeId);
+    try {
+      await deleteTodayAttendance(employeeId);
+      toast.success("Today's attendance cleared for this employee.");
+      await loadData();
+    } catch (err) {
+      console.error('Failed to reset attendance:', err);
+      toast.error('Failed to reset attendance');
+    } finally {
+      setResettingId(null);
+    }
+  };
 
   const recordByEmployee = new Map(records.map((r) => [r.employeeId, r]));
 
@@ -102,6 +117,7 @@ export const TeamAttendanceList = ({ companyId }: TeamAttendanceListProps) => {
                   <th className="py-2 pr-4">Check In</th>
                   <th className="py-2 pr-4">Check Out</th>
                   <th className="py-2 pr-4">Hours</th>
+                  {isToday && <th className="py-2 pr-4" />}
                 </tr>
               </thead>
               <tbody>
@@ -122,6 +138,22 @@ export const TeamAttendanceList = ({ companyId }: TeamAttendanceListProps) => {
                       <td className="py-2 pr-4">{formatTime(record?.checkIn as unknown as Date)}</td>
                       <td className="py-2 pr-4">{formatTime(record?.checkOut as unknown as Date)}</td>
                       <td className="py-2 pr-4">{record?.workHours !== undefined ? `${record.workHours.toFixed(1)}h` : '—'}</td>
+                      {isToday && (
+                        <td className="py-2 pr-4">
+                          {record && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 gap-1 text-xs text-muted-foreground hover:text-destructive"
+                              disabled={resettingId === emp.employeeId}
+                              onClick={() => handleReset(emp.employeeId)}
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              Reset
+                            </Button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

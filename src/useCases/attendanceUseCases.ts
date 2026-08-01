@@ -11,6 +11,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -397,6 +398,24 @@ export const getEmployeeAttendance = async (
     console.error('Error getting employee attendance:', error);
     throw error;
   }
+};
+
+/**
+ * Delete today's attendance record for an employee, if one exists — lets
+ * HR reset a mistaken/test check-in so the employee can check in again.
+ */
+export const deleteTodayAttendance = async (employeeId: string): Promise<void> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const q = query(
+    collection(db, 'attendance_records'),
+    where('employeeId', '==', employeeId),
+    where('date', '==', Timestamp.fromDate(today))
+  );
+
+  const querySnapshot = await getDocs(q);
+  await Promise.all(querySnapshot.docs.map((d) => deleteDoc(d.ref)));
 };
 
 /**
