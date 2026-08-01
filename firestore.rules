@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() {
+      return myUserDoc().role;
+    }
+
+    function myCompanyId() {
+      return myUserDoc().companyId;
+    }
+
+    function myEmployeeId() {
+      return myUserDoc().employeeId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && myRole() == 'super_admin';
+    }
+
+    function isHrOrAdmin() {
+      return isSignedIn() && myRole() in ['company_admin', 'hr_manager'];
+    }
+
+    function isCompanyStaff(companyId) {
+      return isSignedIn() && (isSuperAdmin() || (myCompanyId() == companyId && isHrOrAdmin()));
+    }
+
+    function isSelf(employeeId) {
+      return isSignedIn() && myRole() == 'employee' && myEmployeeId() == employeeId;
+    }
+
+    // /users/{uid} — a user can read their own doc; HR/Admin can read/manage
+    // users within their own company; only Super Admin can write top-level
+    // (employee/HR account creation writes happen client-side as the
+    // creating HR/Admin, scoped to their own companyId below).
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin() || (isHrOrAdmin() && resource.data.companyId == myCompanyId()));
+      allow create: if isSuperAdmin() || (isHrOrAdmin() && request.resource.data.companyId == myCompanyId());
+      allow update, delete: if isSuperAdmin() || (isHrOrAdmin() && resource.data.companyId == myCompanyId());
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || myCompanyId() == companyId);
+      allow write: if isSuperAdmin();
+    }
+
+    // Nested per-company subcollections (audit_logs, user_sessions, etc.)
+    match /companies/{companyId}/{document=**} {
+      allow read: if isCompanyStaff(companyId);
+      allow write: if isSignedIn() && myCompanyId() == companyId;
+    }
+
+    match /employees/{employeeId} {
+      allow read: if isCompanyStaff(resource.data.companyId) || isSelf(employeeId);
+      allow create: if isCompanyStaff(request.resource.data.companyId);
+      allow update: if isCompanyStaff(resource.data.companyId) || isSelf(employeeId);
+      allow delete: if isCompanyStaff(resource.data.companyId);
+    }
+
+    match /offices/{officeId} {
+      allow read: if isSignedIn();
+      allow write: if isHrOrAdmin() || isSuperAdmin();
+    }
+
+    match /employee_office_assignments/{assignmentId} {
+      allow read: if isSignedIn();
+      allow write: if isHrOrAdmin() || isSuperAdmin();
+    }
+
+    match /attendance_records/{recordId} {
+      allow read: if isCompanyStaff(resource.data.companyId) || isSelf(resource.data.employeeId);
+      allow create: if isCompanyStaff(request.resource.data.companyId) || isSelf(request.resource.data.employeeId);
+      allow update: if isCompanyStaff(resource.data.companyId) || isSelf(resource.data.employeeId);
+      allow delete: if isCompanyStaff(resource.data.companyId);
+    }
+
+    match /leave_balances/{employeeId} {
+      allow read: if isSelf(employeeId) || isSignedIn() && isHrOrAdmin();
+      allow write: if isSignedIn() && (isHrOrAdmin() || isSuperAdmin());
+    }
+
+    match /leave_requests/{leaveId} {
+      allow read: if isSignedIn() && (isHrOrAdmin() || isSuperAdmin() || isSelf(resource.data.employeeId));
+      allow create: if isSignedIn() && isSelf(request.resource.data.employeeId);
+      allow update: if isSignedIn() && (isHrOrAdmin() || isSuperAdmin());
+    }
+
+    match /payroll_cycles/{cycleId} {
+      allow read, write: if isHrOrAdmin() || isSuperAdmin();
+    }
+
+    match /payroll_components/{componentId} {
+      allow read, write: if isHrOrAdmin() || isSuperAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

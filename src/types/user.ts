@@ -1,39 +1,128 @@
-import { DocumentUpload } from "@/hooks/useFirebaseData";
-
+// GCC Payroll System Roles - Must match Database-Info-v1.md Section 2
 export enum Role {
+  SUPER_ADMIN = 'super_admin',
   COMPANY_ADMIN = 'company_admin',
-  PARTNER = 'partner'
-  // Future roles can be added here as needed
+  HR_MANAGER = 'hr_manager',
+  EMPLOYEE = 'employee'
 }
 
+// GCC Payroll User Interface - Must match /users collection schema
+export interface UserInfo {
+  uid: string; // Firebase Auth UID
+  email: string;
+  displayName: string;
+  role: Role;
+  employeeId?: string; // Links to /employees collection
+  companyId: string;
+  status: 'active' | 'inactive' | 'suspended';
+  lastLogin?: Date;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // GCC-specific fields
+  preferredLanguage?: 'en' | 'ar';
+  rtlEnabled?: boolean;
+}
+
+// GCC Payroll Employee Interface - Must match /employees collection schema
+export interface EmployeeInfo {
+  employeeId: string;
+  userId: string;
+  companyId: string;
+  personal: {
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    dateOfBirth: Date;
+    gender: 'male' | 'female';
+    nationality: string;
+    maritalStatus: 'single' | 'married' | 'divorced';
+    dependents: number;
+  };
+  employment: {
+    department: string;
+    designation: string;
+    grade: string;
+    costCenter: string;
+    officeId: string;
+    contractType: 'limited' | 'unlimited';
+    startDate: Date;
+    probationEndDate?: Date;
+    managerId?: string;
+  };
+  payroll: {
+    basicSalary: number;
+    hra: { amount: number; percentage: number };
+    transportation: number;
+    mobile: number;
+    utilities: number;
+    otherAllowances: Array<{ name: string; amount: number }>;
+    overtimeRate: number;
+    currency: 'AED' | 'SAR';
+  };
+  banking: {
+    bankName: string;
+    branch: string;
+    iban: string;
+    swiftCode: string;
+    accountNumber: string;
+    routingCode: string;
+  };
+  compliance: {
+    emiratesId: string;
+    passportNumber: string;
+    passportExpiry: Date;
+    visaStatus: string;
+    labourCardNumber: string;
+    gosiNumber: string;
+  };
+  gratuity: {
+    eligibilityYears: number;
+    startDate: Date;
+    status: 'eligible' | 'not_eligible';
+  };
+  status: 'active' | 'inactive' | 'terminated';
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// GCC Payroll Company Interface
+export interface CompanyInfo {
+  companyId: string;
+  name: string;
+  email: string;
+  country: string;
+  registrationNumber: string;
+  taxId: string;
+  establishedDate: Date;
+  industry: string;
+  employeeCount: number;
+  status: 'active' | 'inactive';
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Legacy Car Rental interfaces (keep for backward compatibility)
 export enum TenantCompanyType {
   CAR_RENTAL = 'Car Rental'
 }
 
-export interface UserInfo {
-  userId: string;
-  companyId?: string | null;
+export interface TenantCompany {
+  companyId: string;
   name: string;
   email: string;
-  userName: string;
-  role: Role;
   mobileNumber?: string;
+  gstin?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  zipCode?: string;
   address?: string;
-  photoUrl?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-  // Driver specific fields (for drivers managed by owner)
-  drivingLicense?: {
-    number: string;
-    expiry: string;
-    photoUrl: string;
-  };
-  idCard?: {
-    number: string;
-    photoUrl: string;
-  };
-  assignedTaxis?: string[]; // Array of vehicle IDs
-  isActive?: boolean;
+  createdBy: string;
+  createdAt: Date;
+  companyType: TenantCompanyType;
 }
 
 export interface TenantCompany {

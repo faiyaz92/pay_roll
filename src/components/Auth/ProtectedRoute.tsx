@@ -1,20 +1,8 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/GCCPayrollAuthContext';
 import { Loader2 } from 'lucide-react';
 import { Role } from '@/types/user';
-
-// Define expected shape of userInfo for type safety
-interface UserInfo {
-  role: Role;
-}
-
-// Extend AuthContext type to ensure consistency
-interface AuthContextType {
-  currentUser: unknown | null;
-  userInfo: UserInfo | null;
-  loading: boolean;
-}
 
 // Update interface to match App.jsx prop usage
 interface ProtectedRouteProps {
@@ -22,11 +10,12 @@ interface ProtectedRouteProps {
   allowedRoles?: Role[]; // Changed to array to match App.jsx
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  allowedRoles 
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedRoles
 }) => {
-  const { currentUser, userInfo, loading } = useAuth() as AuthContextType;
+  const { currentUser, userInfo, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -37,13 +26,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check if user is authenticated
-  if (!currentUser || !userInfo) {
+  if (!userInfo) {
     return <Navigate to="/login" replace />;
   }
 
   // Check if user has one of the allowed roles
   if (allowedRoles && !allowedRoles.includes(userInfo.role)) {
-    return <Navigate to="/not-found" replace />; // Changed to /not-found for consistency
+    return (
+      <Navigate
+        to="/unauthorized"
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
   }
 
   return <>{children}</>;

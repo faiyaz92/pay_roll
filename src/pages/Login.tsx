@@ -1,9 +1,9 @@
 
 import React from 'react';
-import LoginForm from '@/components/Auth/LoginForm';
+import GCCPayrollLoginForm from '@/components/Auth/GCCPayrollLoginForm';
 
 const Login: React.FC = () => {
-  return <LoginForm />;
+  return <GCCPayrollLoginForm />;
 };
 
 export default Login;

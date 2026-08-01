@@ -4,6 +4,9 @@ import './index.css'
 
 createRoot(document.getElementById("root")!).render(<App />);
 
+// PWA_ENABLE_NOTE: The full PWA bootstrap is disabled for QA/local testing.
+// See doc/PWA_ENABLE_GUIDELINE.md for instructions when re-enabling for production.
+/*
 // Dynamic manifest switching based on current route
 function updateManifestForRoute() {
   const currentPath = window.location.pathname;
@@ -413,3 +416,5 @@ function showInstallSuccessMessage() {
     }
   }, 3000);
 }
+
+*/
